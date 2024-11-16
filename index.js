@@ -1,22 +1,66 @@
-// index.js
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType } = require('discord.js');
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
 
-// Validate environment variables
-if (!process.env.DISCORD_TOKEN) {
-    throw new Error('DISCORD_TOKEN is missing in environment variables');
-}
+// Express setup
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-if (!process.env.CLIENT_ID) {
-    throw new Error('CLIENT_ID is missing in environment variables');
-}
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public')); // Create a 'public' folder for static files
 
-if (!process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI is missing in environment variables');
+app.get('/api/codes/genshin', async (req, res) => {
+    try {
+        const response = await axios.get('https://hoyo-codes.seria.moe/codes?game=genshin');
+        res.json(response.data);
+    } catch (error) {
+        console.error('Error fetching codes:', error);
+        res.status(500).json({ error: 'Failed to fetch codes' });
+    }
+});
+
+app.get('/api/codes/hsr', async (req, res) => {
+    try {
+        const response = await axios.get('https://hoyo-codes.seria.moe/codes?game=hkrpg');
+        res.json(response.data);
+    } catch (error) {
+        console.error('Error fetching codes:', error);
+        res.status(500).json({ error: 'Failed to fetch codes' });
+    }
+});
+
+// API Routes
+app.get('/api/codes/zzz', async (req, res) => {
+    try {
+        const response = await axios.get('https://hoyo-codes.seria.moe/codes?game=nap');
+        res.json(response.data);
+    } catch (error) {
+        console.error('Error fetching codes:', error);
+        res.status(500).json({ error: 'Failed to fetch codes' });
+    }
+});
+
+// Serve HTML
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Start Express server
+app.listen(PORT, () => {
+    console.log(`Web server running on port ${PORT}`);
+});
+
+// Discord bot setup
+if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID || !process.env.MONGODB_URI) {
+    throw new Error('Missing required environment variables');
 }
 
 const client = new Client({
@@ -28,7 +72,7 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// Function to register commands
+// Register commands function
 async function registerCommands() {
     const commands = [];
     const commandsPath = path.join(__dirname, 'commands');
@@ -41,88 +85,47 @@ async function registerCommands() {
         client.commands.set(command.data.name, command);
     }
 
-    try {
-        console.log('Started refreshing application (/) commands.');
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
-        // Log the values being used (for debugging)
-        console.log('Using Client ID:', process.env.CLIENT_ID);
-        
-        const data = await rest.put(
+    try {
+        await rest.put(
             Routes.applicationCommands(process.env.CLIENT_ID),
             { body: commands },
         );
-
-        console.log(`Successfully reloaded ${data.length} application (/) commands.`);
     } catch (error) {
-        console.error('Error details:', {
-            error: error.message,
-            code: error.code,
-            status: error.status,
-            url: error.url,
-            requestBody: error.requestBody
-        });
-        throw error; // Re-throw to handle it in the calling function
+        console.error(error);
     }
 }
 
-// Connect to MongoDB
+// Connect to MongoDB and start bot
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB'))
+    .then(() => {
+        console.log('Connected to MongoDB');
+        client.login(process.env.DISCORD_TOKEN);
+    })
     .catch(err => console.error('MongoDB connection error:', err));
 
-client.on('ready', async () => {
+client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
-    
-    // Set bot's activity status
-    client.user.setPresence({
-        activities: [{
-            name: 'for redemption codes',
-            type: ActivityType.Watching
-        }],
-        status: 'online'
-    });
-
-    try {
-        // Register commands on startup
-        await registerCommands();
-        
-        // Set up interval for checking new codes (every 5 minutes)
-        setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
-    } catch (error) {
-        console.error('Error during bot initialization:', error);
-        // You might want to exit the process here if command registration is critical
-        // process.exit(1);
-    }
+    registerCommands();
+    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
 
+// Handle commands
 client.on('interactionCreate', async interaction => {
-    try {
-        if (interaction.isCommand()) {
-            const command = client.commands.get(interaction.commandName);
-            if (!command) return;
+    if (!interaction.isCommand()) return;
 
-            await command.execute(interaction);
-        } 
-        else if (interaction.isModalSubmit()) {
-            const command = client.commands.get('redeem');
-            
-            if (command && command.modalSubmit) {
-                await command.modalSubmit(interaction);
-            }
-        }
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+
+    try {
+        await command.execute(interaction);
     } catch (error) {
-        console.error('Interaction error:', error);
-        const response = { 
-            content: 'There was an error processing your request!', 
+        console.error(error);
+        await interaction.reply({ 
+            content: 'Error executing command!', 
             ephemeral: true 
-        };
-        
-        if (interaction.deferred || interaction.replied) {
-            await interaction.followUp(response);
-        } else {
-            await interaction.reply(response);
-        }
+        });
     }
 });
 
@@ -134,5 +137,3 @@ process.on('uncaughtException', error => {
 process.on('unhandledRejection', error => {
     console.error('Unhandled Rejection:', error);
 });
-
-client.login(process.env.DISCORD_TOKEN);

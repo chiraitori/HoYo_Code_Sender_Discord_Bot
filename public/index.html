@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoYo Game Codes</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="text-center mb-4">HoYo Game Codes</h1>
+        
+        <!-- Game selector -->
+        <div class="row justify-content-center mb-4">
+            <div class="col-md-6">
+                <div class="btn-group w-100" role="group">
+                    <button class="btn btn-outline-primary active" onclick="switchGame('zzz')" id="btn-zzz">ZZZ</button>
+                    <button class="btn btn-outline-primary" onclick="switchGame('hsr')" id="btn-hsr">HSR</button>
+                    <button class="btn btn-outline-primary" onclick="switchGame('genshin')" id="btn-genshin">Genshin</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Loading spinner -->
+                <div id="loadingSpinner" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Fetching codes...</p>
+                </div>
+
+                <!-- Error alert -->
+                <div id="errorAlert" class="alert alert-danger d-none" role="alert">
+                    <h4 class="alert-heading">Error Details:</h4>
+                    <p id="errorMessage">Error loading codes.</p>
+                </div>
+
+                <!-- Refresh button -->
+                <div class="d-flex justify-content-end mb-3">
+                    <button class="btn btn-primary" onclick="fetchCodes()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                        </svg>
+                        Refresh Codes
+                    </button>
+                </div>
+
+                <!-- Table container -->
+                <div id="tableContainer" class="d-none">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Status</th>
+                                    <th>Rewards</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="codesTable">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentGame = 'genshin';
+
+        function switchGame(game) {
+            // Update active button
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`btn-${game}`).classList.add('active');
+            
+            // Update current game and fetch new codes
+            currentGame = game;
+            fetchCodes();
+        }
+
+        async function fetchCodes() {
+            // Show loading spinner, hide table and error
+            document.getElementById('loadingSpinner').classList.remove('d-none');
+            document.getElementById('tableContainer').classList.add('d-none');
+            document.getElementById('errorAlert').classList.add('d-none');
+
+            try {
+                const response = await fetch(`/api/code/${currentGame}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                populateTable(data);
+
+                // Hide spinner, show table
+                document.getElementById('loadingSpinner').classList.add('d-none');
+                document.getElementById('tableContainer').classList.remove('d-none');
+            } catch (error) {
+                console.error('Error fetching codes:', error);
+                document.getElementById('loadingSpinner').classList.add('d-none');
+                document.getElementById('errorAlert').classList.remove('d-none');
+                document.getElementById('errorMessage').textContent = 
+                    `Error loading codes: ${error.message}. Try refreshing the page.`;
+            }
+        }
+
+        function populateTable(data) {
+            const tableBody = document.getElementById('codesTable');
+            tableBody.innerHTML = ''; // Clear existing content
+            
+            data.codes.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <code class="bg-light px-2 py-1 rounded">${item.code}</code>
+                    </td>
+                    <td>
+                        <span class="badge bg-success">${item.status}</span>
+                    </td>
+                    <td>${item.rewards}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="copyToClipboard('${item.code}')">
+                            Copy Code
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Create and show toast notification
+                const toastContainer = document.createElement('div');
+                toastContainer.style.position = 'fixed';
+                toastContainer.style.bottom = '20px';
+                toastContainer.style.right = '20px';
+                toastContainer.style.zIndex = '1050';
+                
+                toastContainer.innerHTML = `
+                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header">
+                            <strong class="me-auto">Success</strong>
+                            <button type="button" class="btn-close" onclick="this.closest('.toast').remove()"></button>
+                        </div>
+                        <div class="toast-body">
+                            Code copied to clipboard!
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(toastContainer);
+                setTimeout(() => toastContainer.remove(), 3000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+
+        // Fetch codes when page loads
+        document.addEventListener('DOMContentLoaded', fetchCodes);
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

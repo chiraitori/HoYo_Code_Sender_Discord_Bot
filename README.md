@@ -87,12 +87,6 @@ Admins can enable or disable the automatic code sending feature using the `/togg
 - User-friendly error messages.
 - Logging of errors for debugging purposes.
 
-## Dependencies
-
-- `discord.js`: ^14.16.3
-- `axios`: ^1.7.7
-- `mongoose`: ^8.8.1
-
 ### API Integration
 
 Uses the [HoYo Codes API](https://hoyo-codes.seria.moe/codes) to fetch the latest redemption codes for:
