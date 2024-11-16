@@ -91,7 +91,7 @@
             document.getElementById('errorAlert').classList.add('d-none');
 
             try {
-                const response = await fetch(`/api/code/${currentGame}`);
+                const response = await fetch(`/api/codes/${currentGame}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
