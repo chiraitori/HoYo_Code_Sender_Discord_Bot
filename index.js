@@ -111,6 +111,26 @@ client.once('ready', () => {
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
 
+client.on('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}`);
+    
+    // Set bot's activity status
+    client.user.setPresence({
+        activities: [{
+            name: 'for redemption codes',
+            type: ActivityType.Watching
+        }],
+        status: 'online'
+    });
+
+    try {
+        await registerCommands();
+        setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
+    } catch (error) {
+        console.error('Error during bot initialization:', error);
+    }
+});
+
 // Handle commands
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
