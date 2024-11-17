@@ -1,6 +1,7 @@
 // commands/toggleautosend.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Settings = require('../models/Settings');
+const languageManager = require('../utils/language');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -18,6 +19,17 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Get translated loading message
+            const loadingMessage = await languageManager.getString(
+                'commands.toggleautosend.loading',
+                interaction.guildId
+            );
+
+            await interaction.reply({ 
+                content: loadingMessage, 
+                ephemeral: true 
+            });
+
             const status = interaction.options.getString('status');
             let settings = await Settings.findOne({ guildId: interaction.guildId });
             
@@ -28,16 +40,31 @@ module.exports = {
             settings.autoSendEnabled = status === 'enable';
             await settings.save();
 
-            await interaction.reply({
-                content: `Auto-send is now: **${status.toUpperCase()}D**`,
-                ephemeral: true
+            // Get translated success message
+            const successMessage = await languageManager.getString(
+                'commands.toggleautosend.success',
+                interaction.guildId,
+                { status: status.toUpperCase() }
+            );
+
+            await interaction.editReply({
+                content: successMessage
             });
+
         } catch (error) {
             console.error('Error setting auto-send:', error);
-            await interaction.reply({
-                content: 'Failed to update auto-send setting.',
-                ephemeral: true
-            });
+            
+            // Get translated error message
+            const errorMessage = await languageManager.getString(
+                'commands.toggleautosend.error',
+                interaction.guildId
+            );
+
+            if (interaction.replied) {
+                await interaction.editReply({ content: errorMessage });
+            } else {
+                await interaction.reply({ content: errorMessage, ephemeral: true });
+            }
         }
     }
 };

@@ -65,6 +65,11 @@ Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord
 - `zzz_role` - Role to mention for Zenless Zone Zero codes.
 - `channel` - Channel where the codes will be sent.
 
+### To Do
+
+- [X] Add language file and command changer
+- [ ] Add translate dictionary to full translate the api to some language
+
 ### Listing Codes
 **Options:**
 

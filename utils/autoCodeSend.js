@@ -2,6 +2,8 @@ const axios = require('axios');
 const Code = require('../models/Code');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
+const Language = require('../models/Language');
+const languageManager = require('./language');
 const { EmbedBuilder } = require('discord.js');
 
 const gameNames = {
@@ -18,8 +20,8 @@ const redeemUrls = {
 
 const roleMapping = {
     'genshin': 'genshinRole',
-    'hkrpg': 'hsrRole',    // Fix: Changed from hkrpg to hsrRole to match Config schema
-    'nap': 'zzzRole'       // Fix: Changed from nap to zzzRole to match Config schema
+    'hkrpg': 'hsrRole',
+    'nap': 'zzzRole'
 };
 
 async function checkAndSendNewCodes(client) {
@@ -27,25 +29,16 @@ async function checkAndSendNewCodes(client) {
     const games = ['genshin', 'hkrpg', 'nap'];
     
     for (const game of games) {
-        console.log(`Checking codes for ${gameNames[game]}`); 
-        
         try {
-            console.log(`Fetching from API for ${game}...`); 
             const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`);
-            console.log('API Response:', JSON.stringify(response.data, null, 2));
-            
             const groupedCodes = {};
 
-            // Group codes by game
             if (response.data?.codes?.length) {
                 for (const codeData of response.data.codes) {
-                    console.log(`Processing code: ${codeData.code}`); 
-                    
                     try {
                         const existingCode = await Code.findOne({ code: codeData.code, game: codeData.game });
                         
                         if (!existingCode && codeData.status === 'OK') {
-                            // Save new code
                             const newCode = new Code({
                                 game: codeData.game,
                                 code: codeData.code,
@@ -54,7 +47,6 @@ async function checkAndSendNewCodes(client) {
                             });
                             await newCode.save();
 
-                            // Group codes by game
                             if (!groupedCodes[codeData.game]) {
                                 groupedCodes[codeData.game] = [];
                             }
@@ -65,46 +57,72 @@ async function checkAndSendNewCodes(client) {
                     }
                 }
 
-                // Send notifications for each game's codes
                 const configs = await Config.find({});
                 
-                for (const game in groupedCodes) {
-                    const codes = groupedCodes[game];
-                    if (codes.length > 0) {
-                        const embed = new EmbedBuilder()
-                            .setColor('#00ff00')
-                            .setTitle(`New ${gameNames[game]} Codes!`)
-                            .setDescription(codes.map(code => 
-                                `**${code.code}**\n[Click to redeem](${redeemUrls[game]}?code=${code.code})\n└ Rewards: ${code.rewards || 'Not specified'}`
-                            ).join('\n\n'))
-                            .setTimestamp();
+                for (const config of configs) {
+                    const guildLang = await Language.findOne({ guildId: config.guildId });
+                    const guildId = config.guildId;
 
-                        for (const config of configs) {
-                            // Check if auto-send is enabled for this guild
-                            const settings = await Settings.findOne({ guildId: config.guildId });
-                            if (!settings?.autoSendEnabled) continue;
+                    for (const game in groupedCodes) {
+                        const codes = groupedCodes[game];
+                        if (codes.length > 0) {
+                            try {
+                                const title = await languageManager.getString(
+                                    'commands.listcodes.newCodes',
+                                    guildId,
+                                    { game: gameNames[game] }
+                                );
 
-                            if (config?.channel) {
-                                const channel = client.channels.cache.get(config.channel);
-                                if (channel) {
-                                    const roleField = roleMapping[game];
-                                    const roleId = config[roleField];
-                                    const roleTag = roleId ? `<@&${roleId}> ` : '';
+                                const redeemText = await languageManager.getString(
+                                    'commands.listcodes.redeemButton',
+                                    guildId
+                                );
+
+                                const rewardsText = await languageManager.getString(
+                                    'commands.listcodes.reward',
+                                    guildId
+                                );
+
+                                const descriptionPromises = codes.map(async code => {
+                                    const rewardString = code.rewards ? 
+                                        rewardsText.replace('{reward}', code.rewards) : 
+                                        await languageManager.getString('commands.listcodes.noReward', guildId);
                                     
-                                    await channel.send({ content: roleTag, embeds: [embed] });
+                                    return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
+                                });
+
+                                const descriptions = await Promise.all(descriptionPromises);
+                                const finalDescription = descriptions.join('\n\n');
+
+                                const embed = new EmbedBuilder()
+                                    .setColor('#00ff00')
+                                    .setTitle(title)
+                                    .setDescription(finalDescription)
+                                    .setTimestamp();
+
+                                const settings = await Settings.findOne({ guildId: config.guildId });
+                                if (!settings?.autoSendEnabled) continue;
+
+                                if (config?.channel) {
+                                    const channel = client.channels.cache.get(config.channel);
+                                    if (channel) {
+                                        const roleField = roleMapping[game];
+                                        const roleId = config[roleField];
+                                        const roleTag = roleId ? `<@&${roleId}> ` : '';
+                                        
+                                        await channel.send({ content: roleTag, embeds: [embed] });
+                                    }
+                                    console.log(`Done sending new codes`);
                                 }
+                            } catch (error) {
+                                console.error(`Error sending message to guild ${config.guildId}:`, error);
                             }
                         }
                     }
                 }
-            } else {
-                console.error('Invalid API response structure:', response.data); 
             }
         } catch (error) {
-            console.error(`Error processing ${game}:`, error.message); 
-            if (error.response) {
-                console.error('Error response:', error.response.data); 
-            }
+            console.error(`Error processing ${game}:`, error);
         }
     }
 }

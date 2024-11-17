@@ -66,7 +66,10 @@ if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID || !process.env.MONGODB
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences
     ]
 });
 
@@ -74,26 +77,34 @@ client.commands = new Collection();
 
 // Register commands function
 async function registerCommands() {
-    const commands = [];
-    const commandsPath = path.join(__dirname, 'commands');
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        commands.push(command.data.toJSON());
-        client.commands.set(command.data.name, command);
-    }
-
-    const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-
     try {
+        const commands = [];
+        const commandsPath = path.join(__dirname, 'commands');
+        const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+        for (const file of commandFiles) {
+            const filePath = path.join(commandsPath, file);
+            // Clear require cache
+            delete require.cache[require.resolve(filePath)];
+            const command = require(filePath);
+            
+            if ('data' in command && 'execute' in command) {
+                commands.push(command.data.toJSON());
+                client.commands.set(command.data.name, command);
+                console.log(`Registered command: ${command.data.name}`);
+            }
+        }
+
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+        console.log('Started refreshing application (/) commands.');
         await rest.put(
             Routes.applicationCommands(process.env.CLIENT_ID),
-            { body: commands },
+            { body: commands }
         );
+        console.log('Successfully registered application commands.');
     } catch (error) {
-        console.error(error);
+        console.error('Error registering commands:', error);
     }
 }
 
@@ -105,16 +116,14 @@ mongoose.connect(process.env.MONGODB_URI)
     })
     .catch(err => console.error('MongoDB connection error:', err));
 
-client.once('ready', () => {
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
-    registerCommands();
-    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
-});
-
-client.on('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}`);
-    
-    // Set bot's activity status
+    try {
+        await registerCommands();
+        console.log('Commands registered successfully');
+    } catch (error) {
+        console.error('Error during startup:', error);
+    }
     client.user.setPresence({
         activities: [{
             name: 'for redemption codes',
@@ -122,30 +131,44 @@ client.on('ready', async () => {
         }],
         status: 'online'
     });
-
-    try {
-        await registerCommands();
-        setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
-    } catch (error) {
-        console.error('Error during bot initialization:', error);
-    }
+    
+    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
 
-// Handle commands
+// Handle interactions
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
-
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
-
     try {
-        await command.execute(interaction);
+        // Command interactions
+        if (interaction.isCommand()) {
+            const command = client.commands.get(interaction.commandName);
+            if (!command) return;
+
+            try {
+                await command.execute(interaction);
+            } catch (error) {
+                console.error('Command execution error:', error);
+                const content = { 
+                    content: 'An error occurred while executing this command.',
+                    ephemeral: true 
+                };
+
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply(content);
+                } else {
+                    await interaction.reply(content);
+                }
+            }
+        }
+        
+        // Modal submit interactions
+        if (interaction.isModalSubmit() && interaction.customId === 'redeemModal') {
+            const command = client.commands.get('redeem');
+            if (command?.modalSubmit) {
+                await command.modalSubmit(interaction);
+            }
+        }
     } catch (error) {
-        console.error(error);
-        await interaction.reply({ 
-            content: 'Error executing command!', 
-            ephemeral: true 
-        });
+        console.error('Interaction error:', error);
     }
 });
 

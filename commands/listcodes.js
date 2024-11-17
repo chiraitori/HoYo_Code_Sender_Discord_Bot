@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const Code = require('../models/Code');
+const languageManager = require('../utils/language');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,97 +16,81 @@ module.exports = {
                     { name: 'Honkai: Star Rail', value: 'hkrpg' },
                     { name: 'Zenless Zone Zero', value: 'nap' }
                 )),
+
     async execute(interaction) {
-        await interaction.deferReply(); // Defer the reply since API call might take time
-        
-        const game = interaction.options.getString('game');
-        const gameNames = {
-            'genshin': 'Genshin Impact',
-            'hkrpg': 'Honkai: Star Rail',
-            'nap': 'Zenless Zone Zero'
-        };
-        
         try {
+            const game = interaction.options.getString('game');
+            
+            // Get translated messages using correct key
+            const loadingMessage = await languageManager.getString('commands.listcodes.loading', interaction.guildId);
+            await interaction.reply({ content: loadingMessage, ephemeral: false });
+
             const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`);
             
-            // Check if response.data exists and has the codes array
-            if (!response.data || !response.data.codes || !Array.isArray(response.data.codes)) {
-                console.error('Invalid API response:', response.data);
-                await interaction.editReply('Error: Invalid response from API. Please try again later.');
-                return;
+            if (!response.data?.codes?.length) {
+                const noCodesMessage = await languageManager.getString(
+                    'commands.listcodes.noCodes', 
+                    interaction.guildId,
+                    { game: gameNames[game] }
+                );
+                return await interaction.editReply({ content: noCodesMessage });
             }
 
-            const codes = response.data.codes;
-            
-            if (codes.length === 0) {
-                await interaction.editReply(`No active codes found for ${gameNames[game]}.`);
-                return;
-            }
+            // Get game choice
+            const gameNames = {
+                'genshin': 'Genshin Impact',
+                'hkrpg': 'Honkai: Star Rail',
+                'nap': 'Zenless Zone Zero'
+            };
 
-            // Create an embed for better presentation
+            const title = await languageManager.getString(
+                'commands.listcodes.title',
+                interaction.guildId,
+                { game: gameNames[game] }
+            );
+
             const embed = new EmbedBuilder()
                 .setColor('#0099ff')
-                .setTitle(`Active Codes for ${gameNames[game]}`)
+                .setTitle(title)
                 .setTimestamp();
 
-            let description = '';
-            
-            // Sort codes by ID (since expireAt is not in the response)
-            codes.sort((a, b) => b.id - a.id);
-
-            // Add redemption URLs for each game
             const redeemUrls = {
                 'genshin': 'https://genshin.hoyoverse.com/en/gift',
                 'hkrpg': 'https://hsr.hoyoverse.com/gift',
                 'nap': 'https://zenless.hoyoverse.com/redemption'
             };
 
-            // Modify the codes.forEach section
-            codes.forEach(code => {
-                let codeInfo = `**${code.code}**`;
-                if (code.rewards) {
-                    codeInfo += `\n└ Reward: ${code.rewards}`;
-                }
-                if (code.status && code.status !== 'OK') {
-                    codeInfo += `\n└ Status: ${code.status}`;
-                }
-                codeInfo += `\n[Click to redeem](${redeemUrls[game]}?code=${code.code})`;
-                description += `${codeInfo}\n\n`;
-            });
+            const description = await Promise.all(response.data.codes
+                .sort((a, b) => b.id - a.id)
+                .map(async code => {
+                    const rewardText = code.rewards ? 
+                        await languageManager.getString('commands.listcodes.reward', interaction.guildId, { reward: code.rewards }) : '';
+                    const redeemText = await languageManager.getString('commands.listcodes.redeemButton', interaction.guildId);
+                    
+                    return `**${code.code}**\n` +
+                        `${rewardText}\n` +
+                        `[${redeemText}](${redeemUrls[game]}?code=${code.code})`;
+                }));
 
-            // If description is too long, split it into multiple fields
-            if (description.length > 4096) {
-                const chunks = description.match(/.{1,1024}/g);
-                chunks.forEach((chunk, index) => {
-                    embed.addFields({
-                        name: index === 0 ? 'Codes' : 'Continued',
-                        value: chunk
-                    });
-                });
-            } else {
-                embed.setDescription(description);
-            }
-            
-            
-            embed.addFields({
-                name: 'Redeem Here',
-                value: redeemUrls[game]
-            });
+            embed.setDescription(description.join('\n\n'));
 
-            await interaction.editReply({ embeds: [embed] });
+            const redeemHeader = await languageManager.getString('commands.listcodes.redeemHeader', interaction.guildId);
+            embed.addFields({ name: redeemHeader, value: redeemUrls[game] });
+
+            await interaction.editReply({ content: null, embeds: [embed] });
 
         } catch (error) {
-            console.error('Error fetching codes:', error);
-            
-            let errorMessage = 'Error fetching codes. Please try again later.';
-            if (error.response) {
-                console.error('API Error Response:', error.response.data);
-                if (error.response.status === 404) {
-                    errorMessage = `No codes found for ${gameNames[game]}.`;
+            console.error('Error:', error);
+            try {
+                const errorMessage = await languageManager.getString('commands.listcodes.error', interaction.guildId);
+                if (interaction.replied) {
+                    await interaction.editReply({ content: errorMessage });
+                } else {
+                    await interaction.reply({ content: errorMessage, ephemeral: true });
                 }
+            } catch (e) {
+                console.error('Failed to send error message:', e);
             }
-            
-            await interaction.editReply(errorMessage);
         }
-    },
+    }
 };
