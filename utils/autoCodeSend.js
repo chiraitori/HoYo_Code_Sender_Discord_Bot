@@ -85,7 +85,7 @@ async function checkAndSendNewCodes(client) {
 
                                 const descriptionPromises = codes.map(async code => {
                                     const rewardString = code.rewards ? 
-                                        rewardsText.replace('{reward}', code.rewards) : 
+                                        await languageManager.getRewardString(code.rewards, guildId) : 
                                         await languageManager.getString('commands.listcodes.noReward', guildId);
                                     
                                     return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;

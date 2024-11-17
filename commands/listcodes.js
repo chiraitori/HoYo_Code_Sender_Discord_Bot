@@ -60,11 +60,14 @@ module.exports = {
                 'nap': 'https://zenless.hoyoverse.com/redemption'
             };
 
+            // In the execute function where rewards are displayed
             const description = await Promise.all(response.data.codes
                 .sort((a, b) => b.id - a.id)
                 .map(async code => {
                     const rewardText = code.rewards ? 
-                        await languageManager.getString('commands.listcodes.reward', interaction.guildId, { reward: code.rewards }) : '';
+                        await languageManager.getRewardString(code.rewards, interaction.guildId) : 
+                        await languageManager.getString('commands.listcodes.noReward', interaction.guildId);
+                        
                     const redeemText = await languageManager.getString('commands.listcodes.redeemButton', interaction.guildId);
                     
                     return `**${code.code}**\n` +

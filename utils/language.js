@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Language = require('../models/Language');
+const { translateReward } = require('./dictionary');
 
 class LanguageManager {
     constructor() {
@@ -39,6 +40,21 @@ class LanguageManager {
         } catch (error) {
             console.error('Language error:', error);
             return key;
+        }
+    }
+
+    async getRewardString(reward, guildId) {
+        try {
+            const guildLang = await Language.findOne({ guildId });
+            const selectedLang = guildLang?.language || 'en';
+            
+            const translatedReward = translateReward(reward, selectedLang);
+            const rewardTemplate = await this.getString('commands.listcodes.reward', guildId);
+            
+            return rewardTemplate.replace('{reward}', translatedReward);
+        } catch (error) {
+            console.error('Error translating reward:', error);
+            return reward;
         }
     }
 

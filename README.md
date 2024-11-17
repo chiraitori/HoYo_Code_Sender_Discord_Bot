@@ -68,12 +68,12 @@ Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord
 ### To Do
 
 - [X] Add language file and command changer
-- [ ] Add translate dictionary to full translate the api to some language
+- [X] Add translate dictionary to full translate the api to some language (35% complete)
 
 ### Listing Codes
 **Options:**
 
-- `game` - Select the game (`genshin`, `hkrpg`, or `nap`).
+- `game` - Select the game (`genshin`, `hsr`, or `zzz`).
 
 ### Redeeming Codes
 - **Game selection**

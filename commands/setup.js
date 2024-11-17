@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const languageManager = require('../utils/language');
-const handleInteraction = require('../utils/interactionHandler');
 
 module.exports = {
     data: new SlashCommandBuilder()
