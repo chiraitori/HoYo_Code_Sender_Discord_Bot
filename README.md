@@ -5,7 +5,7 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 
 
 
-![Discord Bots](https://top.gg/api/widget/1124167011585511516.svg)(https://top.gg/bot/1124167011585511516)]
+![Discord Bots](https://top.gg/api/widget/1124167011585511516.svg)
 
 
 ## Features
