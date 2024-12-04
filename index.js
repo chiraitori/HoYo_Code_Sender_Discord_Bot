@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
+const { setupTopggWebhook } = require('./utils/topggWebhook');
 
 // Express setup
 const app = express();
@@ -134,6 +135,9 @@ client.once('ready', async () => {
     
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
+
+// After Express and client setup
+setupTopggWebhook(app, client);
 
 // Handle interactions
 client.on('interactionCreate', async interaction => {

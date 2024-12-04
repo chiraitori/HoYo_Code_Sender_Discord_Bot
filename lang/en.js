@@ -55,6 +55,15 @@ module.exports = {
             error: 'Failed to set server language',
             description: 'Set the bot language for this server',
             languageOption: 'Select language'
+        },
+        vote: {
+            title: 'Vote for HoYo Code Sender',
+            description: 'Support us by voting on Top.gg! Your votes help us grow and reach more users.',
+            status: 'Vote Status',
+            hasVoted: '✅ Thank you for voting! You can vote again in 12 hours.',
+            hasNotVoted: '❌ You haven\'t voted yet today!',
+            link: 'Vote Here',
+            error: 'Error checking vote status. Please try again.'
         }
     },
     errors: {

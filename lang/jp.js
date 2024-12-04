@@ -55,6 +55,15 @@ module.exports = {
             loading: '自動送信設定を更新中...',
             success: '自動送信が「{status}」に設定されました',
             error: '自動送信設定の更新に失敗しました'
+        },
+        vote: {
+            title: 'HoYo Code Senderに投票',
+            description: 'Top.ggで投票して私たちをサポートしてください！あなたの投票が成長とより多くのユーザーへの到達を助けます。',
+            status: '投票状況',
+            hasVoted: '✅ 投票ありがとうございます！12時間後に再度投票できます。',
+            hasNotVoted: '❌ まだ今日は投票していません！',
+            link: '投票はこちら',
+            error: '投票状況の確認中にエラーが発生しました。もう一度お試しください。'
         }
     },
     errors: {

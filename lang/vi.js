@@ -55,6 +55,15 @@ module.exports = {
             error: 'Không thể cài đặt ngôn ngữ cho máy chủ',
             description: 'Cài đặt ngôn ngữ cho bot trong máy chủ',
             languageOption: 'Chọn ngôn ngữ'
+        },
+        vote: {
+            title: 'Bình chọn cho HoYo Code Sender',
+            description: 'Hãy ủng hộ chúng tôi bằng cách bình chọn trên Top.gg! Phiếu bầu của bạn giúp chúng tôi phát triển và tiếp cận nhiều người dùng hơn.',
+            status: 'Trạng thái bình chọn',
+            hasVoted: '✅ Cảm ơn bạn đã bình chọn! Bạn có thể bình chọn lại sau 12 giờ.',
+            hasNotVoted: '❌ Bạn chưa bình chọn hôm nay!',
+            link: 'Bình chọn tại đây',
+            error: 'Lỗi kiểm tra trạng thái bình chọn. Vui lòng thử lại.'
         }
     },
     errors: {
