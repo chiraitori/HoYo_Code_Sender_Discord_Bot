@@ -16,16 +16,6 @@ COPY . .
 # Runtime stage
 FROM node:18-alpine
 
-# Install necessary system packages
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont
-
 # Create non-root user
 RUN addgroup -S botuser && adduser -S botuser -G botuser
 
