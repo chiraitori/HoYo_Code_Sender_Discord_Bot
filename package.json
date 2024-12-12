@@ -16,9 +16,7 @@
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
-    "genshin-db": "^5.1.9",
     "mongoose": "^8.8.1",
-    "puppeteer": "^23.10.0",
     "topgg-autoposter": "^2.0.2"
   },
   "devDependencies": {
