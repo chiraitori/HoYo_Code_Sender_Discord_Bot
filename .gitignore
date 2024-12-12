@@ -1,5 +1,6 @@
 # Node.js dependencies
 node_modules/
+webs-item-scaper/
 
 # Logs and debugging
 logs
