@@ -25,12 +25,12 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('redeem')
         .setDescription('Show redeem instructions and codes')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ADMINISTRATOR),
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
         try {
-            // Check if user is admin
-            if (!interaction.member.permissions.has(PermissionFlagsBits.ADMINISTRATOR)) {
+            // Add strict permission check
+            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.redeem.noPermission',
                     interaction.guildId

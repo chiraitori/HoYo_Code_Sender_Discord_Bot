@@ -6,6 +6,7 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
         .setDescription('Setup roles and channel for code notifications')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addRoleOption(option => 
             option.setName('genshin_role')
                 .setDescription('Role for Genshin Impact notifications')
@@ -24,6 +25,16 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
+        // Add strict permission check
+        if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+            const noPermMessage = await languageManager.getString(
+                'commands.setup.noPermission',
+                interaction.guildId
+            );
+            return interaction.reply({ content: noPermMessage, ephemeral: true });
+        }
+        
+
         await interaction.deferReply({ ephemeral: true });
 
         try {

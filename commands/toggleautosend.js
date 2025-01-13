@@ -7,7 +7,7 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('toggleautosend')
         .setDescription('Enable/disable automatic code sending')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ADMINISTRATOR)
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(option =>
             option.setName('status')
                 .setDescription('Enable or disable auto-send')
@@ -19,6 +19,15 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Add strict permission check
+            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+                const noPermMessage = await languageManager.getString(
+                    'commands.toggleautosend.noPermission',
+                    interaction.guildId
+                );
+                return interaction.reply({ content: noPermMessage, ephemeral: true });
+            }
+
             // Get translated loading message
             const loadingMessage = await languageManager.getString(
                 'commands.toggleautosend.loading',

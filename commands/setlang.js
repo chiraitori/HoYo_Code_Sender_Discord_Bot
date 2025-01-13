@@ -19,6 +19,15 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Add strict permission check
+            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+                const noPermMessage = await languageManager.getString(
+                    'commands.setlang.noPermission',
+                    interaction.guildId
+                );
+                return interaction.reply({ content: noPermMessage, ephemeral: true });
+            }
+
             await interaction.deferReply({ ephemeral: true });
             
             const newLang = interaction.options.getString('language');
