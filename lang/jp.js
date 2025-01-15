@@ -1,3 +1,6 @@
+const { version } = require("mongoose");
+const { about } = require("./vi");
+
 module.exports = {
     commands: {
         setlang: {
@@ -64,6 +67,18 @@ module.exports = {
             hasNotVoted: '❌ まだ今日は投票していません！',
             link: '投票はこちら',
             error: '投票状況の確認中にエラーが発生しました。もう一度お試しください。'
+        },
+        about: {
+            title: 'HoYo Code Senderについて',
+            description: 'HoYo Code Senderは、Genshin Impact、Honkai Impact 3rd、およびその他のmiHoYoゲームのコードを自動的に配信するDiscordボットです。',
+            links: 'リンク',
+            version: 'バージョン',
+            inviteLink: '招待リンク',
+            supportServer: 'サポートサーバー',
+            vote: '投票',
+            error: '情報の取得中にエラーが発生しました。もう一度お試しください',
+            devbio: '開発者の自己紹介',
+            donate: '寄付',
         }
     },
     errors: {

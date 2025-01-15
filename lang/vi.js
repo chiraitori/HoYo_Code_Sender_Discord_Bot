@@ -1,3 +1,6 @@
+const { set, version } = require("mongoose");
+const about = require("../commands/about");
+
 module.exports = {
     commands: {
         listcodes: {
@@ -64,7 +67,18 @@ module.exports = {
             hasNotVoted: '❌ Bạn chưa bình chọn hôm nay!',
             link: 'Bình chọn tại đây',
             error: 'Lỗi kiểm tra trạng thái bình chọn. Vui lòng thử lại.'
-        }
+        },
+        about: {
+            title: 'Về HoYo Code Sender',
+            description: 'HoYo Code Sender là bot Discord tự động phân phát mã code cho Genshin Impact, Honkai Impact 3rd và các trò chơi khác của miHoYo.',
+            version: 'Phiên bản:',
+            inviteLink: 'Link Mời',
+            supportServer: 'Server Hỗ Trợ',
+            vote: 'Bình chọn cho bot',
+            github: 'Kho mã nguồn GitHub',
+            devbio: 'Tiểu sử nhà phát triển',
+            donate: 'Ủng hộ tôi nếu trong nước thì có thể donate qua tiểu sử'
+        },
     },
     errors: {
         general: 'Đã xảy ra lỗi. Vui lòng thử lại.',
@@ -80,5 +94,5 @@ module.exports = {
         checking: 'Đang kiểm tra code mới...',
         connected: 'Đã kết nối tới cơ sở dữ liệu',
         disconnected: 'Đã ngắt kết nối khỏi cơ sở dữ liệu'
-    }
+    },
 };

@@ -1,3 +1,6 @@
+const { version } = require("mongoose");
+const { about } = require("./vi");
+
 module.exports = {
     commands: {
         listcodes: {
@@ -64,7 +67,20 @@ module.exports = {
             hasNotVoted: '❌ You haven\'t voted yet today!',
             link: 'Vote Here',
             error: 'Error checking vote status. Please try again.'
-        }
+        },
+        about: {
+            title: 'About HoYo Code Sender',
+            description: 'HoYo Code Sender is a Discord bot that sends notifications for new codes from various miHoYo games.',
+            version: 'Version:',
+            sourceCode: 'Source Code',
+            inviteLink: 'Invite Link',
+            supportServer: 'Support Server',
+            vote: 'Vote for the bot',
+            github: 'GitHub Repository',
+            devbio: 'Developer Bio',
+            donate: 'Donate'
+        },
+        
     },
     errors: {
         general: 'An error occurred. Please try again.',

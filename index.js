@@ -9,6 +9,8 @@ const mongoose = require('mongoose');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
 
+
+
 // Express setup
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -127,13 +129,13 @@ client.once('ready', async () => {
     }
     client.user.setPresence({
         activities: [{
-            name: 'for redemption codes',
+            name: `for redemption codes | ${process.env.VERSION}`,
             type: ActivityType.Watching
         }],
         status: 'online'
     });
     
-    setInterval(() => checkAndSendNewCodes(client), 60 * 60 * 1000);
+    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
 
 // After Express and client setup

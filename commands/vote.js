@@ -1,9 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { Api } = require('@top-gg/sdk');
+const { Api, Webhook } = require('@top-gg/sdk');
 const languageManager = require('../utils/language');
+const Config = require('../models/Config');
 
-// Initialize Top.gg API with your token
 const api = new Api(process.env.TOPGG_TOKEN);
+const webhook = new Webhook(process.env.TOPGG_AUTH);
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,7 +13,6 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            // Check if user has voted
             const hasVoted = await api.hasVoted(interaction.user.id);
             
             const embed = new EmbedBuilder()
@@ -37,13 +37,44 @@ module.exports = {
                 embeds: [embed],
                 ephemeral: true
             });
-
         } catch (error) {
             console.error('Error in vote command:', error);
             await interaction.reply({ 
                 content: await languageManager.getString('commands.vote.error', interaction.guildId),
                 ephemeral: true 
             });
+        }
+    },
+
+    // Webhook handler for vote events
+    async handleVote(client, vote) {
+        try {
+            const user = await client.users.fetch(vote.user);
+            const configs = await Config.find({});
+            
+            for (const config of configs) {
+                if (!config.channel) continue;
+                
+                const channel = client.channels.cache.get(config.channel);
+                if (!channel) continue;
+
+                const thankEmbed = new EmbedBuilder()
+                    .setColor('#00FF00')
+                    .setTitle(await languageManager.getString('commands.vote.thankTitle', config.guildId))
+                    .setDescription(
+                        (await languageManager.getString('commands.vote.thankMessage', config.guildId))
+                        .replace('{user}', user.toString())
+                    )
+                    .setTimestamp();
+
+                await channel.send({
+                    content: `<@${user.id}>`,
+                    embeds: [thankEmbed],
+                    ephemeral: true
+                });
+            }
+        } catch (error) {
+            console.error('Error handling vote webhook:', error);
         }
     }
 };
