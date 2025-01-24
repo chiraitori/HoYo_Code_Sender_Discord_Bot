@@ -29,7 +29,7 @@ module.exports = {
                     },
                     {
                         name: await languageManager.getString('commands.about.inviteLink', interaction.guildId),
-                        value: `[Invite](https://discord.com/oauth2/authorize?client_id=${client_id}&permissions=8&scope=applications.commands%20bot)`
+                        value: `[Invite](https://discord.com/oauth2/authorize?client_id=${client_id}&permissions=2416331856&scope=applications.commands%20bot)`
                     },
                     {
                         name: await languageManager.getString('commands.about.donate', interaction.guildId),

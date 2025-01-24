@@ -13,11 +13,45 @@
             transform: translateY(-2px);
             transition: all 0.2s ease;
         }
+        body {
+            background-image: url("https://pic.re/image");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-position: center;
+        }
+        .glass-text-embed {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.15); /* Light translucent background */
+            backdrop-filter: blur(10px); /* Blurring for the glass effect */
+            border-radius: 30px; /* More rounded for a soft look */
+            padding: 20px 40px; /* Adds extra spacing around the text */
+            border: 1px solid rgba(255, 255, 255, 0.2); /* Subtle border for definition */
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25); /* Softer shadow for better depth */
+            color: white; /* Ensures text stands out on the glass */
+            font-size: 1.8rem; /* Slightly larger font for visibility */
+            font-weight: bold; /* Makes the text more prominent */
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-text-embed:hover {
+            transform: scale(1.05); /* Slight scaling effect on hover */
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35); /* Enhanced shadow on hover */
+        }
+
+        footer {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.4);
+            margin-bottom: 30px;
+
+        }
     </style>
 </head>
 <body class="bg-light">
     <div class="container py-5">
-        <h1 class="text-center mb-4">HoYo Game Codes Active</h1>
+        <h1 class="text-center mb-4 glass-text-embed">HoYo Game Codes Active</h1>
         
         <!-- Discord invite bot button -->
         <div class="row justify-content-center mb-4">
@@ -35,7 +69,7 @@
         <!-- Game selector -->
         <div class="row justify-content-center mb-4">
             <div class="col-md-6">
-                <div class="btn-group w-100" role="group">
+                <div class="btn-group w-100 glass-text-embed" role="group">
                     <button class="btn btn-outline-primary active" onclick="switchGame('genshin')" id="btn-genshin">Genshin</button>
                     <button class="btn btn-outline-primary" onclick="switchGame('hsr')" id="btn-hsr">HSR</button>
                     <button class="btn btn-outline-primary" onclick="switchGame('zzz')" id="btn-zzz">ZZZ</button>
