@@ -75,6 +75,63 @@
             margin-top: auto;
             margin-bottom: 0; /* Remove the margin-bottom */
         }
+
+        /* Add these new styles */
+        .topgg-widget {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .topgg-widget img {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        /* Add styles for Top.gg widget */
+        .topgg-widget {
+            text-align: center;
+            padding: 20px;
+            margin: 20px auto;
+        }
+
+        .topgg-widget img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Update Top.gg widget styles */
+        .topgg-widget {
+            text-align: center;
+            margin: 20px auto;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .topgg-widget a {
+            display: block;
+            width: 100%;
+        }
+
+        .topgg-widget img {
+            width: 100%;
+            height: auto;
+            display: block;
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -153,13 +210,11 @@
         </div>
     </div>
 
-    <!--Top.gg Widget-->
-    <div class="row justify-content-center mb-4">
-        <div class="col-md-6 text-center">
-            <a href="https://top.gg/bot/1124167011585511516">
-                <img src="https://top.gg/api/widget/1124167011585511516.svg" class="img-fluid">
-            </a>
-        </div>
+    <!-- Top.gg Widget - Simplified structure -->
+    <div class="topgg-widget">
+        <a href="https://top.gg/bot/1124167011585511516">
+            <img src="https://top.gg/api/widget/1124167011585511516.svg" alt="Bot Widget">
+        </a>
     </div>
 
     <footer>
