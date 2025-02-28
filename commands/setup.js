@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
-const Settings = require('../models/Settings'); // Add Settings import
+const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 
 module.exports = {
@@ -24,14 +24,10 @@ module.exports = {
             option.setName('channel')
                 .setDescription('Channel for code notifications')
                 .setRequired(true))
-        .addStringOption(option =>
+        .addBooleanOption(option =>
             option.setName('auto_send')
                 .setDescription('Enable automatic code sending')
-                .setRequired(true)
-                .addChoices(
-                    { name: 'Enable', value: 'true' },
-                    { name: 'Disable', value: 'false' }
-                )),
+                .setRequired(true)),
 
     async execute(interaction) {
         // Add strict permission check
@@ -51,9 +47,8 @@ module.exports = {
             const zzzRole = interaction.options.getRole('zzz_role');
             const channel = interaction.options.getChannel('channel');
             
-            // Get auto_send option and convert to boolean
-            const autoSendValue = interaction.options.getString('auto_send');
-            const enableAutoSend = autoSendValue === 'true';
+            // Get auto_send option directly as boolean
+            const enableAutoSend = interaction.options.getBoolean('auto_send');
 
             // Validate bot permissions in channel
             const botPermissions = channel.permissionsFor(interaction.client.user);
