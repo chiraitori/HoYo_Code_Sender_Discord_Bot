@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
+const Settings = require('../models/Settings'); // Add Settings import
 const languageManager = require('../utils/language');
 
 module.exports = {
@@ -22,7 +23,15 @@ module.exports = {
         .addChannelOption(option =>
             option.setName('channel')
                 .setDescription('Channel for code notifications')
-                .setRequired(true)),
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('auto_send')
+                .setDescription('Enable automatic code sending')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Enable', value: 'true' },
+                    { name: 'Disable', value: 'false' }
+                )),
 
     async execute(interaction) {
         // Add strict permission check
@@ -34,7 +43,6 @@ module.exports = {
             return interaction.reply({ content: noPermMessage, ephemeral: true });
         }
         
-
         await interaction.deferReply({ ephemeral: true });
 
         try {
@@ -42,6 +50,10 @@ module.exports = {
             const hsrRole = interaction.options.getRole('hsr_role');
             const zzzRole = interaction.options.getRole('zzz_role');
             const channel = interaction.options.getChannel('channel');
+            
+            // Get auto_send option and convert to boolean
+            const autoSendValue = interaction.options.getString('auto_send');
+            const enableAutoSend = autoSendValue === 'true';
 
             // Validate bot permissions in channel
             const botPermissions = channel.permissionsFor(interaction.client.user);
@@ -62,6 +74,13 @@ module.exports = {
                     zzzRole: zzzRole.id,
                     channel: channel.id
                 },
+                { upsert: true, new: true }
+            );
+            
+            // Enable or disable auto-send in settings based on the option
+            await Settings.findOneAndUpdate(
+                { guildId: interaction.guildId },
+                { autoSendEnabled: enableAutoSend },
                 { upsert: true, new: true }
             );
 
@@ -93,6 +112,14 @@ module.exports = {
                 interaction.guildId,
                 { channel: channel.toString() }
             );
+            
+            // Get auto-send status message
+            const autoSendStatus = enableAutoSend ? 'ENABLED' : 'DISABLED';
+            const autoSendMessage = await languageManager.getString(
+                'commands.setup.autoSendSetup',
+                interaction.guildId,
+                { status: autoSendStatus }
+            ) || `Auto-send feature: ${autoSendStatus}`;
 
             // Combine all messages with proper formatting
             const fullMessage = [
@@ -100,7 +127,8 @@ module.exports = {
                 '',
                 ...roleMessages,
                 '',
-                `• ${channelMessage}`
+                `• ${channelMessage}`,
+                `• ${autoSendMessage}`
             ].join('\n');
 
             await interaction.editReply({ content: fullMessage });
