@@ -24,6 +24,8 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 - `/listcodes` - List all active codes for a selected game.
 - `/redeem` - Manually send redemption codes with custom messages (**Admin only**).
 - `/toggleautosend` - Enable or disable automatic code notifications (**Admin only**).
+- `/setlang` - To set the language to the bot now only have en,vi,jp (**Admin Only**).
+- `/vote` - To vote the bot on top.gg. (You can delete this command if you self hosting).
 
 ## Setup
 
@@ -100,7 +102,7 @@ Admins can enable or disable the automatic code sending feature using the `/togg
 
 ### API Integration
 
-Uses the [HoYo Codes API](https://hoyo-codes.seria.moe/codes) to fetch the latest redemption codes for:
+Uses the [HoYo Codes API](https://github.com/seriaati/hoyo-codes) to fetch the latest redemption codes for:
 - **Genshin Impact**
 - **Honkai: Star Rail**
 - **Zenless Zone Zero**
@@ -110,3 +112,6 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
 This project is for educational purposes. All game names and related content belong to HoYoverse. 
+
+## Thank You
+- Thank [@seria](https://github.com/seriaati) for the code games Api
