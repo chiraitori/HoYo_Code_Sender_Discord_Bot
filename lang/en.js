@@ -70,7 +70,7 @@ module.exports = {
         },
         about: {
             title: 'About HoYo Code Sender',
-            description: 'HoYo Code Sender is a Discord bot that sends notifications for new codes from various miHoYo games.',
+            description: 'HoYo Code Sender is a Discord bot that automatically announces new codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero by Hoyovers.',
             version: 'Version:',
             sourceCode: 'Source Code',
             inviteLink: 'Invite Link',

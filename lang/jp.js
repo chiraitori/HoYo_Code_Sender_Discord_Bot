@@ -70,7 +70,7 @@ module.exports = {
         },
         about: {
             title: 'HoYo Code Senderについて',
-            description: 'HoYo Code Senderは、Genshin Impact、Honkai Impact 3rd、およびその他のmiHoYoゲームのコードを自動的に配信するDiscordボットです。',
+            description: 'HoYo Code Sender は、Hoyovers の Genshin Impact、Honkai: Star Rail、Zenless Zone Zero の新しいコードを自動的に通知する Discord ボットです。',
             links: 'リンク',
             version: 'バージョン',
             inviteLink: '招待リンク',

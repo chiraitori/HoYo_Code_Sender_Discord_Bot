@@ -70,7 +70,7 @@ module.exports = {
         },
         about: {
             title: 'Về HoYo Code Sender',
-            description: 'HoYo Code Sender là bot Discord tự động phân phát mã code cho Genshin Impact, Honkai Impact 3rd và các trò chơi khác của miHoYo.',
+            description: 'HoYo Code Sender là bot Discord tự động thông báo mã code mới cho Genshin Impact, Honkai: Star Rail và Zenless Zone Zero của Hoyovers.',
             version: 'Phiên bản:',
             inviteLink: 'Link Mời',
             supportServer: 'Server Hỗ Trợ',
