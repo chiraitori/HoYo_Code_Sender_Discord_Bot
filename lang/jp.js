@@ -1,7 +1,16 @@
 const { version } = require("mongoose");
-const { about } = require("./vi");
+const about = require("../commands/about");
 
 module.exports = {
+    games: {
+        genshin: '原神',
+        hkrpg: '崩壊：スターレイル',
+        nap: 'ゼンレス・ゾーン・ゼロ'
+    },
+    common: {
+        enabled: '有効',
+        disabled: '無効'
+    },
     commands: {
         setlang: {
             success: 'サーバー言語が**{language}**に設定されました',
@@ -34,7 +43,23 @@ module.exports = {
             success: 'サーバー設定が完了しました！',
             error: 'セットアップに失敗しました',
             roleSetup: '{type}通知のロール{role}が設定されました',
-            channelSetup: 'コード通知は{channel}に送信されます'
+            channelSetup: 'コード通知は{channel}に送信されます',
+            noPermission: 'このコマンドを使用する権限がありません。',
+            loading: 'コード通知を設定中...',
+            success: 'セットアップが正常に完了しました！',
+            roleSetup: '{type}コードで{role}が言及されます',
+            channelSetup: '通知は{channel}に送信されます',
+            autoSendSetup: '自動送信機能: {status}',
+            noRole: 'ロールが設定されていません',
+            notificationsEnabled: '{game}: 通知{status}',
+            notificationsDisabled: '{game}: 通知{status} {reason}',
+            rolesHeader: '設定されたロール:',
+            noRolesWarning: 'ロールが設定されていません。どのゲームの通知も受け取れません。',
+            gameNotificationsHeader: 'ゲーム通知:',
+            error: {
+                permissions: '対象チャンネルでチャンネルの表示、メッセージの送信、埋め込みリンクの権限が必要です。',
+                general: 'セットアップ中にエラーが発生しました。もう一度お試しください。'
+            }
         },
         redeem: {
             modalTitle: '引換コードを追加',
@@ -79,6 +104,26 @@ module.exports = {
             error: '情報の取得中にエラーが発生しました。もう一度お試しください',
             devbio: '開発者の自己紹介',
             donate: '寄付',
+        },
+        deletesetup: {
+            noPermission: 'このコマンドを使用する権限がありません。',
+            loading: 'サーバー設定を削除しています...',
+            success: 'サーバー設定が正常に削除されました。',
+            noConfig: 'このサーバーの設定が見つかりませんでした。',
+            error: 'サーバー設定の削除中にエラーが発生しました。',
+            deletedItems: '削除されたアイテム:',
+            deletedConfig: 'チャンネルとロール設定',
+            deletedSettings: '通知設定',
+            deletedLanguage: '言語設定'
+        },
+        togglegame: {
+            noPermission: 'このコマンドを使用する権限がありません。',
+            loading: 'リクエストを処理中...',
+            enabledWithNewRole: '✅ **{game}**の通知が{role}ロールで有効になりました。',
+            enabledWithExistingRole: '✅ **{game}**の通知が既存のロール{role}で有効になりました。',
+            enabledNoRole: '⚠️ **{game}**の通知は有効になりましたが、ロールが設定されていません。`{command}`でロールを追加するか、誰にも言及せずに通知が送信されます。',
+            disabled: '❌ **{game}**の通知が無効になりました。',
+            error: 'ゲーム通知の切り替え中にエラーが発生しました。'
         }
     },
     errors: {

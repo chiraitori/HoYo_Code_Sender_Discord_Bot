@@ -24,6 +24,12 @@ const roleMapping = {
     'nap': 'zzzRole'
 };
 
+const settingsMapping = {
+    'genshin': 'genshin',
+    'hkrpg': 'hkrpg',
+    'nap': 'nap'
+};
+
 async function checkAndSendNewCodes(client) {
     console.log('Starting code check process...');
     const games = ['genshin', 'hkrpg', 'nap'];
@@ -63,7 +69,29 @@ async function checkAndSendNewCodes(client) {
                     const guildLang = await Language.findOne({ guildId: config.guildId });
                     const guildId = config.guildId;
 
+                    // Get settings to check if auto-send is enabled
+                    const settings = await Settings.findOne({ guildId: guildId });
+                    if (!settings?.autoSendEnabled) {
+                        console.log(`Auto-send disabled for guild ${guildId}, skipping.`);
+                        continue;
+                    }
+
                     for (const game in groupedCodes) {
+                        // Skip if no role is set for this game
+                        const roleField = roleMapping[game];
+                        if (!config[roleField]) {
+                            console.log(`No role set for ${game} in guild ${guildId}, skipping.`);
+                            continue;
+                        }
+                        
+                        // Skip if this game's notifications are disabled
+                        const gameNotifyField = settingsMapping[game];
+                        if (settings?.gameNotifications && 
+                            settings.gameNotifications[gameNotifyField] === false) {
+                            console.log(`Notifications for ${game} are disabled in guild ${guildId}, skipping.`);
+                            continue;
+                        }
+
                         const codes = groupedCodes[game];
                         if (codes.length > 0) {
                             try {
@@ -100,22 +128,18 @@ async function checkAndSendNewCodes(client) {
                                     .setDescription(finalDescription)
                                     .setTimestamp();
 
-                                const settings = await Settings.findOne({ guildId: config.guildId });
-                                if (!settings?.autoSendEnabled) continue;
-
                                 if (config?.channel) {
                                     const channel = client.channels.cache.get(config.channel);
                                     if (channel) {
-                                        const roleField = roleMapping[game];
                                         const roleId = config[roleField];
                                         const roleTag = roleId ? `<@&${roleId}> ` : '';
                                         
                                         await channel.send({ content: roleTag, embeds: [embed] });
+                                        console.log(`Sent ${game} notification to guild ${guildId}`);
                                     }
-                                    console.log(`Done sending new codes`);
                                 }
                             } catch (error) {
-                                console.error(`Error sending message to guild ${config.guildId}:`, error);
+                                console.error(`Error sending message to guild ${guildId}:`, error);
                             }
                         }
                     }
@@ -125,6 +149,7 @@ async function checkAndSendNewCodes(client) {
             console.error(`Error processing ${game}:`, error);
         }
     }
+    console.log('Code check process completed');
 }
 
 module.exports = { checkAndSendNewCodes };

@@ -28,7 +28,23 @@ module.exports = {
             success: 'Cài đặt máy chủ thành công!',
             error: 'Cài đặt thất bại',
             roleSetup: 'Đã thiết lập role {role} cho thông báo {type}',
-            channelSetup: 'Kênh {channel} sẽ nhận thông báo code'
+            channelSetup: 'Kênh {channel} sẽ nhận thông báo code',
+            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
+            loading: 'Đang thiết lập thông báo mã...',
+            success: 'Thiết lập hoàn tất thành công!',
+            roleSetup: '{role} sẽ được đề cập cho mã {type}',
+            channelSetup: 'Thông báo sẽ được gửi đến {channel}',
+            autoSendSetup: 'Tính năng tự động gửi: {status}',
+            noRole: 'không có vai trò nào được đặt',
+            notificationsEnabled: '{game}: Thông báo {status}',
+            notificationsDisabled: '{game}: Thông báo {status} {reason}',
+            rolesHeader: 'Vai Trò Được Đặt:',
+            noRolesWarning: 'Không có vai trò nào được đặt. Bạn sẽ không nhận được thông báo cho bất kỳ trò chơi nào.',
+            gameNotificationsHeader: 'Thông Báo Trò Chơi:',
+            error: {
+                permissions: 'Tôi cần quyền Xem Kênh, Gửi Tin Nhắn và Nhúng Liên Kết trong kênh đích.',
+                general: 'Đã xảy ra lỗi trong quá trình thiết lập. Vui lòng thử lại.'
+            }
         },
         redeem: {
             modalTitle: 'Thêm mã code',
@@ -79,6 +95,26 @@ module.exports = {
             devbio: 'Tiểu sử nhà phát triển',
             donate: 'Ủng hộ tôi nếu trong nước thì có thể donate qua tiểu sử'
         },
+        deletesetup: {
+            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
+            loading: 'Đang xóa cấu hình máy chủ...',
+            success: 'Cấu hình máy chủ đã được xóa thành công.',
+            noConfig: 'Không tìm thấy cấu hình nào cho máy chủ này.',
+            error: 'Đã xảy ra lỗi khi xóa cấu hình máy chủ.',
+            deletedItems: 'Các mục đã xóa:',
+            deletedConfig: 'Cài đặt kênh và vai trò',
+            deletedSettings: 'Cài đặt thông báo',
+            deletedLanguage: 'Cài đặt ngôn ngữ'
+        },
+        togglegame: {
+            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
+            loading: 'Đang xử lý yêu cầu của bạn...',
+            enabledWithNewRole: '✅ Thông báo **{game}** đã được bật với vai trò {role}.',
+            enabledWithExistingRole: '✅ Thông báo **{game}** đã được bật với vai trò hiện có {role}.',
+            enabledNoRole: '⚠️ Thông báo **{game}** đã được bật, nhưng không có vai trò nào được đặt. Thêm vai trò với `{command}` hoặc thông báo sẽ được gửi mà không đề cập đến bất kỳ ai.',
+            disabled: '❌ Thông báo **{game}** đã bị tắt.',
+            error: 'Đã xảy ra lỗi khi chuyển đổi thông báo trò chơi.'
+        }
     },
     errors: {
         general: 'Đã xảy ra lỗi. Vui lòng thử lại.',
@@ -95,4 +131,13 @@ module.exports = {
         connected: 'Đã kết nối tới cơ sở dữ liệu',
         disconnected: 'Đã ngắt kết nối khỏi cơ sở dữ liệu'
     },
+    common: {
+        enabled: 'BẬT',
+        disabled: 'TẮT'
+    },
+    games: {
+        genshin: 'Genshin Impact',
+        hkrpg: 'Honkai: Star Rail',
+        nap: 'Zenless Zone Zero'
+    }
 };

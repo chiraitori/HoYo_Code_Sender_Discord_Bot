@@ -1,5 +1,5 @@
 const { version } = require("mongoose");
-const { about } = require("./vi");
+const about = require("../commands/about");
 
 module.exports = {
     commands: {
@@ -28,7 +28,23 @@ module.exports = {
             success: 'Server configuration completed successfully!',
             error: 'Setup failed',
             roleSetup: 'Role {role} has been set for {type} notifications',
-            channelSetup: 'Channel {channel} will receive code notifications'
+            channelSetup: 'Channel {channel} will receive code notifications',
+            noPermission: 'You do not have permission to use this command.',
+            loading: 'Setting up code notifications...',
+            success: 'Setup completed successfully!',
+            roleSetup: '{role} will be mentioned for {type} codes',
+            channelSetup: 'Notifications will be sent to {channel}',
+            autoSendSetup: 'Auto-send feature: {status}',
+            noRole: 'no role set',
+            notificationsEnabled: '{game}: Notifications {status}',
+            notificationsDisabled: '{game}: Notifications {status} {reason}',
+            rolesHeader: 'Roles Set:',
+            noRolesWarning: 'No roles set. You won\'t receive notifications for any games.',
+            gameNotificationsHeader: 'Game Notifications:',
+            error: {
+                permissions: 'I need View Channel, Send Messages, and Embed Links permissions in the target channel.',
+                general: 'An error occurred during setup. Please try again.'
+            }
         },
         redeem: {
             modalTitle: 'Add Redemption Codes',
@@ -80,7 +96,26 @@ module.exports = {
             devbio: 'Developer Bio',
             donate: 'Donate'
         },
-        
+        deletesetup: {
+            noPermission: 'You do not have permission to use this command.',
+            loading: 'Deleting server configuration...',
+            success: 'Server configuration has been successfully deleted.',
+            noConfig: 'No configuration found for this server.',
+            error: 'An error occurred while deleting server configuration.',
+            deletedItems: 'Deleted items:',
+            deletedConfig: 'Channel and role settings',
+            deletedSettings: 'Notification settings',
+            deletedLanguage: 'Language settings'
+        },
+        togglegame: {
+            noPermission: 'You do not have permission to use this command.',
+            loading: 'Processing your request...',
+            enabledWithNewRole: '✅ **{game}** notifications have been enabled with role {role}.',
+            enabledWithExistingRole: '✅ **{game}** notifications have been enabled with existing role {role}.',
+            enabledNoRole: '⚠️ **{game}** notifications have been enabled, but no role is set. Add a role with `{command}` or notifications will be sent without mentioning anyone.',
+            disabled: '❌ **{game}** notifications have been disabled.',
+            error: 'An error occurred while toggling game notifications.'
+        }
     },
     errors: {
         general: 'An error occurred. Please try again.',
@@ -96,5 +131,14 @@ module.exports = {
         checking: 'Checking for new codes...',
         connected: 'Connected to database',
         disconnected: 'Disconnected from database'
+    },
+    common: {
+        enabled: 'ENABLED',
+        disabled: 'DISABLED'
+    },
+    games: {
+        genshin: 'Genshin Impact',
+        hkrpg: 'Honkai: Star Rail',
+        nap: 'Zenless Zone Zero'
     }
 };
