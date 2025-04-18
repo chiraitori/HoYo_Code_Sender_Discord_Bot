@@ -22,7 +22,7 @@ module.exports = {
                 .setDescription('Enable or disable notifications')
                 .setRequired(true))
         .addRoleOption(option => 
-            option.setName('role')
+            option.setName('mention_role')
                 .setDescription('Role to mention (optional)')
                 .setRequired(false)),
 
@@ -46,7 +46,7 @@ module.exports = {
         try {
             const game = interaction.options.getString('game');
             const enabled = interaction.options.getBoolean('enabled');
-            const role = interaction.options.getRole('role');
+            const role = interaction.options.getRole('mention_role');
             
             // Game name mapping for display
             const gameNames = {

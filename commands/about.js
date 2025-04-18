@@ -37,7 +37,7 @@ module.exports = {
                     },
                     {
                         name: await languageManager.getString('commands.about.devbio', interaction.guildId),
-                        value: '[Chiraitori](https://chiraitori.me)'
+                        value: '[Bio Link](https://chiraitori.me)'
                     }
                     
                 )
