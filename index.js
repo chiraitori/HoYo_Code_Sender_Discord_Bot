@@ -133,7 +133,7 @@ client.once('ready', async () => {
         status: 'online'
     });
     
-    setInterval(() => checkAndSendNewCodes(client), 1 * 60 * 1000);
+    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
 
 // Add event listeners for guild join/leave
