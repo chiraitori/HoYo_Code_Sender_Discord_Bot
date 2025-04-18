@@ -24,6 +24,12 @@ const roleMapping = {
     'nap': 'zzzRole'
 };
 
+const settingsMapping = {
+    'genshin': 'genshin',
+    'hkrpg': 'hkrpg',
+    'nap': 'nap'
+};
+
 async function checkAndSendNewCodes(client) {
     console.log('Starting code check process...');
     const games = ['genshin', 'hkrpg', 'nap'];
@@ -63,7 +69,19 @@ async function checkAndSendNewCodes(client) {
                     const guildLang = await Language.findOne({ guildId: config.guildId });
                     const guildId = config.guildId;
 
+                    // Get settings to check auto-send and favorite games
+                    const settings = await Settings.findOne({ guildId: config.guildId });
+                    if (!settings?.autoSendEnabled) continue;
+
                     for (const game in groupedCodes) {
+                        // Skip sending if favorite games filter is enabled and this game is not selected
+                        if (settings?.favoriteGames?.enabled && 
+                            settings.favoriteGames.games && 
+                            settings.favoriteGames.games[game] === false) {
+                            console.log(`Skipping ${game} codes for guild ${config.guildId} (filtered out)`);
+                            continue;
+                        }
+
                         const codes = groupedCodes[game];
                         if (codes.length > 0) {
                             try {
@@ -100,22 +118,18 @@ async function checkAndSendNewCodes(client) {
                                     .setDescription(finalDescription)
                                     .setTimestamp();
 
-                                const settings = await Settings.findOne({ guildId: config.guildId });
-                                if (!settings?.autoSendEnabled) continue;
-
                                 if (config?.channel) {
                                     const channel = client.channels.cache.get(config.channel);
                                     if (channel) {
-                                        const roleField = roleMapping[game];
                                         const roleId = config[roleField];
                                         const roleTag = roleId ? `<@&${roleId}> ` : '';
                                         
                                         await channel.send({ content: roleTag, embeds: [embed] });
+                                        console.log(`Sent ${game} notification to guild ${guildId}`);
                                     }
-                                    console.log(`Done sending new codes`);
                                 }
                             } catch (error) {
-                                console.error(`Error sending message to guild ${config.guildId}:`, error);
+                                console.error(`Error sending message to guild ${guildId}:`, error);
                             }
                         }
                     }
@@ -125,6 +139,7 @@ async function checkAndSendNewCodes(client) {
             console.error(`Error processing ${game}:`, error);
         }
     }
+    console.log('Code check process completed');
 }
 
 module.exports = { checkAndSendNewCodes };

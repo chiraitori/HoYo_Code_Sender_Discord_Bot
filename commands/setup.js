@@ -2,12 +2,14 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
+const { hasAdminPermission } = require('../utils/permissions');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
         .setDescription('Setup roles and channel for code notifications')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        // Remove the default permissions restriction to make command visible to everyone
+        // Admin permissions will be enforced in the execute function
         .addRoleOption(option => 
             option.setName('genshin_role')
                 .setDescription('Role for Genshin Impact notifications')
@@ -30,8 +32,8 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        // Add strict permission check
-        if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+        // Check if user is admin or bot owner
+        if (!hasAdminPermission(interaction)) {
             const noPermMessage = await languageManager.getString(
                 'commands.setup.noPermission',
                 interaction.guildId

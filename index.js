@@ -8,8 +8,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
-
-
+const { sendWelcomeMessage } = require('./utils/welcome');
 
 // Express setup
 const app = express();
@@ -135,6 +134,19 @@ client.once('ready', async () => {
     });
     
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
+});
+
+// Add event listeners for guild join/leave
+client.on('guildCreate', async (guild) => {
+    console.log(`Joined new guild: ${guild.name} (${guild.id})`);
+    
+    // Send welcome message with setup instructions
+    await sendWelcomeMessage(guild, client);
+});
+
+client.on('guildDelete', (guild) => {
+    console.log(`Removed from guild: ${guild.name} (${guild.id})`);
+    // Optionally clean up database entries for this guild
 });
 
 // After Express and client setup

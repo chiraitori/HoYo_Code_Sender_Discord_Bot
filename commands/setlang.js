@@ -1,12 +1,14 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Language = require('../models/Language');
 const languageManager = require('../utils/language');
+const { hasAdminPermission } = require('../utils/permissions');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setlang')
         .setDescription('Set the bot language for this server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        // Remove default permissions restriction to make command visible to everyone
+        // Admin permissions will be enforced in the execute function
         .addStringOption(option =>
             option.setName('language')
                 .setDescription('Select language')
@@ -19,8 +21,8 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            // Add strict permission check
-            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+            // Check if user is admin or bot owner using our utility
+            if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.setlang.noPermission',
                     interaction.guildId

@@ -1,7 +1,29 @@
 const { version } = require("mongoose");
-const { about } = require("./vi");
+const about = require("../commands/about");
 
 module.exports = {
+    games: {
+        genshin: '原神',
+        hkrpg: '崩壊：スターレイル',
+        nap: 'ゼンレス・ゾーン・ゼロ'
+    },
+    common: {
+        enabled: '有効',
+        disabled: '無効',
+        notYourButton: 'このボタンはあなたのものではありません。'
+    },
+    welcome: {
+        title: 'HoYo Code Senderを追加していただきありがとうございます！',
+        description: 'サーバーに追加していただきありがとうございます！HoYoverseゲームのコードを自動的に取得するお手伝いをします。',
+        setupHeader: '🔧 クイックセットアップガイド',
+        setupSteps: '1. `/setup`を実行して通知チャンネルとロールを設定\n' +
+                   '2. (オプション) `/favgames`でコードを受け取りたいゲームを選択\n' +
+                   '3. (オプション) `/setlang`で言語を変更\n\n' +
+                   'これだけです！新しいゲームコードが設定したチャンネルに自動的に送信されます。',
+        helpTip: '詳細情報やヒントについては、いつでも`/help`を実行してください。',
+        footer: 'HoYo Code Sender - ゲームコードを自動的に入手！',
+        dmInfo: 'サーバー内に適切なチャンネルが見つからなかったため、直接メッセージを送信しています。'
+    },
     commands: {
         setlang: {
             success: 'サーバー言語が**{language}**に設定されました',
@@ -23,7 +45,8 @@ module.exports = {
                 invalid: 'APIからの無効な応答',
                 notFound: '利用可能なコードがありません'
             },
-            loading: 'コードを読み込んでいます...'
+            loading: 'コードを読み込んでいます...',
+            page: 'ページ'
         },
         setup: {
             description: 'コード通知用のロールとチャンネルを設定',
@@ -34,7 +57,20 @@ module.exports = {
             success: 'サーバー設定が完了しました！',
             error: 'セットアップに失敗しました',
             roleSetup: '{type}通知のロール{role}が設定されました',
-            channelSetup: 'コード通知は{channel}に送信されます'
+            channelSetup: 'コード通知は{channel}に送信されます',
+            autoSendSetup: '自動送信機能: {status}',
+            noPermission: 'このコマンドを使用する権限がありません'
+        },
+        deletesetup: {
+            noPermission: 'このコマンドを使用する権限がありません。',
+            loading: 'サーバー設定を削除しています...',
+            success: 'サーバー設定が正常に削除されました。',
+            noConfig: 'このサーバーの設定が見つかりませんでした。',
+            error: 'サーバー設定の削除中にエラーが発生しました。',
+            deletedItemsHeader: '削除されたアイテム:',
+            deletedConfig: 'チャンネルとロール設定',
+            deletedSettings: '通知設定',
+            deletedLanguage: '言語設定'
         },
         redeem: {
             modalTitle: '引換コードを追加',
@@ -57,7 +93,47 @@ module.exports = {
         toggleautosend: {
             loading: '自動送信設定を更新中...',
             success: '自動送信が「{status}」に設定されました',
-            error: '自動送信設定の更新に失敗しました'
+            error: '自動送信設定の更新に失敗しました',
+            noPermission: 'このコマンドを使用する権限がありません'
+        },
+        favgames: {
+            noPermission: 'このコマンドを使用する権限がありません',
+            loading: 'お気に入りゲームを設定中...',
+            success: 'お気に入りゲームの設定が完了しました！',
+            error: 'お気に入りゲームの設定中にエラーが発生しました。',
+            filterStatus: 'ゲームフィルター: **{status}**',
+            gameStatusHeader: 'ゲーム通知:',
+            allGamesEnabled: 'すべてのゲームの通知を受け取ります。'
+        },
+        help: {
+            title: 'HoYo Code Senderヘルプ',
+            description: 'HoYo Code Senderは、原神、崩壊：スターレイル、ゼンレス・ゾーン・ゼロの新しい引換コードについて自動的に通知します。',
+            setupHeader: '📌 初期設定',
+            setupSteps: '1. `/setup`を実行して設定：\n' +
+                       '   • 通知チャンネルを選択\n' +
+                       '   • 各ゲーム用のロールを設定（コード到着時にメンションするため）\n' +
+                       '   • 自動コード送信の有効/無効を設定\n\n' +
+                       '2. カスタマイズ：\n' +
+                       '   • `/favgames` - コードを受け取るゲームを選択\n' +
+                       '   • `/setlang` - Botの言語を変更\n' +
+                       '   • `/toggleautosend` - 自動通知のオン/オフを切り替え',
+            commandsHeader: '📋 利用可能なコマンド',
+            commandsList: '• `/setup` - 初期Bot設定\n' +
+                         '• `/favgames` - コードを受け取るゲームを選択\n' +
+                         '• `/toggleautosend` - 自動通知のオン/オフを切り替え\n' +
+                         '• `/listcodes` - ゲームのアクティブコードを表示\n' +
+                         '• `/redeem` - 特定のコードをチャンネルに送信\n' +
+                         '• `/setlang` - Botの言語を変更（英語/ベトナム語/日本語）\n' +
+                         '• `/help` - このヘルプメッセージを表示\n' +
+                         '• `/about` - Botについての情報',
+            tipsHeader: '💡 ヒントとコツ',
+            tipsList: '• Botは5分ごとに新しいコードをチェックします\n' +
+                     '• `/redeem`で手動でコードを投稿できます\n' +
+                     '• `/favgames`でゲームごとに通知をフィルタリングできます\n' +
+                     '• ゲームタイプごとに異なるロールを設定できます\n' +
+                     '• サーバー管理者は`/setup`を再度実行して設定を変更できます',
+            footer: 'HoYo Code Sender - HoYoverseゲームコードを自動的に入手！',
+            error: 'ヘルプの表示中にエラーが発生しました。'
         },
         vote: {
             title: 'HoYo Code Senderに投票',
@@ -66,7 +142,12 @@ module.exports = {
             hasVoted: '✅ 投票ありがとうございます！12時間後に再度投票できます。',
             hasNotVoted: '❌ まだ今日は投票していません！',
             link: '投票はこちら',
-            error: '投票状況の確認中にエラーが発生しました。もう一度お試しください。'
+            error: '投票状況の確認中にエラーが発生しました。もう一度お試しください。',
+            thankTitle: '投票ありがとうございます！🎉',
+            thankMessage: '{user} さん、Top.ggでボットに投票していただきありがとうございます！あなたのサポートが私たちの成長を助けます。',
+            voteAgain: '12時間後に再度投票できます。',
+            dmThankTitle: '投票ありがとうございます！',
+            dmThankMessage: 'Top.ggでHoYo Code Senderに投票していただき、ありがとうございます！あなたのサポートは私たちにとって非常に重要です。'
         },
         about: {
             title: 'HoYo Code Senderについて',
@@ -79,6 +160,26 @@ module.exports = {
             error: '情報の取得中にエラーが発生しました。もう一度お試しください',
             devbio: '開発者の自己紹介',
             donate: '寄付',
+        },
+        deletesetup: {
+            noPermission: 'このコマンドを使用する権限がありません。',
+            loading: 'サーバー設定を削除しています...',
+            success: 'サーバー設定が正常に削除されました。',
+            noConfig: 'このサーバーの設定が見つかりませんでした。',
+            error: 'サーバー設定の削除中にエラーが発生しました。',
+            deletedItems: '削除されたアイテム:',
+            deletedConfig: 'チャンネルとロール設定',
+            deletedSettings: '通知設定',
+            deletedLanguage: '言語設定'
+        },
+        togglegame: {
+            noPermission: 'このコマンドを使用する権限がありません。',
+            loading: 'リクエストを処理中...',
+            enabledWithNewRole: '✅ **{game}**の通知が{role}ロールで有効になりました。',
+            enabledWithExistingRole: '✅ **{game}**の通知が既存のロール{role}で有効になりました。',
+            enabledNoRole: '⚠️ **{game}**の通知は有効になりましたが、ロールが設定されていません。`{command}`でロールを追加するか、誰にも言及せずに通知が送信されます。',
+            disabled: '❌ **{game}**の通知が無効になりました。',
+            error: 'ゲーム通知の切り替え中にエラーが発生しました。'
         }
     },
     errors: {
