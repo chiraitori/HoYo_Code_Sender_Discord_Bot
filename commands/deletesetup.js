@@ -1,94 +1,92 @@
+// commands/deletesetup.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const Language = require('../models/Language');
 const languageManager = require('../utils/language');
+const { hasAdminPermission } = require('../utils/permissions');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('deletesetup')
-        .setDescription('Delete all bot configuration for this server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+        .setDescription('Delete all bot configuration for this server'),
+        // Default permissions restriction removed to make command visible to everyone
+        // Admin permissions will be enforced in the execute function
 
     async execute(interaction) {
         try {
-            // Add strict permission check
-            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+            // Check if user is admin or bot owner using our utility
+            if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.deletesetup.noPermission',
                     interaction.guildId
                 );
-                // Remove the fallback string to ensure it always uses language files
                 return interaction.reply({ content: noPermMessage, ephemeral: true });
             }
 
-            // Loading message - remove fallback
+            // Get language strings for later use BEFORE we delete the language settings
             const loadingMessage = await languageManager.getString(
                 'commands.deletesetup.loading',
                 interaction.guildId
             );
             
+            const successMessage = await languageManager.getString(
+                'commands.deletesetup.success',
+                interaction.guildId
+            );
+            
+            const noConfigMessage = await languageManager.getString(
+                'commands.deletesetup.noConfig',
+                interaction.guildId
+            );
+            
+            const deletedItemsHeader = await languageManager.getString(
+                'commands.deletesetup.deletedItemsHeader',
+                interaction.guildId
+            );
+            
+            const configDeletedMsg = await languageManager.getString(
+                'commands.deletesetup.deletedConfig',
+                interaction.guildId
+            );
+            
+            const settingsDeletedMsg = await languageManager.getString(
+                'commands.deletesetup.deletedSettings',
+                interaction.guildId
+            );
+            
+            const langDeletedMsg = await languageManager.getString(
+                'commands.deletesetup.deletedLanguage',
+                interaction.guildId
+            );
+            
+            // Show loading message
             await interaction.reply({ content: loadingMessage, ephemeral: true });
 
             // Delete all configurations for this guild
             const configResult = await Config.deleteOne({ guildId: interaction.guildId });
             const settingsResult = await Settings.deleteOne({ guildId: interaction.guildId });
-            
-            // Keep language configuration for now - we'll need it to display the final message
-            // We'll delete it after we get the success message
-            // const langResult = await Language.deleteOne({ guildId: interaction.guildId });
+            const langResult = await Language.deleteOne({ guildId: interaction.guildId });
 
             // Generate success message
             const deletedItems = [];
             if (configResult.deletedCount > 0) {
-                const configDeletedMsg = await languageManager.getString(
-                    'commands.deletesetup.deletedConfig',
-                    interaction.guildId
-                );
-                deletedItems.push(configDeletedMsg);
+                deletedItems.push(`• ${configDeletedMsg}`);
             }
             
             if (settingsResult.deletedCount > 0) {
-                const settingsDeletedMsg = await languageManager.getString(
-                    'commands.deletesetup.deletedSettings',
-                    interaction.guildId
-                );
-                deletedItems.push(settingsDeletedMsg);
+                deletedItems.push(`• ${settingsDeletedMsg}`);
+            }
+            
+            if (langResult.deletedCount > 0) {
+                deletedItems.push(`• ${langDeletedMsg}`);
             }
 
             let responseMessage;
             if (deletedItems.length > 0) {
-                const successMessage = await languageManager.getString(
-                    'commands.deletesetup.success',
-                    interaction.guildId
-                );
-                
-                const deletedItemsList = await languageManager.getString(
-                    'commands.deletesetup.deletedItems',
-                    interaction.guildId
-                );
-                
-                responseMessage = `${successMessage}\n\n${deletedItemsList}\n• ${deletedItems.join('\n• ')}`;
-                
-                // Now that we've constructed our message, we can delete the language setting
-                const langResult = await Language.deleteOne({ guildId: interaction.guildId });
-                if (langResult.deletedCount > 0) {
-                    const langDeletedMsg = await languageManager.getString(
-                        'commands.deletesetup.deletedLanguage',
-                        interaction.guildId
-                    );
-                    
-                    // Add language deletion to the message
-                    responseMessage += `\n• ${langDeletedMsg}`;
-                }
+                responseMessage = `**${successMessage}**\n\n**${deletedItemsHeader}**\n${deletedItems.join('\n')}`;
             } else {
-                responseMessage = await languageManager.getString(
-                    'commands.deletesetup.noConfig',
-                    interaction.guildId
-                );
-                
-                // If there was nothing to delete, we can still delete language settings if they exist
-                const langResult = await Language.deleteOne({ guildId: interaction.guildId });
+                responseMessage = noConfigMessage;
             }
 
             await interaction.editReply({ content: responseMessage });
@@ -96,10 +94,17 @@ module.exports = {
         } catch (error) {
             console.error('Error deleting server configuration:', error);
             
-            const errorMessage = await languageManager.getString(
-                'commands.deletesetup.error',
-                interaction.guildId
-            );
+            // In case of error, try to get error message
+            let errorMessage;
+            try {
+                errorMessage = await languageManager.getString(
+                    'commands.deletesetup.error',
+                    interaction.guildId
+                );
+            } catch (e) {
+                // Fallback in case language system is unavailable
+                errorMessage = 'An error occurred while deleting server configuration.';
+            }
             
             if (interaction.replied) {
                 await interaction.editReply({ content: errorMessage });

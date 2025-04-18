@@ -1,6 +1,7 @@
 # Node.js dependencies
 node_modules/
 webs-item-scaper/
+.vscode/
 
 # Logs and debugging
 logs

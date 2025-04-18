@@ -2,6 +2,28 @@ const { version } = require("mongoose");
 const about = require("../commands/about");
 
 module.exports = {
+    games: {
+        genshin: 'Genshin Impact',
+        hkrpg: 'Honkai: Star Rail',
+        nap: 'Zenless Zone Zero'
+    },
+    common: {
+        enabled: 'ENABLED',
+        disabled: 'DISABLED',
+        notYourButton: 'This button is not for you.'
+    },
+    welcome: {
+        title: 'Thanks for Adding HoYo Code Sender!',
+        description: 'Thanks for adding me to your server! I\'ll help you get HoYoverse game codes automatically.',
+        setupHeader: '🔧 Quick Setup Guide',
+        setupSteps: '1. Run `/setup` to configure notification channel & roles\n' +
+                    '2. (Optional) Use `/favgames` to select which games to receive notifications for\n' +
+                    '3. (Optional) Change the language with `/setlang`\n\n' +
+                    'That\'s it! I\'ll now automatically send new game codes to your configured channel.',
+        helpTip: 'For more information and tips, run `/help` anytime.',
+        footer: 'HoYo Code Sender - Get your game codes automatically!',
+        dmInfo: 'I couldn\'t find a suitable channel to send the welcome message in your server, so I\'m sending it to you directly.'
+    },
     commands: {
         listcodes: {
             title: 'Active Codes for {game}',
@@ -17,7 +39,8 @@ module.exports = {
                 invalid: 'Invalid response from API',
                 notFound: 'No codes available'
             },
-            loading: 'Loading codes...'
+            loading: 'Loading codes...',
+            page: 'Page'
         },
         setup: {
             description: 'Setup roles and channel for code notifications',
@@ -29,22 +52,19 @@ module.exports = {
             error: 'Setup failed',
             roleSetup: 'Role {role} has been set for {type} notifications',
             channelSetup: 'Channel {channel} will receive code notifications',
-            noPermission: 'You do not have permission to use this command.',
-            loading: 'Setting up code notifications...',
-            success: 'Setup completed successfully!',
-            roleSetup: '{role} will be mentioned for {type} codes',
-            channelSetup: 'Notifications will be sent to {channel}',
             autoSendSetup: 'Auto-send feature: {status}',
-            noRole: 'no role set',
-            notificationsEnabled: '{game}: Notifications {status}',
-            notificationsDisabled: '{game}: Notifications {status} {reason}',
-            rolesHeader: 'Roles Set:',
-            noRolesWarning: 'No roles set. You won\'t receive notifications for any games.',
-            gameNotificationsHeader: 'Game Notifications:',
-            error: {
-                permissions: 'I need View Channel, Send Messages, and Embed Links permissions in the target channel.',
-                general: 'An error occurred during setup. Please try again.'
-            }
+            noPermission: 'You do not have permission to use this command'
+        },
+        deletesetup: {
+            noPermission: 'You do not have permission to use this command.',
+            loading: 'Deleting server configuration...',
+            success: 'Server configuration has been successfully deleted.',
+            noConfig: 'No configuration found for this server.',
+            error: 'An error occurred while deleting server configuration.',
+            deletedItemsHeader: 'Deleted items:',
+            deletedConfig: 'Channel and role settings',
+            deletedSettings: 'Notification settings',
+            deletedLanguage: 'Language settings'
         },
         redeem: {
             modalTitle: 'Add Redemption Codes',
@@ -67,7 +87,47 @@ module.exports = {
         toggleautosend: {
             loading: 'Updating auto-send setting...',
             success: 'Auto-send is now: **{status}**',
-            error: 'Failed to update auto-send setting'
+            error: 'Failed to update auto-send setting',
+            noPermission: 'You do not have permission to use this command'
+        },
+        favgames: {
+            noPermission: 'You do not have permission to use this command.',
+            loading: 'Setting up favorite games...',
+            success: 'Favorite games configured successfully!',
+            error: 'An error occurred while setting favorite games.',
+            filterStatus: 'Game filtering: **{status}**',
+            gameStatusHeader: 'Game Notifications:',
+            allGamesEnabled: 'You will receive notifications for all games.'
+        },
+        help: {
+            title: 'HoYo Code Sender Help',
+            description: 'HoYo Code Sender automatically notifies your server about new redemption codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero.',
+            setupHeader: '📌 Initial Setup',
+            setupSteps: '1. Run `/setup` to configure:\n' +
+                        '   • Choose a notification channel\n' +
+                        '   • Set roles for each game (to mention when codes arrive)\n' +
+                        '   • Enable/disable automatic code sending\n\n' +
+                        '2. Customize your experience:\n' +
+                        '   • `/favgames` - Choose which games to receive codes for\n' +
+                        '   • `/setlang` - Change the bot\'s language\n' +
+                        '   • `/toggleautosend` - Enable/disable automatic code notifications',
+            commandsHeader: '📋 Available Commands',
+            commandsList: '• `/setup` - Initial bot setup\n' +
+                        '• `/favgames` - Choose which games to receive codes for\n' +
+                        '• `/toggleautosend` - Turn automatic notifications on/off\n' +
+                        '• `/listcodes` - Show active codes for a game\n' +
+                        '• `/redeem` - Send specific codes to your channel\n' +
+                        '• `/setlang` - Change bot language (English/Vietnamese/Japanese)\n' +
+                        '• `/help` - Show this help message\n' +
+                        '• `/about` - Information about the bot',
+            tipsHeader: '💡 Tips & Tricks',
+            tipsList: '• The bot checks for new codes every 5 minutes\n' +
+                    '• You can manually post codes with `/redeem`\n' +
+                    '• Use `/favgames` to filter notifications by game\n' +
+                    '• Set different roles for each game type\n' +
+                    '• Server admins can run `/setup` again to change settings',
+            footer: 'HoYo Code Sender - Get HoYoverse game codes automatically!',
+            error: 'An error occurred while showing help.'
         },
         setlang: {
             success: 'Server language has been set to: **{language}**',
@@ -82,7 +142,12 @@ module.exports = {
             hasVoted: '✅ Thank you for voting! You can vote again in 12 hours.',
             hasNotVoted: '❌ You haven\'t voted yet today!',
             link: 'Vote Here',
-            error: 'Error checking vote status. Please try again.'
+            error: 'Error checking vote status. Please try again.',
+            thankTitle: 'Thank You for Voting! 🎉',
+            thankMessage: 'Thank you {user} for supporting the bot by voting on Top.gg! Your support helps us grow.',
+            voteAgain: 'You can vote again in 12 hours.',
+            dmThankTitle: 'Thank You for Your Vote!',
+            dmThankMessage: 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.'
         },
         about: {
             title: 'About HoYo Code Sender',

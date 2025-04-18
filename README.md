@@ -53,6 +53,7 @@ Create a .env file in the root directory and add the following:
    DISCORD_TOKEN=your_discord_bot_token
    MONGODB_URI=your_mongodb_connection_string
    CLIENT_ID=your_discord_client_id
+   OWNER_ID=your_id_in_discord
 ```
 Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord_client_id with your actual credentials.
  4. **Run the bot:**

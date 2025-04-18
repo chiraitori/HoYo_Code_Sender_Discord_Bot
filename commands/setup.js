@@ -2,13 +2,26 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
+const { hasAdminPermission } = require('../utils/permissions');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
         .setDescription('Setup roles and channel for code notifications')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        // All REQUIRED options first
+        // Remove the default permissions restriction to make command visible to everyone
+        // Admin permissions will be enforced in the execute function
+        .addRoleOption(option => 
+            option.setName('genshin_role')
+                .setDescription('Role for Genshin Impact notifications')
+                .setRequired(true))
+        .addRoleOption(option => 
+            option.setName('hsr_role')
+                .setDescription('Role for Honkai: Star Rail notifications')
+                .setRequired(true))
+        .addRoleOption(option => 
+            option.setName('zzz_role')
+                .setDescription('Role for Zenless Zone Zero notifications')
+                .setRequired(true))
         .addChannelOption(option =>
             option.setName('channel')
                 .setDescription('Channel for code notifications')
@@ -32,8 +45,8 @@ module.exports = {
                 .setRequired(false)),
 
     async execute(interaction) {
-        // Add strict permission check
-        if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+        // Check if user is admin or bot owner
+        if (!hasAdminPermission(interaction)) {
             const noPermMessage = await languageManager.getString(
                 'commands.setup.noPermission',
                 interaction.guildId

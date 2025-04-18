@@ -2,6 +2,28 @@ const { set, version } = require("mongoose");
 const about = require("../commands/about");
 
 module.exports = {
+    games: {
+        genshin: 'Genshin Impact',
+        hkrpg: 'Honkai: Star Rail',
+        nap: 'Zenless Zone Zero'
+    },
+    common: {
+        enabled: 'BẬT',
+        disabled: 'TẮT',
+        notYourButton: 'Nút này không dành cho bạn.'
+    },
+    welcome: {
+        title: 'Cảm ơn đã thêm HoYo Code Sender!',
+        description: 'Cảm ơn đã thêm tôi vào máy chủ của bạn! Tôi sẽ giúp bạn nhận mã code game HoYoverse tự động.',
+        setupHeader: '🔧 Hướng dẫn cài đặt nhanh',
+        setupSteps: '1. Sử dụng lệnh `/setup` để cấu hình kênh thông báo & vai trò\n' +
+                   '2. (Tùy chọn) Sử dụng `/favgames` để chọn game bạn muốn nhận mã code\n' +
+                   '3. (Tùy chọn) Thay đổi ngôn ngữ với `/setlang`\n\n' +
+                   'Chỉ vậy thôi! Tôi sẽ tự động gửi mã code game mới đến kênh đã cấu hình.',
+        helpTip: 'Để biết thêm thông tin và mẹo, hãy sử dụng lệnh `/help` bất kỳ lúc nào.',
+        footer: 'HoYo Code Sender - Nhận mã code game tự động!',
+        dmInfo: 'Tôi không thể tìm thấy kênh phù hợp để gửi tin nhắn chào mừng trong máy chủ của bạn, vì vậy tôi đang gửi trực tiếp cho bạn.'
+    },
     commands: {
         listcodes: {
             title: 'Mã code đang hoạt động cho {game}',
@@ -17,7 +39,8 @@ module.exports = {
             },
             loading: 'Đang tải mã code...',
             newCodes: 'Mã code mới cho {game}!',
-            noReward: 'Chưa có thông tin phần thưởng'
+            noReward: 'Chưa có thông tin phần thưởng',
+            page: 'Trang'
         },
         setup: {
             description: 'Thiết lập role và kênh cho thông báo code',
@@ -29,22 +52,19 @@ module.exports = {
             error: 'Cài đặt thất bại',
             roleSetup: 'Đã thiết lập role {role} cho thông báo {type}',
             channelSetup: 'Kênh {channel} sẽ nhận thông báo code',
-            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
-            loading: 'Đang thiết lập thông báo mã...',
-            success: 'Thiết lập hoàn tất thành công!',
-            roleSetup: '{role} sẽ được đề cập cho mã {type}',
-            channelSetup: 'Thông báo sẽ được gửi đến {channel}',
             autoSendSetup: 'Tính năng tự động gửi: {status}',
-            noRole: 'không có vai trò nào được đặt',
-            notificationsEnabled: '{game}: Thông báo {status}',
-            notificationsDisabled: '{game}: Thông báo {status} {reason}',
-            rolesHeader: 'Vai Trò Được Đặt:',
-            noRolesWarning: 'Không có vai trò nào được đặt. Bạn sẽ không nhận được thông báo cho bất kỳ trò chơi nào.',
-            gameNotificationsHeader: 'Thông Báo Trò Chơi:',
-            error: {
-                permissions: 'Tôi cần quyền Xem Kênh, Gửi Tin Nhắn và Nhúng Liên Kết trong kênh đích.',
-                general: 'Đã xảy ra lỗi trong quá trình thiết lập. Vui lòng thử lại.'
-            }
+            noPermission: 'Bạn không có quyền sử dụng lệnh này'
+        },
+        deletesetup: {
+            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
+            loading: 'Đang xóa cấu hình máy chủ...',
+            success: 'Cấu hình máy chủ đã được xóa thành công.',
+            noConfig: 'Không tìm thấy cấu hình nào cho máy chủ này.',
+            error: 'Đã xảy ra lỗi khi xóa cấu hình máy chủ.',
+            deletedItemsHeader: 'Các mục đã xóa:',
+            deletedConfig: 'Cài đặt kênh và vai trò',
+            deletedSettings: 'Cài đặt thông báo',
+            deletedLanguage: 'Cài đặt ngôn ngữ'
         },
         redeem: {
             modalTitle: 'Thêm mã code',
@@ -67,7 +87,47 @@ module.exports = {
         toggleautosend: {
             loading: 'Đang cập nhật cài đặt tự động gửi...',
             success: 'Tự động gửi hiện đang: **{status}**',
-            error: 'Không thể cập nhật cài đặt tự động gửi'
+            error: 'Không thể cập nhật cài đặt tự động gửi',
+            noPermission: 'Bạn không có quyền sử dụng lệnh này'
+        },
+        favgames: {
+            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
+            loading: 'Đang thiết lập game yêu thích...',
+            success: 'Đã cấu hình game yêu thích thành công!',
+            error: 'Đã xảy ra lỗi khi thiết lập game yêu thích.',
+            filterStatus: 'Lọc game: **{status}**',
+            gameStatusHeader: 'Thông Báo Game:',
+            allGamesEnabled: 'Bạn sẽ nhận thông báo cho tất cả các game.'
+        },
+        help: {
+            title: 'Trợ giúp HoYo Code Sender',
+            description: 'HoYo Code Sender tự động thông báo cho máy chủ của bạn về các mã đổi thưởng mới cho Genshin Impact, Honkai: Star Rail và Zenless Zone Zero.',
+            setupHeader: '📌 Cài đặt ban đầu',
+            setupSteps: '1. Sử dụng `/setup` để cấu hình:\n' +
+                       '   • Chọn kênh thông báo\n' +
+                       '   • Đặt vai trò cho mỗi game (để nhắc đến khi có mã mới)\n' +
+                       '   • Bật/tắt tự động gửi mã\n\n' +
+                       '2. Tùy chỉnh trải nghiệm của bạn:\n' +
+                       '   • `/favgames` - Chọn game bạn muốn nhận mã\n' +
+                       '   • `/setlang` - Thay đổi ngôn ngữ của bot\n' +
+                       '   • `/toggleautosend` - Bật/tắt thông báo mã tự động',
+            commandsHeader: '📋 Các lệnh có sẵn',
+            commandsList: '• `/setup` - Cài đặt bot ban đầu\n' +
+                         '• `/favgames` - Chọn game bạn muốn nhận mã\n' +
+                         '• `/toggleautosend` - Bật/tắt thông báo tự động\n' +
+                         '• `/listcodes` - Hiển thị mã đang hoạt động cho một game\n' +
+                         '• `/redeem` - Gửi mã cụ thể đến kênh của bạn\n' +
+                         '• `/setlang` - Thay đổi ngôn ngữ bot (Tiếng Anh/Tiếng Việt/Tiếng Nhật)\n' +
+                         '• `/help` - Hiển thị trợ giúp này\n' +
+                         '• `/about` - Thông tin về bot',
+            tipsHeader: '💡 Mẹo & thủ thuật',
+            tipsList: '• Bot kiểm tra mã mới mỗi 5 phút\n' +
+                     '• Bạn có thể đăng mã thủ công với `/redeem`\n' +
+                     '• Sử dụng `/favgames` để lọc thông báo theo game\n' +
+                     '• Đặt vai trò khác nhau cho từng loại game\n' +
+                     '• Quản trị viên máy chủ có thể chạy `/setup` lại để thay đổi cài đặt',
+            footer: 'HoYo Code Sender - Nhận mã game HoYoverse tự động!',
+            error: 'Đã xảy ra lỗi khi hiển thị trợ giúp.'
         },
         setlang: {
             success: 'Ngôn ngữ của bot đã thành: **{language}**',
@@ -82,7 +142,12 @@ module.exports = {
             hasVoted: '✅ Cảm ơn bạn đã bình chọn! Bạn có thể bình chọn lại sau 12 giờ.',
             hasNotVoted: '❌ Bạn chưa bình chọn hôm nay!',
             link: 'Bình chọn tại đây',
-            error: 'Lỗi kiểm tra trạng thái bình chọn. Vui lòng thử lại.'
+            error: 'Lỗi kiểm tra trạng thái bình chọn. Vui lòng thử lại.',
+            thankTitle: 'Cảm ơn bạn đã bình chọn! 🎉',
+            thankMessage: 'Cảm ơn {user} đã ủng hộ bot bằng cách bình chọn trên Top.gg! Sự ủng hộ của bạn giúp chúng tôi phát triển.',
+            voteAgain: 'Bạn có thể bình chọn lại sau 12 giờ.',
+            dmThankTitle: 'Cảm ơn bạn đã bình chọn!',
+            dmThankMessage: 'Cảm ơn bạn đã bình chọn cho HoYo Code Sender trên Top.gg! Sự ủng hộ của bạn rất có ý nghĩa với chúng tôi.'
         },
         about: {
             title: 'Về HoYo Code Sender',

@@ -69,26 +69,16 @@ async function checkAndSendNewCodes(client) {
                     const guildLang = await Language.findOne({ guildId: config.guildId });
                     const guildId = config.guildId;
 
-                    // Get settings to check if auto-send is enabled
-                    const settings = await Settings.findOne({ guildId: guildId });
-                    if (!settings?.autoSendEnabled) {
-                        console.log(`Auto-send disabled for guild ${guildId}, skipping.`);
-                        continue;
-                    }
+                    // Get settings to check auto-send and favorite games
+                    const settings = await Settings.findOne({ guildId: config.guildId });
+                    if (!settings?.autoSendEnabled) continue;
 
                     for (const game in groupedCodes) {
-                        // Skip if no role is set for this game
-                        const roleField = roleMapping[game];
-                        if (!config[roleField]) {
-                            console.log(`No role set for ${game} in guild ${guildId}, skipping.`);
-                            continue;
-                        }
-                        
-                        // Skip if this game's notifications are disabled
-                        const gameNotifyField = settingsMapping[game];
-                        if (settings?.gameNotifications && 
-                            settings.gameNotifications[gameNotifyField] === false) {
-                            console.log(`Notifications for ${game} are disabled in guild ${guildId}, skipping.`);
+                        // Skip sending if favorite games filter is enabled and this game is not selected
+                        if (settings?.favoriteGames?.enabled && 
+                            settings.favoriteGames.games && 
+                            settings.favoriteGames.games[game] === false) {
+                            console.log(`Skipping ${game} codes for guild ${config.guildId} (filtered out)`);
                             continue;
                         }
 

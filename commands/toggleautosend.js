@@ -2,12 +2,14 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
+const { hasAdminPermission } = require('../utils/permissions');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('toggleautosend')
         .setDescription('Enable/disable automatic code sending')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        // Remove the default permissions restriction to make command visible to everyone
+        // Admin permissions will be enforced in the execute function
         .addStringOption(option =>
             option.setName('status')
                 .setDescription('Enable or disable auto-send')
@@ -19,8 +21,8 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            // Add strict permission check
-            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+            // Check if user is admin or bot owner using our utility
+            if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.toggleautosend.noPermission',
                     interaction.guildId
