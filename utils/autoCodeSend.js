@@ -34,112 +34,158 @@ async function checkAndSendNewCodes(client) {
     console.log('Starting code check process...');
     const games = ['genshin', 'hkrpg', 'nap'];
     
-    for (const game of games) {
-        try {
-            const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`);
-            const groupedCodes = {};
+    try {
+        // Fetch all configurations, settings, and languages in parallel once
+        const [configs, allSettings, languages] = await Promise.all([
+            Config.find({}).lean(),
+            Settings.find({}).lean(),
+            Language.find({}).lean()
+        ]);
 
-            if (response.data?.codes?.length) {
-                for (const codeData of response.data.codes) {
-                    try {
-                        const existingCode = await Code.findOne({ code: codeData.code, game: codeData.game });
-                        
-                        if (!existingCode && codeData.status === 'OK') {
-                            const newCode = new Code({
-                                game: codeData.game,
-                                code: codeData.code,
-                                reward: codeData.rewards || 'Not specified',
-                                isExpired: false,
-                            });
-                            await newCode.save();
+        // Create lookup maps to avoid repeated database queries
+        const settingsMap = allSettings.reduce((map, setting) => {
+            map[setting.guildId] = setting;
+            return map;
+        }, {});
+        
+        const languageMap = languages.reduce((map, lang) => {
+            map[lang.guildId] = lang;
+            return map;
+        }, {});
 
-                            if (!groupedCodes[codeData.game]) {
-                                groupedCodes[codeData.game] = [];
-                            }
-                            groupedCodes[codeData.game].push(codeData);
-                        }
-                    } catch (dbError) {
-                        console.error(`Database operation failed for code ${codeData.code}:`, dbError);
-                    }
-                }
+        // Batch fetch all existing codes
+        const allExistingCodes = await Code.find({}).lean();
+        const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));
 
-                const configs = await Config.find({});
-                
-                for (const config of configs) {
-                    const guildLang = await Language.findOne({ guildId: config.guildId });
-                    const guildId = config.guildId;
+        // Fetch all games' codes in parallel
+        const gameCodeRequests = games.map(game => 
+            axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`)
+                .catch(error => {
+                    console.error(`Error fetching codes for ${game}:`, error);
+                    return { data: { codes: [] } };
+                })
+        );
 
-                    // Get settings to check auto-send and favorite games
-                    const settings = await Settings.findOne({ guildId: config.guildId });
-                    if (!settings?.autoSendEnabled) continue;
+        const gameResponses = await Promise.all(gameCodeRequests);
+        const newCodesForGames = {};
+        const codesToSave = [];
 
-                    for (const game in groupedCodes) {
-                        // Skip sending if favorite games filter is enabled and this game is not selected
-                        if (settings?.favoriteGames?.enabled && 
-                            settings.favoriteGames.games && 
-                            settings.favoriteGames.games[game] === false) {
-                            console.log(`Skipping ${game} codes for guild ${config.guildId} (filtered out)`);
-                            continue;
-                        }
+        // Process all games' responses
+        gameResponses.forEach((response, index) => {
+            const game = games[index];
+            const gameCodes = response.data?.codes || [];
+            
+            if (gameCodes.length) {
+                const newCodes = gameCodes.filter(codeData => 
+                    !existingCodesSet.has(`${codeData.game}:${codeData.code}`) && 
+                    codeData.status === 'OK'
+                );
 
-                        const codes = groupedCodes[game];
-                        if (codes.length > 0) {
-                            try {
-                                const title = await languageManager.getString(
-                                    'commands.listcodes.newCodes',
-                                    guildId,
-                                    { game: gameNames[game] }
-                                );
-
-                                const redeemText = await languageManager.getString(
-                                    'commands.listcodes.redeemButton',
-                                    guildId
-                                );
-
-                                const rewardsText = await languageManager.getString(
-                                    'commands.listcodes.reward',
-                                    guildId
-                                );
-
-                                const descriptionPromises = codes.map(async code => {
-                                    const rewardString = code.rewards ? 
-                                        await languageManager.getRewardString(code.rewards, guildId) : 
-                                        await languageManager.getString('commands.listcodes.noReward', guildId);
-                                    
-                                    return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
-                                });
-
-                                const descriptions = await Promise.all(descriptionPromises);
-                                const finalDescription = descriptions.join('\n\n');
-
-                                const embed = new EmbedBuilder()
-                                    .setColor('#00ff00')
-                                    .setTitle(title)
-                                    .setDescription(finalDescription)
-                                    .setTimestamp();
-
-                                if (config?.channel) {
-                                    const channel = client.channels.cache.get(config.channel);
-                                    if (channel) {
-                                        const roleId = config[roleField];
-                                        const roleTag = roleId ? `<@&${roleId}> ` : '';
-                                        
-                                        await channel.send({ content: roleTag, embeds: [embed] });
-                                        console.log(`Sent ${game} notification to guild ${guildId}`);
-                                    }
-                                }
-                            } catch (error) {
-                                console.error(`Error sending message to guild ${guildId}:`, error);
-                            }
-                        }
-                    }
+                if (newCodes.length) {
+                    newCodesForGames[game] = newCodes;
+                    
+                    // Prepare codes for batch save
+                    newCodes.forEach(codeData => {
+                        codesToSave.push({
+                            game: codeData.game,
+                            code: codeData.code,
+                            reward: codeData.rewards || 'Not specified',
+                            isExpired: false
+                        });
+                    });
                 }
             }
-        } catch (error) {
-            console.error(`Error processing ${game}:`, error);
+        });
+
+        // Batch save all new codes at once if any
+        if (codesToSave.length > 0) {
+            await Code.insertMany(codesToSave);
         }
+
+        // Prepare message sending for guilds with new codes
+        const messageTasks = [];
+
+        // Filter configs that have autoSend enabled
+        for (const config of configs) {
+            const guildId = config.guildId;
+            const settings = settingsMap[guildId];
+            
+            // Skip if autoSend is disabled
+            if (!settings?.autoSendEnabled) continue;
+
+            // Process each game with new codes
+            for (const game in newCodesForGames) {
+                // Skip if favorite games filter is enabled and this game is not selected
+                if (settings?.favoriteGames?.enabled && 
+                    settings.favoriteGames.games && 
+                    settings.favoriteGames.games[game] === false) {
+                    console.log(`Skipping ${game} codes for guild ${guildId} (filtered out)`);
+                    continue;
+                }
+
+                const codes = newCodesForGames[game];
+                if (codes.length > 0) {
+                    messageTasks.push(sendCodeNotification(client, config, game, codes, guildId, languageMap[guildId]));
+                }
+            }
+        }
+
+        // Execute all message sending tasks 
+        if (messageTasks.length > 0) {
+            await Promise.all(messageTasks);
+        }
+        
+        console.log(`Code check process completed. Found ${codesToSave.length} new codes.`);
+    } catch (error) {
+        console.error('Error in checkAndSendNewCodes:', error);
     }
-    console.log('Code check process completed');
+}
+
+async function sendCodeNotification(client, config, game, codes, guildId, guildLang) {
+    try {
+        const title = await languageManager.getString(
+            'commands.listcodes.newCodes',
+            guildId,
+            { game: gameNames[game] }
+        );
+
+        const redeemText = await languageManager.getString(
+            'commands.listcodes.redeemButton',
+            guildId
+        );
+
+        // Generate all descriptions at once
+        const descriptionPromises = codes.map(async code => {
+            const rewardString = code.rewards ? 
+                await languageManager.getRewardString(code.rewards, guildId) : 
+                await languageManager.getString('commands.listcodes.noReward', guildId);
+            
+            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
+        });
+
+        const descriptions = await Promise.all(descriptionPromises);
+        const finalDescription = descriptions.join('\n\n');
+
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle(title)
+            .setDescription(finalDescription)
+            .setTimestamp();
+
+        if (config?.channel) {
+            const channel = client.channels.cache.get(config.channel);
+            if (channel) {
+                const roleField = roleMapping[game];
+                const roleId = config[roleField];
+                const roleTag = roleId ? `<@&${roleId}> ` : '';
+                
+                await channel.send({ content: roleTag, embeds: [embed] });
+                console.log(`Sent ${game} notification to guild ${guildId}`);
+            }
+        }
+    } catch (error) {
+        console.error(`Error sending message to guild ${guildId}:`, error);
+    }
 }
 
 module.exports = { checkAndSendNewCodes };
