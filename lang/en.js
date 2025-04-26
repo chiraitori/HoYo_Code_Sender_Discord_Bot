@@ -66,7 +66,7 @@ module.exports = {
             deletedSettings: 'Notification settings',
             deletedLanguage: 'Language settings'
         },
-        redeem: {
+        postcode: {
             modalTitle: 'Add Redemption Codes',
             inputLabels: {
                 games: 'Select Game (genshin/hsr/zzz)',

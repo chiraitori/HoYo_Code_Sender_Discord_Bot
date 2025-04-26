@@ -72,7 +72,7 @@ module.exports = {
             deletedSettings: '通知設定',
             deletedLanguage: '言語設定'
         },
-        redeem: {
+        postcode: {
             modalTitle: '引換コードを追加',
             inputLabels: {
                 games: 'ゲームを選択（genshin/hsr/zzz）',

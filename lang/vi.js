@@ -66,7 +66,7 @@ module.exports = {
             deletedSettings: 'Cài đặt thông báo',
             deletedLanguage: 'Cài đặt ngôn ngữ'
         },
-        redeem: {
+        postcode: {
             modalTitle: 'Thêm mã code',
             inputLabels: {
                 games: 'Chọn Game (genshin/hsr/zzz)',
