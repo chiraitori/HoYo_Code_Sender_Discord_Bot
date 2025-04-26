@@ -11,6 +11,12 @@ const settingsSchema = new mongoose.Schema({
             hkrpg: { type: Boolean, default: true },
             nap: { type: Boolean, default: true }
         }
+    },
+    // Add channel status tracking
+    channelStatus: {
+        isInvalid: { type: Boolean, default: false },
+        lastError: { type: String, default: null },
+        lastChecked: { type: Date, default: null }
     }
 });
 

@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { Api } = require('@top-gg/sdk');
 const languageManager = require('../utils/language');
 const Config = require('../models/Config');
+const { trackVoteCommand } = require('../utils/topggWebhook');
 
 // Initialize the Top.gg API client if token is available
 let api;
@@ -18,6 +19,9 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Track that this user initiated a vote command in this channel
+            trackVoteCommand(interaction.user.id, interaction.channelId, interaction.guildId);
+            
             // Defer reply to give us time to check with Top.gg
             await interaction.deferReply({ ephemeral: true });
             
