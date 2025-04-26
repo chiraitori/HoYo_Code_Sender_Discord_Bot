@@ -23,8 +23,8 @@ const roleMappings = {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('redeem')
-        .setDescription('Show redeem instructions and codes')
+        .setName('postcode')
+        .setDescription('Show post redeem codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
