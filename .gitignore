@@ -2,6 +2,7 @@
 node_modules/
 webs-item-scaper/
 .vscode/
+docs/
 
 # Logs and debugging
 logs

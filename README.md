@@ -24,14 +24,19 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 - `/listcodes` - List all active codes for a selected game.
 - `/redeem` - Manually send redemption codes with custom messages (**Admin only**).
 - `/toggleautosend` - Enable or disable automatic code notifications (**Admin only**).
-- `/setlang` - To set the language to the bot now only have en,vi,jp (**Admin Only**).
-- `/vote` - To vote the bot on top.gg. (You can delete this command if you self hosting).
+- `/favgames` - Set which game codes you want to receive (**Admin only**).
+- `/setlang` - Set the bot language for this server (English/Vietnamese/Japanese) (**Admin only**).
+- `/help` - Shows how to setup the bot and provides usage tips.
+- `/about` - Show information about the bot.
+- `/checkchannels` - Check and validate notification channels (**Admin only**).
+- `/deletesetup` - Delete all bot configuration for this server (**Admin only**).
+- `/vote` - Get information about voting for the bot on Top.gg. (You can delete this command if self-hosting)
 
 ## Setup
 
 ### Prerequisites
 
-- **Node.js** (version 16.9.0 or higher)
+- **Node.js** (version 20.1.0 or higher)
 - **npm**
 - **Discord Bot Token**
 - **MongoDB Database**

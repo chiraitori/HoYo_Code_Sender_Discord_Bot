@@ -28,23 +28,16 @@ function setupTopggWebhook(app, client) {
     // Apply the webhook listener middleware
     app.post('/topgg/webhook', webhook.listener(async (voteData) => {
         try {
-            // Log the complete vote data for debugging
-            console.log('[TOPGG] Webhook received vote data:', JSON.stringify(voteData, null, 2));
-            
-            // Top.gg webhooks send data in format: { user: "userId", type: "upvote", ... }
             if (!voteData || !voteData.user) {
-                console.error('[TOPGG] Error: Invalid vote data received - missing user ID');
                 return;
             }
             
             const userId = voteData.user;
-            console.log(`[TOPGG] Processing vote from user ID: ${userId}`);
             
             // Check if this is a duplicate vote (within cooldown period)
             const lastVoteTime = recentVotes.get(userId);
             const now = Date.now();
             if (lastVoteTime && (now - lastVoteTime < VOTE_COOLDOWN)) {
-                console.log(`[TOPGG] Ignoring duplicate vote from ${userId} - too soon after previous vote (${now - lastVoteTime}ms)`);
                 return;
             }
             
@@ -60,7 +53,6 @@ function setupTopggWebhook(app, client) {
             
             try {
                 const user = await client.users.fetch(userId);
-                console.log(`[TOPGG] Found voting user: ${user.tag}`);
                 
                 // Check if we have tracking information for where this user initiated the vote command
                 const trackingInfo = voteChannelTracker.get(userId);
@@ -104,10 +96,7 @@ function setupTopggWebhook(app, client) {
                             try {
                                 await channel.send({
                                     embeds: [embed],
-                                    // No content field to avoid any mention
                                 });
-                                
-                                console.log(`[TOPGG] Sent thank you message to ${user.tag} in original channel ${trackingInfo.channelId}`);
                                 
                                 // Mark that we've sent a thank you message
                                 thankyouSent = true;
@@ -115,11 +104,10 @@ function setupTopggWebhook(app, client) {
                                 // Remove from tracker since we've handled this vote
                                 voteChannelTracker.delete(userId);
                             } catch (sendError) {
-                                console.error(`[TOPGG] Error sending thank you message:`, sendError.message);
+                                // Silently handle error and fall back to default channels
                             }
                         }
                     } catch (channelError) {
-                        console.error(`[TOPGG] Error sending to original channel:`, channelError.message);
                         // If there's an error, we'll fall back to the default behavior below
                     }
                 }
@@ -128,7 +116,6 @@ function setupTopggWebhook(app, client) {
                 if (!thankyouSent) {
                     // Get all server configurations
                     const configs = await Config.find({});
-                    console.log(`[TOPGG] Found ${configs.length} server configurations for vote notifications`);
                     
                     // Send thank you message to the first available configured channel
                     for (const config of configs) {
@@ -137,7 +124,6 @@ function setupTopggWebhook(app, client) {
                         try {
                             const channel = await client.channels.fetch(config.channel);
                             if (!channel) {
-                                console.log(`[TOPGG] Channel ${config.channel} not found for guild ${config.guildId}`);
                                 continue;
                             }
                             
@@ -172,27 +158,20 @@ function setupTopggWebhook(app, client) {
                                 embeds: [embed]
                             });
                             
-                            console.log(`[TOPGG] Sent thank you message in guild ${config.guildId}, channel ${config.channel}`);
                             thankyouSent = true;
                             break; // Stop after sending to one channel
                         } catch (channelError) {
-                            console.error(`[TOPGG] Error sending vote thank you to channel in guild ${config.guildId}:`, channelError.message);
+                            // Continue to next server if there's an error
                         }
-                    }
-                    
-                    if (thankyouSent) {
-                        console.log(`[TOPGG] Successfully sent vote thank you notification`);
-                    } else {
-                        console.log(`[TOPGG] Could not find any suitable channel to send thank you notification`);
                     }
                 }
                 
             } catch (userError) {
-                console.error(`[TOPGG] Error fetching user ${userId}:`, userError.message);
+                // Silent error handling for user fetch failures
             }
             
         } catch (error) {
-            console.error('[TOPGG] Error handling Top.gg vote webhook:', error);
+            // Silent error handling for webhook processing
         }
     }));
     
