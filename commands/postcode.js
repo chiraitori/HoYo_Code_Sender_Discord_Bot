@@ -8,7 +8,7 @@ const gameNames = {
     'zzz': 'Zenless Zone Zero'
 };
 
-const redeemUrls = {
+const postcodeUrls = {
     'genshin': 'https://genshin.hoyoverse.com/en/gift',
     'hsr': 'https://hsr.hoyoverse.com/gift',
     'zzz': 'https://zzz.hoyoverse.com/gift'
@@ -24,7 +24,7 @@ const roleMappings = {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('postcode')
-        .setDescription('Show post redeem codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero')
+        .setDescription('Show post postcode codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
@@ -32,7 +32,7 @@ module.exports = {
             // Add strict permission check
             if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
                 const noPermMessage = await languageManager.getString(
-                    'commands.redeem.noPermission',
+                    'commands.postcode.noPermission',
                     interaction.guildId
                 );
                 return interaction.reply({ content: noPermMessage, ephemeral: true });
@@ -40,21 +40,21 @@ module.exports = {
 
             // Get translated modal title
             const modalTitle = await languageManager.getString(
-                'commands.redeem.modalTitle',
+                'commands.postcode.modalTitle',
                 interaction.guildId
             );
 
             const modal = new ModalBuilder()
-                .setCustomId('redeemModal')
+                .setCustomId('postcodeModal')
                 .setTitle(modalTitle);
 
             // Get translated input labels
             const labels = await Promise.all([
-                languageManager.getString('commands.redeem.inputLabels.games', interaction.guildId),
-                languageManager.getString('commands.redeem.inputLabels.code1', interaction.guildId),
-                languageManager.getString('commands.redeem.inputLabels.code2', interaction.guildId),
-                languageManager.getString('commands.redeem.inputLabels.code3', interaction.guildId),
-                languageManager.getString('commands.redeem.inputLabels.message', interaction.guildId)
+                languageManager.getString('commands.postcode.inputLabels.games', interaction.guildId),
+                languageManager.getString('commands.postcode.inputLabels.code1', interaction.guildId),
+                languageManager.getString('commands.postcode.inputLabels.code2', interaction.guildId),
+                languageManager.getString('commands.postcode.inputLabels.code3', interaction.guildId),
+                languageManager.getString('commands.postcode.inputLabels.message', interaction.guildId)
             ]);
 
             const gameInput = new TextInputBuilder()
@@ -95,9 +95,9 @@ module.exports = {
             await interaction.showModal(modal);
 
         } catch (error) {
-            console.error('Error showing redeem modal:', error);
+            console.error('Error showing postcode modal:', error);
             const errorMessage = await languageManager.getString(
-                'commands.redeem.error',
+                'commands.postcode.error',
                 interaction.guildId
             );
             await interaction.reply({ content: errorMessage, ephemeral: true });
@@ -137,7 +137,7 @@ module.exports = {
 
             // Create embed with translated content
             const embedTitle = await languageManager.getString(
-                'commands.redeem.embedTitle',
+                'commands.postcode.embedTitle',
                 interaction.guildId,
                 { game: gameNames[game] }
             );
@@ -148,14 +148,14 @@ module.exports = {
                 .setDescription(await (async () => {
                     const descriptions = [];
                     for (const code of codes) {
-                        const redeemButton = await languageManager.getString('commands.redeem.redeemButton', interaction.guildId);
-                        descriptions.push(`**${code}**\n[${redeemButton}](${redeemUrls[game]}?code=${code})`);
+                        const postcodeButton = await languageManager.getString('commands.postcode.postcodeButton', interaction.guildId);
+                        descriptions.push(`**${code}**\n[${postcodeButton}](${postcodeUrls[game]}?code=${code})`);
                     }
                     return descriptions.join('\n\n');
                 })());
 
             if (message) {
-                const messageLabel = await languageManager.getString('commands.redeem.messageLabel', interaction.guildId);
+                const messageLabel = await languageManager.getString('commands.postcode.messageLabel', interaction.guildId);
                 embed.addFields({ name: messageLabel, value: message });
             }
 
@@ -166,15 +166,15 @@ module.exports = {
 
             // Send success message
             const successMessage = await languageManager.getString(
-                'commands.redeem.success',
+                'commands.postcode.success',
                 interaction.guildId
             );
             await interaction.reply({ content: successMessage, ephemeral: true });
 
         } catch (error) {
-            console.error('Error processing redeem:', error);
+            console.error('Error processing postcode:', error);
             const errorMessage = await languageManager.getString(
-                'commands.redeem.error',
+                'commands.postcode.error',
                 interaction.guildId
             );
             await interaction.reply({ content: errorMessage, ephemeral: true });
