@@ -3,6 +3,7 @@ const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
+const { validateChannel } = require('../utils/channelValidator');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -52,17 +53,30 @@ module.exports = {
             // Get auto_send option directly as boolean
             const enableAutoSend = interaction.options.getBoolean('auto_send');
 
-            // Validate bot permissions in channel
-            const botPermissions = channel.permissionsFor(interaction.client.user);
-            if (!botPermissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
-                const errorMsg = await languageManager.getString(
-                    'commands.setup.error.permissions',
+            // Custom channel validation using our new validateChannel function
+            // First, save channel ID temporarily to check with validateChannel
+            const tempConfig = await Config.findOneAndUpdate(
+                { guildId: interaction.guildId },
+                { channel: channel.id },
+                { upsert: true, new: true }
+            );
+
+            // Validate channel using our utility function
+            const validationResult = await validateChannel(interaction.client, interaction.guildId);
+            
+            if (!validationResult.isValid) {
+                // If channel validation fails, provide a detailed error message
+                const channelErrorMsg = await languageManager.getString(
+                    'commands.setup.error.channelValidation',
                     interaction.guildId
-                );
-                return interaction.editReply({ content: errorMsg });
+                ) || `Channel validation failed: ${validationResult.error}`;
+                
+                return interaction.editReply({ 
+                    content: `⚠️ ${channelErrorMsg}\n\n**Error details:** ${validationResult.error}\n\nPlease choose a different channel where the bot has proper permissions.` 
+                });
             }
 
-            // Update config in database
+            // If validation passed, update the full configuration
             await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 {
@@ -77,7 +91,13 @@ module.exports = {
             // Enable or disable auto-send in settings based on the option
             await Settings.findOneAndUpdate(
                 { guildId: interaction.guildId },
-                { autoSendEnabled: enableAutoSend },
+                { 
+                    autoSendEnabled: enableAutoSend,
+                    // Reset channelStatus as we've just validated it
+                    'channelStatus.isInvalid': false,
+                    'channelStatus.lastError': null,
+                    'channelStatus.lastChecked': new Date()
+                },
                 { upsert: true, new: true }
             );
 
@@ -110,6 +130,12 @@ module.exports = {
                 { channel: channel.toString() }
             );
             
+            // Add channel validation success message
+            const channelValidMsg = await languageManager.getString(
+                'commands.setup.channelValidation',
+                interaction.guildId
+            ) || "✅ Channel validated successfully! Bot can send messages here.";
+            
             // Get auto-send status message
             const autoSendStatus = enableAutoSend ? 'ENABLED' : 'DISABLED';
             const autoSendMessage = await languageManager.getString(
@@ -125,6 +151,7 @@ module.exports = {
                 ...roleMessages,
                 '',
                 `• ${channelMessage}`,
+                `• ${channelValidMsg}`,
                 `• ${autoSendMessage}`
             ].join('\n');
 

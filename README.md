@@ -40,8 +40,8 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 
 1. **Clone the repository**:
 ```bash
-   git clone https://github.com/yourusername/hoyoverse-code-bot.git
-   cd hoyoverse-code-bot
+   git clone https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot.git
+   cd HoYo_Code_Sender_Discord_Bot
 ```
 2. **Install dependencies:**
 ```bash
