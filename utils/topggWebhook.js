@@ -104,7 +104,7 @@ function setupTopggWebhook(app, client) {
                                 // Remove from tracker since we've handled this vote
                                 voteChannelTracker.delete(userId);
                             } catch (sendError) {
-                                // Silently handle error and fall back to default channels
+                                // Silently handle error and fall back to default channel for this guild
                             }
                         }
                     } catch (channelError) {
@@ -112,59 +112,57 @@ function setupTopggWebhook(app, client) {
                     }
                 }
                 
-                // Only fall back to the configured channel if we couldn't send to the original channel
-                if (!thankyouSent) {
-                    // Get all server configurations
-                    const configs = await Config.find({});
-                    
-                    // Send thank you message to the first available configured channel
-                    for (const config of configs) {
-                        if (!config.channel || thankyouSent) continue;
+                // If we couldn't send to the original channel, find a suitable fallback channel
+                // in the SAME guild where the vote command was used
+                if (!thankyouSent && trackingInfo && trackingInfo.guildId) {
+                    try {
+                        // Find the configuration for the specific guild where the vote command was used
+                        const guildConfig = await Config.findOne({ guildId: trackingInfo.guildId });
                         
-                        try {
-                            const channel = await client.channels.fetch(config.channel);
-                            if (!channel) {
-                                continue;
-                            }
-                            
-                            // Get translated strings for this server
-                            const thankTitle = await languageManager.getString(
-                                'commands.vote.thankTitle', 
-                                config.guildId
-                            ) || 'Thank You for Voting! 🎉';
-                            
-                            const thankMessage = await languageManager.getString(
-                                'commands.vote.thankMessage', 
-                                config.guildId
-                            ) || 'Thank you {user} for supporting the bot by voting on Top.gg! Your support helps us grow.';
-                            
-                            const voteAgainMsg = await languageManager.getString(
-                                'commands.vote.voteAgain', 
-                                config.guildId
-                            ) || 'You can vote again in 12 hours.';
-                            
-                            const embed = new EmbedBuilder()
-                                .setColor('#00FF00')
-                                .setTitle(thankTitle)
-                                .setDescription(thankMessage.replace('{user}', user.toString()))
-                                .setFooter({ 
-                                    text: voteAgainMsg,
-                                    iconURL: user.displayAvatarURL({ dynamic: true })
-                                })
-                                .setTimestamp();
+                        if (guildConfig && guildConfig.channel) {
+                            const channel = await client.channels.fetch(guildConfig.channel);
+                            if (channel) {
+                                // Get translated strings for this server
+                                const thankTitle = await languageManager.getString(
+                                    'commands.vote.thankTitle', 
+                                    trackingInfo.guildId
+                                ) || 'Thank You for Voting! 🎉';
+                                
+                                const thankMessage = await languageManager.getString(
+                                    'commands.vote.thankMessage', 
+                                    trackingInfo.guildId
+                                ) || 'Thank you {user} for supporting the bot by voting on Top.gg! Your support helps us grow.';
+                                
+                                const voteAgainMsg = await languageManager.getString(
+                                    'commands.vote.voteAgain', 
+                                    trackingInfo.guildId
+                                ) || 'You can vote again in 12 hours.';
+                                
+                                const embed = new EmbedBuilder()
+                                    .setColor('#00FF00')
+                                    .setTitle(thankTitle)
+                                    .setDescription(thankMessage.replace('{user}', user.toString()))
+                                    .setFooter({ 
+                                        text: voteAgainMsg,
+                                        iconURL: user.displayAvatarURL({ dynamic: true })
+                                    })
+                                    .setTimestamp();
 
-                            // Send message with no mention
-                            await channel.send({
-                                embeds: [embed]
-                            });
-                            
-                            thankyouSent = true;
-                            break; // Stop after sending to one channel
-                        } catch (channelError) {
-                            // Continue to next server if there's an error
+                                // Send message with no mention
+                                await channel.send({
+                                    embeds: [embed]
+                                });
+                                
+                                thankyouSent = true;
+                            }
                         }
+                    } catch (configError) {
+                        // Silent error handling - no suitable channel in the original guild
                     }
                 }
+                
+                // We don't fall back to other servers' channels anymore
+                // This ensures thank you messages only appear in the server where the user voted
                 
             } catch (userError) {
                 // Silent error handling for user fetch failures
