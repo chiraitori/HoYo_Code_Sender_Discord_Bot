@@ -10,7 +10,8 @@ module.exports = {
     common: {
         enabled: '有効',
         disabled: '無効',
-        notYourButton: 'このボタンはあなたのものではありません。'
+        notYourButton: 'このボタンはあなたのものではありません。',
+        supportMsg: '❤️ 開発者を応援: ko-fi.com/chiraitori | paypal.me/chiraitori'
     },
     welcome: {
         title: 'HoYo Code Senderを追加していただきありがとうございます！',

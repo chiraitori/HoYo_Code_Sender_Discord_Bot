@@ -10,7 +10,8 @@ module.exports = {
     common: {
         enabled: 'ENABLED',
         disabled: 'DISABLED',
-        notYourButton: 'This button is not for you.'
+        notYourButton: 'This button is not for you.',
+        supportMsg: '❤️ Help the developer: ko-fi.com/chiraitori | paypal.me/chiraitori'
     },
     welcome: {
         title: 'Thanks for Adding HoYo Code Sender!',
@@ -200,14 +201,5 @@ module.exports = {
         checking: 'Checking for new codes...',
         connected: 'Connected to database',
         disconnected: 'Disconnected from database'
-    },
-    common: {
-        enabled: 'ENABLED',
-        disabled: 'DISABLED'
-    },
-    games: {
-        genshin: 'Genshin Impact',
-        hkrpg: 'Honkai: Star Rail',
-        nap: 'Zenless Zone Zero'
     }
 };
