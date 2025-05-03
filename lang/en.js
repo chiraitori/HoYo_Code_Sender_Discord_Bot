@@ -53,7 +53,11 @@ module.exports = {
             roleSetup: 'Role {role} has been set for {type} notifications',
             channelSetup: 'Channel {channel} will receive code notifications',
             autoSendSetup: 'Auto-send feature: {status}',
-            noPermission: 'You do not have permission to use this command'
+            noPermission: 'You do not have permission to use this command',
+            channelValidation: '✅ Channel validated successfully! Bot can send messages here.',
+            error: {
+                channelValidation: 'Channel validation failed'
+            }
         },
         deletesetup: {
             noPermission: 'You do not have permission to use this command.',

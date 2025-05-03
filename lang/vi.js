@@ -53,7 +53,15 @@ module.exports = {
             roleSetup: 'Đã thiết lập role {role} cho thông báo {type}',
             channelSetup: 'Kênh {channel} sẽ nhận thông báo code',
             autoSendSetup: 'Tính năng tự động gửi: {status}',
-            noPermission: 'Bạn không có quyền sử dụng lệnh này'
+            noPermission: 'Bạn không có quyền sử dụng lệnh này',
+            channelValidation: '✅ Kênh đã được xác thực thành công! Bot có thể gửi tin nhắn tại đây.',
+            readyMessage: 'Máy chủ của bạn đã sẵn sàng nhận thông báo mã code!',
+            rolesHeader: '🎭 Vai Trò Thông Báo',
+            channelHeader: '📣 Kênh Thông Báo',
+            autoSendHeader: '⚙️ Tính Năng Tự Động Gửi',
+            error: {
+                channelValidation: 'Xác thực kênh thất bại'
+            }
         },
         deletesetup: {
             noPermission: 'Bạn không có quyền sử dụng lệnh này.',

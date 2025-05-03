@@ -59,7 +59,15 @@ module.exports = {
             roleSetup: '{type}通知のロール{role}が設定されました',
             channelSetup: 'コード通知は{channel}に送信されます',
             autoSendSetup: '自動送信機能: {status}',
-            noPermission: 'このコマンドを使用する権限がありません'
+            noPermission: 'このコマンドを使用する権限がありません',
+            channelValidation: '✅ チャンネルが正常に検証されました！ボットはここでメッセージを送信できます。',
+            readyMessage: 'サーバーがコード通知を受信する準備ができました！',
+            rolesHeader: '🎭 通知ロール',
+            channelHeader: '📣 通知チャンネル',
+            autoSendHeader: '⚙️ 自動送信機能',
+            error: {
+                channelValidation: 'チャンネル検証に失敗しました'
+            }
         },
         deletesetup: {
             noPermission: 'このコマンドを使用する権限がありません。',
