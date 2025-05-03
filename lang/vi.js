@@ -10,7 +10,8 @@ module.exports = {
     common: {
         enabled: 'BẬT',
         disabled: 'TẮT',
-        notYourButton: 'Nút này không dành cho bạn.'
+        notYourButton: 'Nút này không dành cho bạn.',
+        supportMsg: '❤️ Hỗ trợ nhà phát triển: ko-fi.com/chiraitori | paypal.me/chiraitori | chiraitori.me'
     },
     welcome: {
         title: 'Cảm ơn đã thêm HoYo Code Sender!',
@@ -203,14 +204,5 @@ module.exports = {
         checking: 'Đang kiểm tra code mới...',
         connected: 'Đã kết nối tới cơ sở dữ liệu',
         disconnected: 'Đã ngắt kết nối khỏi cơ sở dữ liệu'
-    },
-    common: {
-        enabled: 'BẬT',
-        disabled: 'TẮT'
-    },
-    games: {
-        genshin: 'Genshin Impact',
-        hkrpg: 'Honkai: Star Rail',
-        nap: 'Zenless Zone Zero'
     }
 };

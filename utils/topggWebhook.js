@@ -23,7 +23,7 @@ function trackVoteCommand(userId, channelId, guildId) {
 
 function setupTopggWebhook(app, client) {
     // Create webhook instance with your Top.gg webhook authorization (not bot token)
-    const webhook = new Webhook("rinkadev12334444");  // Replace "topggauth123" with your actual Top.gg webhook authorization
+    const webhook = new Webhook(process.env.WEBHOOK_PASSWORD);  // Replace "topggauth123" with your actual Top.gg webhook authorization
     
     // Apply the webhook listener middleware
     app.post('/topgg/webhook', webhook.listener(async (voteData) => {
@@ -172,8 +172,6 @@ function setupTopggWebhook(app, client) {
             // Silent error handling for webhook processing
         }
     }));
-    
-    console.log('Top.gg webhook endpoint set up at /topgg/webhook');
 }
 
 module.exports = { setupTopggWebhook, trackVoteCommand };

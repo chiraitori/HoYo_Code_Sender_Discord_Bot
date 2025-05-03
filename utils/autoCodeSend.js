@@ -30,6 +30,13 @@ const settingsMapping = {
     'nap': 'nap'
 };
 
+// Support links for donations
+const supportLinks = {
+    kofi: 'https://ko-fi.com/chiraitori',
+    paypal: 'https://paypal.me/chiraitori',
+    banking: 'Use /about command for Vietnamese banking details'
+};
+
 async function checkAndSendNewCodes(client) {
     console.log('Starting code check process...');
     const games = ['genshin', 'hkrpg', 'nap'];
@@ -166,10 +173,17 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
         const descriptions = await Promise.all(descriptionPromises);
         const finalDescription = descriptions.join('\n\n');
 
+        // Get support message in the server's language
+        const supportMsg = await languageManager.getString(
+            'common.supportMsg', 
+            guildId
+        ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori';
+
         const embed = new EmbedBuilder()
             .setColor('#00ff00')
             .setTitle(title)
             .setDescription(finalDescription)
+            .setFooter({ text: supportMsg })
             .setTimestamp();
 
         if (config?.channel) {
