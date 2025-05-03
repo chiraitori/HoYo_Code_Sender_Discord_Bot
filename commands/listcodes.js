@@ -34,6 +34,13 @@ module.exports = {
                 'nap': 'Zenless Zone Zero'
             };
             
+            // Get game emojis - using simple dots instead of custom emojis
+            const gameEmojis = {
+                'genshin': '•',
+                'hkrpg': '•',
+                'nap': '•'
+            };
+            
             if (!response.data?.codes?.length) {
                 const noCodesMessage = await languageManager.getString(
                     'commands.listcodes.noCodes', 
@@ -43,11 +50,14 @@ module.exports = {
                 return await interaction.editReply({ content: noCodesMessage });
             }
 
-            const title = await languageManager.getString(
+            let title = await languageManager.getString(
                 'commands.listcodes.title',
                 interaction.guildId,
                 { game: gameNames[game] }
             );
+            
+            // Add emoji to title
+            title = `${gameEmojis[game]} ${title}`;
 
             const redeemUrls = {
                 'genshin': 'https://genshin.hoyoverse.com/en/gift',

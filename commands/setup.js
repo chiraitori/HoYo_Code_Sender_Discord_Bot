@@ -141,13 +141,13 @@ module.exports = {
                 
             // Format role information for embed fields
             const roles = [
-                { role: genshinRole, type: genshin, emoji: '⭐' },
-                { role: hsrRole, type: hsr, emoji: '🚀' },
-                { role: zzzRole, type: zzz, emoji: '💫' }
+                { role: genshinRole, type: genshin, emoji: '• ' },
+                { role: hsrRole, type: hsr, emoji: '• ' },
+                { role: zzzRole, type: zzz, emoji: '• ' }
             ];
 
             // Add roles field
-            const roleLines = roles.map(({ role, type, emoji }) => `${emoji} ${type}: ${role}`).join('\n');
+            const roleLines = roles.map(({ role, type, emoji }) => `${emoji}${type}: ${role}`).join('\n');
             successEmbed.addFields({ name: rolesHeader, value: roleLines });
             
             // Add channel field with validation success
