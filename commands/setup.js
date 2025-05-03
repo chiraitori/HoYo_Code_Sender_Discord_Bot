@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
@@ -65,15 +65,24 @@ module.exports = {
             const validationResult = await validateChannel(interaction.client, interaction.guildId);
             
             if (!validationResult.isValid) {
-                // If channel validation fails, provide a detailed error message
+                // If channel validation fails, provide a detailed error message in an embed
                 const channelErrorMsg = await languageManager.getString(
                     'commands.setup.error.channelValidation',
                     interaction.guildId
-                ) || `Channel validation failed: ${validationResult.error}`;
+                ) || 'Channel validation failed';
                 
-                return interaction.editReply({ 
-                    content: `⚠️ ${channelErrorMsg}\n\n**Error details:** ${validationResult.error}\n\nPlease choose a different channel where the bot has proper permissions.` 
-                });
+                const errorEmbed = new EmbedBuilder()
+                    .setColor('#FF5555')
+                    .setTitle('⚠️ ' + channelErrorMsg)
+                    .setDescription(`**${validationResult.error}**\n\nPlease choose a different channel where the bot has proper permissions.`)
+                    .addFields({ 
+                        name: 'Required Permissions', 
+                        value: '• View Channel\n• Send Messages\n• Embed Links\n• Attach Files\n• Use External Emojis' 
+                    })
+                    .setFooter({ text: `Server: ${interaction.guild.name}` })
+                    .setTimestamp();
+                
+                return interaction.editReply({ embeds: [errorEmbed] });
             }
 
             // If validation passed, update the full configuration
@@ -101,61 +110,68 @@ module.exports = {
                 { upsert: true, new: true }
             );
 
-            // Get success message
+            // Get translated strings for the success message
             const successMessage = await languageManager.getString(
                 'commands.setup.success',
                 interaction.guildId
-            );
-
-            // Format role messages
+            ) || "Server configuration completed successfully!";
+            
+            // Get translated game names
+            const genshin = await languageManager.getString('games.genshin', interaction.guildId) || "Genshin Impact";
+            const hsr = await languageManager.getString('games.hkrpg', interaction.guildId) || "Honkai: Star Rail";
+            const zzz = await languageManager.getString('games.nap', interaction.guildId) || "Zenless Zone Zero";
+            
+            // Get translated UI elements
+            const readyMessage = await languageManager.getString('commands.setup.readyMessage', interaction.guildId) || 
+                "Your server is now ready to receive code notifications!";
+            const rolesHeader = await languageManager.getString('commands.setup.rolesHeader', interaction.guildId) || 
+                "🎭 Notification Roles";
+            const channelHeader = await languageManager.getString('commands.setup.channelHeader', interaction.guildId) || 
+                "📣 Notification Channel";
+            const autoSendHeader = await languageManager.getString('commands.setup.autoSendHeader', interaction.guildId) || 
+                "⚙️ Auto-send Feature";
+            
+            // Create a success embed
+            const successEmbed = new EmbedBuilder()
+                .setColor('#00FF00')
+                .setTitle('✅ ' + successMessage)
+                .setDescription(readyMessage)
+                .setTimestamp()
+                .setFooter({ text: `Server: ${interaction.guild.name}` });
+                
+            // Format role information for embed fields
             const roles = [
-                { role: genshinRole, type: 'Genshin Impact' },
-                { role: hsrRole, type: 'Honkai: Star Rail' },
-                { role: zzzRole, type: 'Zenless Zone Zero' }
+                { role: genshinRole, type: genshin, emoji: '⭐' },
+                { role: hsrRole, type: hsr, emoji: '🚀' },
+                { role: zzzRole, type: zzz, emoji: '💫' }
             ];
 
-            const roleMessages = await Promise.all(roles.map(async ({ role, type }) => {
-                const msg = await languageManager.getString(
-                    'commands.setup.roleSetup',
-                    interaction.guildId,
-                    { role: role.toString(), type: type }
-                );
-                return `• ${msg}`;
-            }));
-
-            // Get channel setup message
-            const channelMessage = await languageManager.getString(
-                'commands.setup.channelSetup',
-                interaction.guildId,
-                { channel: channel.toString() }
-            );
+            // Add roles field
+            const roleLines = roles.map(({ role, type, emoji }) => `${emoji} ${type}: ${role}`).join('\n');
+            successEmbed.addFields({ name: rolesHeader, value: roleLines });
             
-            // Add channel validation success message
+            // Add channel field with validation success
             const channelValidMsg = await languageManager.getString(
                 'commands.setup.channelValidation',
                 interaction.guildId
             ) || "✅ Channel validated successfully! Bot can send messages here.";
             
-            // Get auto-send status message
-            const autoSendStatus = enableAutoSend ? 'ENABLED' : 'DISABLED';
-            const autoSendMessage = await languageManager.getString(
-                'commands.setup.autoSendSetup',
-                interaction.guildId,
-                { status: autoSendStatus }
-            ) || `Auto-send feature: ${autoSendStatus}`;
+            successEmbed.addFields({ 
+                name: channelHeader, 
+                value: `${channel}\n${channelValidMsg}` 
+            });
+            
+            // Add auto-send status field
+            const autoSendStatus = enableAutoSend ? 
+                await languageManager.getString('common.enabled', interaction.guildId) || 'ENABLED' : 
+                await languageManager.getString('common.disabled', interaction.guildId) || 'DISABLED';
+                
+            successEmbed.addFields({ 
+                name: autoSendHeader, 
+                value: autoSendStatus
+            });
 
-            // Combine all messages with proper formatting
-            const fullMessage = [
-                `**${successMessage}**`,
-                '',
-                ...roleMessages,
-                '',
-                `• ${channelMessage}`,
-                `• ${channelValidMsg}`,
-                `• ${autoSendMessage}`
-            ].join('\n');
-
-            await interaction.editReply({ content: fullMessage });
+            await interaction.editReply({ embeds: [successEmbed] });
 
         } catch (error) {
             console.error('Setup error:', error);
@@ -163,7 +179,16 @@ module.exports = {
                 'commands.setup.error',
                 interaction.guildId
             );
-            await interaction.editReply({ content: errorMessage });
+            
+            const errorEmbed = new EmbedBuilder()
+                .setColor('#FF0000')
+                .setTitle('❌ ' + errorMessage)
+                .setDescription('There was an error setting up the bot configuration.')
+                .addFields({ name: 'Error Details', value: `\`\`\`${error.message}\`\`\`` })
+                .setFooter({ text: 'Please try again or contact support if the problem persists.' })
+                .setTimestamp();
+                
+            await interaction.editReply({ embeds: [errorEmbed] });
         }
     }
 };
