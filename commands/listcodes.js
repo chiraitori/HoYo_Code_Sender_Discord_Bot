@@ -23,7 +23,8 @@ module.exports = {
             
             // Get translated messages using correct key
             const loadingMessage = await languageManager.getString('commands.listcodes.loading', interaction.guildId);
-            await interaction.reply({ content: loadingMessage, ephemeral: false });
+            // Make the response ephemeral (visible only to the user who used the command)
+            await interaction.reply({ content: loadingMessage, ephemeral: true });
 
             const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`);
             
@@ -47,6 +48,7 @@ module.exports = {
                     interaction.guildId,
                     { game: gameNames[game] }
                 );
+                // Keep the "no codes" message ephemeral too
                 return await interaction.editReply({ content: noCodesMessage });
             }
 
@@ -139,7 +141,8 @@ module.exports = {
             if (pages.length === 1) {
                 return await interaction.editReply({ 
                     content: null, 
-                    embeds: [embeds[0]] 
+                    embeds: [embeds[0]]
+                    // Reply is already ephemeral from the initial reply
                 });
             }
 
@@ -185,6 +188,7 @@ module.exports = {
                 content: null,
                 embeds: [embeds[currentPageIndex]],
                 components: [createButtons(currentPageIndex)]
+                // Reply is already ephemeral from the initial reply
             });
 
             // Create button collector

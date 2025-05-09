@@ -165,10 +165,25 @@ module.exports = {
             const autoSendStatus = enableAutoSend ? 
                 await languageManager.getString('common.enabled', interaction.guildId) || 'ENABLED' : 
                 await languageManager.getString('common.disabled', interaction.guildId) || 'DISABLED';
-                
-            successEmbed.addFields({ 
+                  successEmbed.addFields({ 
                 name: autoSendHeader, 
                 value: autoSendStatus
+            });
+            
+            // Add tip to test the setup with demoautosend command
+            const demoTipHeader = await languageManager.getString(
+                'commands.setup.demoTipHeader',
+                interaction.guildId
+            ) || '💡 Testing Tip';
+            
+            const demoTipText = await languageManager.getString(
+                'commands.setup.demoTipText',
+                interaction.guildId
+            ) || 'You can test your setup right away by using the `/demoautosend` command to send demo notification messages.';
+            
+            successEmbed.addFields({
+                name: demoTipHeader,
+                value: demoTipText
             });
 
             await interaction.editReply({ embeds: [successEmbed] });

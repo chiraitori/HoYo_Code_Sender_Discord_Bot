@@ -23,6 +23,7 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 - `/setup` - Configure notification channels and roles (**Admin only**).
 - `/listcodes` - List all active codes for a selected game.
 - `/redeem` - Manually send redemption codes with custom messages (**Admin only**).
+- `/demoautosend` - Send demo codes to test the notification system (**Admin only**).
 - `/toggleautosend` - Enable or disable automatic code notifications (**Admin only**).
 - `/favgames` - Set which game codes you want to receive (**Admin only**).
 - `/setlang` - Set the bot language for this server (English/Vietnamese/Japanese) (**Admin only**).
