@@ -25,7 +25,7 @@ module.exports = {
                     },
                     {
                         name: await languageManager.getString('commands.about.supportServer', interaction.guildId),
-                        value: 'X'
+                        value: '[Support Server](https://discord.gg/DtuKCEkXzY)'
                     },
                     {
                         name: await languageManager.getString('commands.about.inviteLink', interaction.guildId),
