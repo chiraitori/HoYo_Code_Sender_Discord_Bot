@@ -48,7 +48,7 @@ module.exports = {
             },
             loading: 'コードを読み込んでいます...',
             page: 'ページ'
-        },
+        },        
         setup: {
             description: 'コード通知用のロールとチャンネルを設定',
             genshinRole: '原神の通知用ロール',
@@ -66,6 +66,8 @@ module.exports = {
             rolesHeader: '🎭 通知ロール',
             channelHeader: '📣 通知チャンネル',
             autoSendHeader: '⚙️ 自動送信機能',
+            demoTipHeader: '💡 テストのヒント',
+            demoTipText: '`/demoautosend`コマンドを使用して、すぐにデモ通知メッセージを送信し、設定をテストできます。',
             error: {
                 channelValidation: 'チャンネル検証に失敗しました'
             }
@@ -80,6 +82,16 @@ module.exports = {
             deletedConfig: 'チャンネルとロール設定',
             deletedSettings: '通知設定',
             deletedLanguage: '言語設定'
+        },
+        demoautosend: {
+            noPermission: 'このコマンドを使用するには管理者権限が必要です。',
+            noConfig: 'Botがまだ設定されていません！チャンネルを設定するには、まず`/setup`を使用してください。',
+            channelError: '設定されたチャンネルにメッセージを送信できません:',
+            title: '🔔 {game}のデモコード！',
+            notice: '⚠️ デモ通知',
+            noticeText: 'これらはテスト目的のデモコードです。ゲーム内では機能しません。',
+            success: '{count}個のゲームにデモコードを正常に送信しました！',
+            error: 'デモコードの送信中にエラーが発生しました。'
         },
         postcode: {
             modalTitle: '引換コードを追加',
@@ -126,18 +138,20 @@ module.exports = {
                        '   • `/favgames` - コードを受け取るゲームを選択\n' +
                        '   • `/setlang` - Botの言語を変更\n' +
                        '   • `/toggleautosend` - 自動通知のオン/オフを切り替え',
-            commandsHeader: '📋 利用可能なコマンド',
+            commandsHeader: '📋 利用可能なコマンド',            
             commandsList: '• `/setup` - 初期Bot設定\n' +
                          '• `/favgames` - コードを受け取るゲームを選択\n' +
                          '• `/toggleautosend` - 自動通知のオン/オフを切り替え\n' +
                          '• `/listcodes` - ゲームのアクティブコードを表示\n' +
                          '• `/redeem` - 特定のコードをチャンネルに送信\n' +
+                         '• `/demoautosend` - テスト用のデモコード通知を送信\n' +
                          '• `/setlang` - Botの言語を変更（英語/ベトナム語/日本語）\n' +
                          '• `/help` - このヘルプメッセージを表示\n' +
                          '• `/about` - Botについての情報',
-            tipsHeader: '💡 ヒントとコツ',
+            tipsHeader: '💡 ヒントとコツ',            
             tipsList: '• Botは5分ごとに新しいコードをチェックします\n' +
                      '• `/redeem`で手動でコードを投稿できます\n' +
+                     '• セットアップ後、`/demoautosend`を使用して通知システムをテストできます\n' +
                      '• `/favgames`でゲームごとに通知をフィルタリングできます\n' +
                      '• ゲームタイプごとに異なるロールを設定できます\n' +
                      '• サーバー管理者は`/setup`を再度実行して設定を変更できます',

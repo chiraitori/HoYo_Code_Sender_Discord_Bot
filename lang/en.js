@@ -42,7 +42,7 @@ module.exports = {
             },
             loading: 'Loading codes...',
             page: 'Page'
-        },
+        },        
         setup: {
             description: 'Setup roles and channel for code notifications',
             genshinRole: 'Role for Genshin Impact notifications',
@@ -56,9 +56,21 @@ module.exports = {
             autoSendSetup: 'Auto-send feature: {status}',
             noPermission: 'You do not have permission to use this command',
             channelValidation: '✅ Channel validated successfully! Bot can send messages here.',
+            demoTipHeader: '💡 Testing Tip',
+            demoTipText: 'You can test your setup right away by using the `/demoautosend` command to send demo notification messages.',
             error: {
                 channelValidation: 'Channel validation failed'
             }
+        },
+        demoautosend: {
+            noPermission: 'You need administrator permissions to use this command.',
+            noConfig: 'Bot is not set up yet! Please use `/setup` first to configure a channel.',
+            channelError: 'Cannot send messages to the configured channel:',
+            title: '🔔 Demo {game} Codes!',
+            notice: '⚠️ Demo Notice',
+            noticeText: 'These are demo codes for testing purposes only. They will not work in-game.',
+            success: 'Successfully sent demo codes for {count} game(s)!',
+            error: 'An error occurred while sending demo codes.'
         },
         deletesetup: {
             noPermission: 'You do not have permission to use this command.',
@@ -122,34 +134,18 @@ module.exports = {
                         '• `/toggleautosend` - Turn automatic notifications on/off\n' +
                         '• `/listcodes` - Show active codes for a game\n' +
                         '• `/redeem` - Send specific codes to your channel\n' +
+                        '• `/demoautosend` - Send demo codes to test notifications\n' +
                         '• `/setlang` - Change bot language (English/Vietnamese/Japanese)\n' +
                         '• `/help` - Show this help message\n' +
                         '• `/about` - Information about the bot',
-            tipsHeader: '💡 Tips & Tricks',
+            tipsHeader: '💡 Tips & Tricks',            
             tipsList: '• The bot checks for new codes every 5 minutes\n' +
                     '• You can manually post codes with `/redeem`\n' +
+                    '• After setup, use `/demoautosend` to test the notification system\n' +
                     '• Use `/favgames` to filter notifications by game\n' +
                     '• Set different roles for each game type\n' +
                     '• Server admins can run `/setup` again to change settings',
             footer: 'HoYo Code Sender - Get HoYoverse game codes automatically!',
-            error: 'An error occurred while showing help.'
-        },
-        setlang: {
-            success: 'Server language has been set to: **{language}**',
-            error: 'Failed to set server language',
-            description: 'Set the bot language for this server',
-            languageOption: 'Select language'
-        },
-        vote: {
-            title: 'Vote for HoYo Code Sender',
-            description: 'Support us by voting on Top.gg! Your votes help us grow and reach more users.',
-            status: 'Vote Status',
-            hasVoted: '✅ Thank you for voting! You can vote again in 12 hours.',
-            hasNotVoted: '❌ You haven\'t voted yet today!',
-            link: 'Vote Here',
-            error: 'Error checking vote status. Please try again.',
-            thankTitle: 'Thank You for Voting! 🎉',
-            thankMessage: 'Thank you {user} for supporting the bot by voting on Top.gg! Your support helps us grow.',
             voteAgain: 'You can vote again in 12 hours.',
             dmThankTitle: 'Thank You for Your Vote!',
             dmThankMessage: 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.'

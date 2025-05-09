@@ -42,7 +42,7 @@ module.exports = {
             newCodes: 'Mã code mới cho {game}!',
             noReward: 'Chưa có thông tin phần thưởng',
             page: 'Trang'
-        },
+        },       
         setup: {
             description: 'Thiết lập role và kênh cho thông báo code',
             genshinRole: 'Role cho thông báo Genshin Impact',
@@ -60,6 +60,8 @@ module.exports = {
             rolesHeader: '🎭 Vai Trò Thông Báo',
             channelHeader: '📣 Kênh Thông Báo',
             autoSendHeader: '⚙️ Tính Năng Tự Động Gửi',
+            demoTipHeader: '💡 Mẹo kiểm tra',
+            demoTipText: 'Bạn có thể kiểm tra cài đặt của mình ngay bằng cách sử dụng lệnh `/demoautosend` để gửi tin nhắn thông báo demo.',
             error: {
                 channelValidation: 'Xác thực kênh thất bại'
             }
@@ -74,6 +76,16 @@ module.exports = {
             deletedConfig: 'Cài đặt kênh và vai trò',
             deletedSettings: 'Cài đặt thông báo',
             deletedLanguage: 'Cài đặt ngôn ngữ'
+        },
+        demoautosend: {
+            noPermission: 'Bạn cần quyền quản trị viên để sử dụng lệnh này.',
+            noConfig: 'Bot chưa được thiết lập! Vui lòng sử dụng lệnh `/setup` trước để cấu hình kênh.',
+            channelError: 'Không thể gửi tin nhắn đến kênh đã cấu hình:',
+            title: '🔔 Mã code demo cho {game}!',
+            notice: '⚠️ Thông báo demo',
+            noticeText: 'Đây là mã code demo chỉ dùng để kiểm tra. Chúng sẽ không hoạt động trong game.',
+            success: 'Đã gửi thành công mã code demo cho {count} game!',
+            error: 'Đã xảy ra lỗi khi gửi mã code demo.'
         },
         postcode: {
             modalTitle: 'Thêm mã code',
@@ -120,18 +132,20 @@ module.exports = {
                        '   • `/favgames` - Chọn game bạn muốn nhận mã\n' +
                        '   • `/setlang` - Thay đổi ngôn ngữ của bot\n' +
                        '   • `/toggleautosend` - Bật/tắt thông báo mã tự động',
-            commandsHeader: '📋 Các lệnh có sẵn',
+            commandsHeader: '📋 Các lệnh có sẵn',            
             commandsList: '• `/setup` - Cài đặt bot ban đầu\n' +
                          '• `/favgames` - Chọn game bạn muốn nhận mã\n' +
                          '• `/toggleautosend` - Bật/tắt thông báo tự động\n' +
                          '• `/listcodes` - Hiển thị mã đang hoạt động cho một game\n' +
                          '• `/redeem` - Gửi mã cụ thể đến kênh của bạn\n' +
+                         '• `/demoautosend` - Gửi mã code demo để kiểm tra thông báo\n' +
                          '• `/setlang` - Thay đổi ngôn ngữ bot (Tiếng Anh/Tiếng Việt/Tiếng Nhật)\n' +
                          '• `/help` - Hiển thị trợ giúp này\n' +
                          '• `/about` - Thông tin về bot',
-            tipsHeader: '💡 Mẹo & thủ thuật',
+            tipsHeader: '💡 Mẹo & thủ thuật',            
             tipsList: '• Bot kiểm tra mã mới mỗi 5 phút\n' +
                      '• Bạn có thể đăng mã thủ công với `/redeem`\n' +
+                     '• Sau khi thiết lập, sử dụng `/demoautosend` để kiểm tra hệ thống thông báo\n' +
                      '• Sử dụng `/favgames` để lọc thông báo theo game\n' +
                      '• Đặt vai trò khác nhau cho từng loại game\n' +
                      '• Quản trị viên máy chủ có thể chạy `/setup` lại để thay đổi cài đặt',
