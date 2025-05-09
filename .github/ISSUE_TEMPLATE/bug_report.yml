@@ -1,0 +1,131 @@
+name: Bug Report
+description: Report a bug or issue with the bot
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # HoYo Code Sender Bug Report
+        
+        Thank you for taking the time to report an issue with the HoYo Code Sender bot.
+        Please fill out the information below to help us resolve the issue quickly.
+        
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      description: Which game is related to this issue?
+      options:
+        - Genshin Impact
+        - Honkai Star Rail
+        - Zenless Zone Zero
+        - All games
+        - Not game-specific
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: command
+    attributes:
+      label: Command
+      description: Which command is experiencing issues?
+      options:
+        - /setup
+        - /listcodes
+        - /redeem
+        - /demoautosend
+        - /toggleautosend
+        - /favgames
+        - /setlang
+        - /help
+        - /about
+        - /checkchannels
+        - /deletesetup
+        - /vote
+        - Auto-send functionality
+        - Other
+    validations:
+      required: true
+      
+  - type: input
+    id: discord_server
+    attributes:
+      label: Discord Server
+      description: What is the name of your Discord server? (Optional)
+      placeholder: My Discord Server
+    validations:
+      required: false
+      
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the issue you encountered
+      placeholder: When I use the command, the bot...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: The bot should have...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Use the /command
+        2. Select option X
+        3. Click on Y
+        4. See error
+    validations:
+      required: true
+      
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem
+      placeholder: Paste or drag-and-drop screenshots here
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: language
+    attributes:
+      label: Bot Language
+      description: Which language is the bot set to on your server?
+      options:
+        - English
+        - Vietnamese
+        - Japanese
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where are you using Discord?
+      options:
+        - Desktop App
+        - Web Browser
+        - Mobile App
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here
+      placeholder: Any other information that might be helpful...
+    validations:
+      required: false
