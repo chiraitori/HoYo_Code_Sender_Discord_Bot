@@ -118,6 +118,9 @@ Contributions are welcome! Please open an issue or submit a pull request.
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Security
+For information about reporting security vulnerabilities, please read our [Security Policy](SECURITY.md).
+
 ## Disclaimer
 **This bot is NOT affiliated with, endorsed by, or connected to HoYoverse (miHoYo) in any way.** This is a fan-made tool created to help the community. All game names, logos, and related content are trademarks and copyrights of HoYoverse (miHoYo).
 
