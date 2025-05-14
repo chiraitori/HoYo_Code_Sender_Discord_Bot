@@ -19,9 +19,9 @@ We take the security of HoYo Code Sender Discord Bot seriously. If you believe y
 
 Instead, please report security vulnerabilities through one of these channels:
 
-1. **Email**: Send details to [security@chiraitori.io.vn](mailto:security@chiraitori.io.vn) with the subject "Security Vulnerability Report"
+1. **Email**: Send details to [mail@chiraitori.io.vn](mailto:mail@chiraitori.io.vn) with the subject "Security Vulnerability Report"
 
-2. **Discord**: Contact the bot owner privately through our [Discord support server](https://discord.gg/hoyo-code)
+2. **Discord**: Contact the bot owner privately through our [Discord support server](https://dsc.gg/chiraitori-support)
 
 ### What to Include
 
