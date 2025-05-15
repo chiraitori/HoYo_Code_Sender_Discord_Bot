@@ -6,6 +6,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const rateLimit = require('express-rate-limit');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
 const { sendWelcomeMessage } = require('./utils/welcome');
@@ -13,6 +14,30 @@ const { sendWelcomeMessage } = require('./utils/welcome');
 // Express setup
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Rate limiting middleware
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    message: 'Too many requests from this IP, please try again after 15 minutes'
+});
+
+// Apply rate limiting to all routes
+app.use(limiter);
+
+// API-specific stricter rate limiter
+const apiLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 30, // limit each IP to 30 requests per 5 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many API requests from this IP, please try again after 5 minutes'
+});
+
+// Apply the API-specific limiter to API routes
+app.use('/api/', apiLimiter);
 
 // Middleware
 app.use(cors());
