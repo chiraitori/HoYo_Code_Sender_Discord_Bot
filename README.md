@@ -121,6 +121,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Security
 For information about reporting security vulnerabilities, please read our [Security Policy](SECURITY.md).
 
+The bot implements several security measures:
+- **Rate Limiting**: API endpoints are protected against DoS attacks with request limits
+- **Input Validation**: All user inputs are validated before processing
+- **Permission Controls**: Command access is restricted based on user roles
+- **Secure Data Storage**: Sensitive data is stored securely using environment variables
+
 ## Disclaimer
 **This bot is NOT affiliated with, endorsed by, or connected to HoYoverse (miHoYo) in any way.** This is a fan-made tool created to help the community. All game names, logos, and related content are trademarks and copyrights of HoYoverse (miHoYo).
 
