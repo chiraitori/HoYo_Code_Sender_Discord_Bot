@@ -68,10 +68,13 @@ If you're self-hosting this bot:
 
 The HoYo Code Sender Discord Bot includes the following security features:
 
-- Input validation to prevent injection attacks
-- Rate limiting to prevent abuse
-- Proper handling of Discord permissions
-- Secure storage of configuration data
+- **Input Validation**: Prevents injection attacks and malicious inputs
+- **Rate Limiting**: 
+  - Global rate limiting (100 requests per 15 minutes per IP)
+  - API-specific stricter rate limiting (30 requests per 5 minutes per IP)
+  - Protection against DoS/DDoS attacks
+- **Permission Controls**: Proper handling of Discord permissions
+- **Secure Storage**: Secure storage of configuration data and environment variables
 
 ## Disclosure Policy
 
