@@ -16,7 +16,7 @@
     "cors": "^2.8.5",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1",
+    "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "mongoose": "^8.9.5",
     "topgg-autoposter": "^2.0.2"
@@ -40,7 +40,7 @@
     "redemption-codes"
   ],
   "author": "chiraitori",
-  "license": "MIT",
+  "license": "GNU GPLv3",
   "bugs": {
     "url": "https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot/issues"
   },
