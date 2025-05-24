@@ -15,13 +15,23 @@ const { sendWelcomeMessage } = require('./utils/welcome');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy configuration for proper rate limiting behind reverse proxies
+// This allows express-rate-limit to correctly identify users via X-Forwarded-For headers
+// Required when deployed behind nginx, CloudFlare, load balancers, or other reverse proxies
+// Setting this to 'true' tells Express to trust the first hop proxy
+app.set('trust proxy', true);
+
 // Rate limiting middleware
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    message: 'Too many requests from this IP, please try again after 15 minutes'
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+    // Use a more robust key generator that works well with proxies
+    keyGenerator: (req) => {
+        return req.ip; // This will use the real IP when trust proxy is enabled
+    }
 });
 
 // Apply rate limiting to all routes
@@ -33,7 +43,11 @@ const apiLimiter = rateLimit({
     max: 30, // limit each IP to 30 requests per 5 minutes
     standardHeaders: true,
     legacyHeaders: false,
-    message: 'Too many API requests from this IP, please try again after 5 minutes'
+    message: 'Too many API requests from this IP, please try again after 5 minutes',
+    // Use a more robust key generator that works well with proxies
+    keyGenerator: (req) => {
+        return req.ip; // This will use the real IP when trust proxy is enabled
+    }
 });
 
 // Apply the API-specific limiter to API routes

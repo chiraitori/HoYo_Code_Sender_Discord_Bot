@@ -92,6 +92,8 @@ To set up the project locally for development:
    npm run dev
    ```
 
+**Note**: For production deployment considerations, including reverse proxy configuration and Docker deployment, see the [Deployment Guide](DEPLOYMENT.md).
+
 ## Pull Request Process
 
 1. Ensure your code follows our style guidelines
