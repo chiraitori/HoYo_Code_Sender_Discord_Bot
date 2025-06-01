@@ -58,9 +58,7 @@ async function checkAndSendNewCodes(client) {
         const languageMap = languages.reduce((map, lang) => {
             map[lang.guildId] = lang;
             return map;
-        }, {});
-
-        // Batch fetch all existing codes
+        }, {});        // Batch fetch all existing codes
         const allExistingCodes = await Code.find({}).lean();
         const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));
 
@@ -76,11 +74,19 @@ async function checkAndSendNewCodes(client) {
         const gameResponses = await Promise.all(gameCodeRequests);
         const newCodesForGames = {};
         const codesToSave = [];
+        const activeCodesFromAPI = new Set();
 
         // Process all games' responses
         gameResponses.forEach((response, index) => {
             const game = games[index];
             const gameCodes = response.data?.codes || [];
+            
+            // Track all active codes from API for expiration checking
+            gameCodes.forEach(codeData => {
+                if (codeData.status === 'OK') {
+                    activeCodesFromAPI.add(`${codeData.game}:${codeData.code}`);
+                }
+            });
             
             if (gameCodes.length) {
                 const newCodes = gameCodes.filter(codeData => 
@@ -90,13 +96,11 @@ async function checkAndSendNewCodes(client) {
 
                 if (newCodes.length) {
                     newCodesForGames[game] = newCodes;
-                    
-                    // Prepare codes for batch save
+                      // Prepare codes for batch save
                     newCodes.forEach(codeData => {
                         codesToSave.push({
                             game: codeData.game,
                             code: codeData.code,
-                            reward: codeData.rewards || 'Not specified',
                             isExpired: false
                         });
                     });
@@ -104,9 +108,35 @@ async function checkAndSendNewCodes(client) {
             }
         });
 
-        // Batch save all new codes at once if any
+        // Find codes that are no longer in API (expired)
+        const expiredCodes = allExistingCodes.filter(code => 
+            !code.isExpired && !activeCodesFromAPI.has(`${code.game}:${code.code}`)
+        );
+
+        // Batch operations
+        const operations = [];
+        
+        // Add new codes
         if (codesToSave.length > 0) {
-            await Code.insertMany(codesToSave);
+            operations.push(Code.insertMany(codesToSave));
+        }
+
+        // Mark expired codes
+        if (expiredCodes.length > 0) {
+            const expiredCodeIds = expiredCodes.map(code => code._id);
+            operations.push(
+                Code.updateMany(
+                    { _id: { $in: expiredCodeIds } },
+                    { $set: { isExpired: true } }
+                )
+            );
+            console.log(`Marking ${expiredCodes.length} codes as expired:`, 
+                expiredCodes.map(c => `${c.game}:${c.code}`));
+        }
+
+        // Execute all database operations
+        if (operations.length > 0) {
+            await Promise.all(operations);
         }
 
         // Prepare message sending for guilds with new codes
