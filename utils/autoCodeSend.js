@@ -70,7 +70,7 @@ async function checkAndSendNewCodes(client) {
             })
                 .catch(error => {
                     console.error(`Error fetching codes for ${game}:`, error.message);
-                    return { data: { codes: [] } };
+                    return { data: { codes: [] }, error: true };
                 })
         );
 
@@ -78,13 +78,22 @@ async function checkAndSendNewCodes(client) {
         const newCodesForGames = {};
         const codesToSave = [];
         const activeCodesFromAPI = new Set();
+        const failedGames = new Set();
 
         // Process all games' responses
         gameResponses.forEach((response, index) => {
             const game = games[index];
+            
+            // If there was an error fetching this game's codes, skip expiration check for this game
+            if (response.error) {
+                failedGames.add(game);
+                console.log(`Skipping expiration check for ${game} due to API error`);
+                return;
+            }
+            
             const gameCodes = response.data?.codes || [];
             
-            // Track all active codes from API for expiration checking
+            // Track all active codes from API for expiration checking (only for successful requests)
             gameCodes.forEach(codeData => {
                 if (codeData.status === 'OK') {
                     activeCodesFromAPI.add(`${codeData.game}:${codeData.code}`);
@@ -112,8 +121,11 @@ async function checkAndSendNewCodes(client) {
         });
 
         // Find codes that are no longer in API (expired)
+        // Only check expiration for games where API request was successful
         const expiredCodes = allExistingCodes.filter(code => 
-            !code.isExpired && !activeCodesFromAPI.has(`${code.game}:${code.code}`)
+            !code.isExpired && // Only check codes that aren't already marked as expired
+            !failedGames.has(code.game) && // Skip games with failed API requests
+            !activeCodesFromAPI.has(`${code.game}:${code.code}`) // Code not found in API response
         );
 
         // Batch operations
@@ -122,9 +134,7 @@ async function checkAndSendNewCodes(client) {
         // Add new codes
         if (codesToSave.length > 0) {
             operations.push(Code.insertMany(codesToSave));
-        }
-
-        // Mark expired codes
+        }        // Mark expired codes
         if (expiredCodes.length > 0) {
             const expiredCodeIds = expiredCodes.map(code => code._id);
             operations.push(
@@ -135,6 +145,14 @@ async function checkAndSendNewCodes(client) {
             );
             console.log(`Marking ${expiredCodes.length} codes as expired:`, 
                 expiredCodes.map(c => `${c.game}:${c.code}`));
+        } else {
+            console.log('No codes to mark as expired');
+        }
+        
+        // Log API status for transparency
+        if (failedGames.size > 0) {
+            console.log(`API request failed for games: ${Array.from(failedGames).join(', ')}`);
+            console.log('Skipped expiration check for failed games to prevent false positives');
         }
 
         // Execute all database operations
