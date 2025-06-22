@@ -60,13 +60,16 @@ async function checkAndSendNewCodes(client) {
             return map;
         }, {});        // Batch fetch all existing codes
         const allExistingCodes = await Code.find({}).lean();
-        const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));
-
-        // Fetch all games' codes in parallel
+        const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));        // Fetch all games' codes in parallel
         const gameCodeRequests = games.map(game => 
-            axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`)
+            axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`, {
+                timeout: 15000, // 15 second timeout
+                headers: {
+                    'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
+                }
+            })
                 .catch(error => {
-                    console.error(`Error fetching codes for ${game}:`, error);
+                    console.error(`Error fetching codes for ${game}:`, error.message);
                     return { data: { codes: [] } };
                 })
         );

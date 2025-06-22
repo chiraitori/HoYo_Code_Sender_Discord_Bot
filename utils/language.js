@@ -6,6 +6,8 @@ const { translateReward } = require('./dictionary');
 class LanguageManager {
     constructor() {
         this.languages = {};
+        this.languageCache = new Map(); // Cache for guild language preferences
+        this.cacheExpiry = 5 * 60 * 1000; // 5 minutes cache
         this.loadLanguages();
     }
 
@@ -19,11 +21,35 @@ class LanguageManager {
         }
     }
 
+    async getGuildLanguage(guildId) {
+        // Check cache first
+        const cached = this.languageCache.get(guildId);
+        if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+            return cached.language;
+        }
+
+        try {
+            // Get from database
+            const guildLang = await Language.findOne({ guildId });
+            const language = guildLang?.language || 'en';
+            
+            // Cache the result
+            this.languageCache.set(guildId, {
+                language: language,
+                timestamp: Date.now()
+            });
+            
+            return language;
+        } catch (error) {
+            console.error('Language lookup error:', error);
+            return 'en'; // Fallback to English
+        }
+    }
+
     async getString(key, guildId, replacements = {}) {
         try {
-            // Get guild's language preference
-            const guildLang = await Language.findOne({ guildId });
-            const selectedLang = guildLang?.language || 'en';
+            // Get guild's language preference (with caching)
+            const selectedLang = await this.getGuildLanguage(guildId);
             
             // Get the string from the language file
             const lang = this.languages[selectedLang];
@@ -41,12 +67,9 @@ class LanguageManager {
             console.error('Language error:', error);
             return key;
         }
-    }
-
-    async getRewardString(reward, guildId) {
+    }    async getRewardString(reward, guildId) {
         try {
-            const guildLang = await Language.findOne({ guildId });
-            const selectedLang = guildLang?.language || 'en';
+            const selectedLang = await this.getGuildLanguage(guildId);
             
             const translatedReward = translateReward(reward, selectedLang);
             const rewardTemplate = await this.getString('commands.listcodes.reward', guildId);
@@ -72,6 +95,16 @@ class LanguageManager {
 
     getAvailableLanguages() {
         return Object.keys(this.languages);
+    }
+
+    // Method to clear cache for a specific guild (useful when language is changed)
+    clearGuildCache(guildId) {
+        this.languageCache.delete(guildId);
+    }
+
+    // Method to clear all cache
+    clearCache() {
+        this.languageCache.clear();
     }
 }
 

@@ -33,12 +33,14 @@ module.exports = {
             await interaction.deferReply({ ephemeral: true });
             
             const newLang = interaction.options.getString('language');
-            
-            await Language.findOneAndUpdate(
+              await Language.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 { language: newLang },
                 { upsert: true }
             );
+
+            // Clear the language cache for this guild to force refresh
+            languageManager.clearGuildCache(interaction.guildId);
 
             const successMessage = await languageManager.getString(
                 'commands.setlang.success',
