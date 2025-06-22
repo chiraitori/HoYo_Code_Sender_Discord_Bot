@@ -185,11 +185,8 @@
             padding: 15px;
             vertical-align: middle;
             border-color: rgba(0, 0, 0, 0.1);
-        }
-
-        .table tbody tr:hover {
+        }        .table tbody tr:hover {
             background-color: rgba(114, 137, 218, 0.1);
-            transform: scale(1.02);
             transition: all 0.2s ease;
         }
 
@@ -338,20 +335,16 @@
             0% { opacity: 1; }
             50% { opacity: 0.5; }
             100% { opacity: 1; }
-        }        .loading-pulse {            animation: pulse 1.5s ease-in-out infinite;        }
-
-        /* Smooth transitions for content changes */
+        }        .loading-pulse {            animation: pulse 1.5s ease-in-out infinite;        }        /* Smooth transitions for content changes */
         #tableContainer, #loadingSpinner, #errorAlert {
-            transition: opacity 0.3s ease, transform 0.3s ease;
+            transition: opacity 0.3s ease;
         }
 
         .fade-in {
             animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+        }        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
     </style>
 </head>
@@ -613,10 +606,8 @@
         function populateTable(data) {
             const tableBody = document.getElementById('codesTable');
             tableBody.innerHTML = '';
-            
-            data.codes.forEach((item, index) => {
+              data.codes.forEach((item, index) => {
                 const row = document.createElement('tr');
-                row.style.animationDelay = `${index * 0.1}s`;
                 row.className = 'fade-in';
                 
                 const statusClass = item.status === 'OK' ? 'success' : 'warning';
