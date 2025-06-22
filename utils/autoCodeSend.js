@@ -118,14 +118,20 @@ async function checkAndSendNewCodes(client) {
                     });
                 }
             }
-        });
-
-        // Find codes that are no longer in API (expired)
+        });        // Find codes that are no longer in API (expired)
         // Only check expiration for games where API request was successful
         const expiredCodes = allExistingCodes.filter(code => 
             !code.isExpired && // Only check codes that aren't already marked as expired
             !failedGames.has(code.game) && // Skip games with failed API requests
             !activeCodesFromAPI.has(`${code.game}:${code.code}`) // Code not found in API response
+        );
+
+        // Find codes that were marked as expired but are now active again in API
+        // This handles cases where codes get reactivated or were falsely marked as expired
+        const reactivatedCodes = allExistingCodes.filter(code => 
+            code.isExpired && // Only check codes that are currently marked as expired
+            !failedGames.has(code.game) && // Skip games with failed API requests
+            activeCodesFromAPI.has(`${code.game}:${code.code}`) // Code found active in API response
         );
 
         // Batch operations
@@ -148,8 +154,22 @@ async function checkAndSendNewCodes(client) {
         } else {
             console.log('No codes to mark as expired');
         }
-        
-        // Log API status for transparency
+
+        // Reactivate codes that were marked as expired but are now active again
+        if (reactivatedCodes.length > 0) {
+            const reactivatedCodeIds = reactivatedCodes.map(code => code._id);
+            operations.push(
+                Code.updateMany(
+                    { _id: { $in: reactivatedCodeIds } },
+                    { $set: { isExpired: false } }
+                )
+            );
+            console.log(`Reactivating ${reactivatedCodes.length} codes (marking as active):`, 
+                reactivatedCodes.map(c => `${c.game}:${c.code}`));
+        } else {
+            console.log('No codes to reactivate');
+        }
+          // Log API status for transparency
         if (failedGames.size > 0) {
             console.log(`API request failed for games: ${Array.from(failedGames).join(', ')}`);
             console.log('Skipped expiration check for failed games to prevent false positives');
@@ -205,7 +225,7 @@ async function checkAndSendNewCodes(client) {
             await Promise.allSettled(messageTasks);
         }
         
-        console.log(`Code check process completed. Found ${codesToSave.length} new codes.`);
+        console.log(`Code check process completed. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes.`);
     } catch (error) {
         console.error('Error in checkAndSendNewCodes:', error);
     }
