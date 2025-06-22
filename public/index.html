@@ -338,9 +338,7 @@
             0% { opacity: 1; }
             50% { opacity: 0.5; }
             100% { opacity: 1; }
-        }        .loading-pulse {            animation: pulse 1.5s ease-in-out infinite;        }/* Responsive adjustments for action buttons */
-        @media (max-width: 768px) {
-        }
+        }        .loading-pulse {            animation: pulse 1.5s ease-in-out infinite;        }
 
         /* Smooth transitions for content changes */
         #tableContainer, #loadingSpinner, #errorAlert {
@@ -538,8 +536,6 @@
                 </small>
             </div>        </div>    </footer><script>
         let currentGame = 'genshin';
-        let backgroundImageBlob = null; // Store the background image blob
-        let backgroundImageUrl = null;  // Store the background image URL
         
         const gameNames = {
             'genshin': 'Genshin Impact',
@@ -557,139 +553,11 @@
             'genshin': 'https://genshin.hoyoverse.com/en/gift',
             'hsr': 'https://hsr.hoyoverse.com/gift',
             'zzz': 'https://zenless.hoyoverse.com/redemption'
-        };        // Cache management functions
-        function clearImageCache() {
-            localStorage.removeItem('hoyo_cached_image_blob');
-            localStorage.removeItem('hoyo_cached_image_metadata');
-            localStorage.removeItem('hoyo_cached_image_timestamp');
-            console.log('Image cache cleared');
-        }
-
-        async function getCachedImage() {
-            try {
-                const cachedBlob = localStorage.getItem('hoyo_cached_image_blob');
-                const cachedMetadata = localStorage.getItem('hoyo_cached_image_metadata');
-                const cachedTimestamp = localStorage.getItem('hoyo_cached_image_timestamp');
-                
-                if (cachedBlob && cachedMetadata && cachedTimestamp) {
-                    // Convert base64 back to blob
-                    const response = await fetch(cachedBlob);
-                    const blob = await response.blob();
-                    const metadata = JSON.parse(cachedMetadata);
-                    
-                    return {
-                        blob: blob,
-                        metadata: metadata,
-                        timestamp: parseInt(cachedTimestamp)
-                    };
-                }
-                return null;
-            } catch (error) {
-                console.error('Error retrieving cached image:', error);
-                clearImageCache(); // Clear corrupted cache
-                return null;
-            }
-        }
-
-        async function cacheImage(blob, metadata) {
-            try {
-                // Convert blob to base64 for storage
-                const reader = new FileReader();
-                const base64Promise = new Promise((resolve) => {
-                    reader.onload = () => resolve(reader.result);
-                    reader.readAsDataURL(blob);
-                });
-                
-                const base64Data = await base64Promise;
-                
-                // Store in localStorage
-                localStorage.setItem('hoyo_cached_image_blob', base64Data);
-                localStorage.setItem('hoyo_cached_image_metadata', JSON.stringify(metadata));
-                localStorage.setItem('hoyo_cached_image_timestamp', Date.now().toString());
-                
-                console.log('Image cached successfully, ID:', metadata._id);
-            } catch (error) {
-                console.error('Error caching image:', error);
-                // If storage fails, continue without caching
-            }
-        }
-
-        // Load background image on page load
-        async function loadBackgroundImage() {
-            try {
-                // First, check if we have a cached image
-                const cachedData = await getCachedImage();
-                
-                if (cachedData) {
-                    // Use cached image
-                    backgroundImageBlob = cachedData.blob;
-                    backgroundImageUrl = URL.createObjectURL(backgroundImageBlob);
-                    window.backgroundImageData = cachedData.metadata;
-                    window.originalImageUrl = cachedData.metadata.file_url;
-                    
-                    // Set the background image using the cached blob
-                    document.body.style.backgroundImage = `url(${backgroundImageUrl})`;
-                    
-                    console.log('Background image loaded from cache, ID:', cachedData.metadata._id);
-                    showToast('Background loaded from cache', 'success');
-                    return;
-                }
-                
-                // No cache or cache invalid, fetch new image
-                console.log('No cached image found, fetching new image...');
-                showToast('Loading new background image...', 'success');
-                
-                // Clear any old cache before fetching new
-                clearImageCache();
-                
-                // Get image metadata from pic.re API (this gives us a specific image)
-                const metaResponse = await fetch('https://pic.re/image', {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                    }
-                });
-                
-                if (metaResponse.ok) {
-                    const imageData = await metaResponse.json();
-                    const imageUrl = imageData.file_url;
-                    
-                    // Store the image metadata and original CDN URL for download
-                    window.backgroundImageData = imageData;
-                    window.originalImageUrl = imageUrl;
-                    
-                    // Now fetch the actual image from the CDN
-                    const imageResponse = await fetch(imageUrl);
-                    
-                    if (imageResponse.ok) {
-                        backgroundImageBlob = await imageResponse.blob();
-                        backgroundImageUrl = URL.createObjectURL(backgroundImageBlob);
-                        
-                        // Cache the image for future page loads
-                        await cacheImage(backgroundImageBlob, imageData);
-                        
-                        // Set the background image using the blob URL
-                        document.body.style.backgroundImage = `url(${backgroundImageUrl})`;
-                        
-                        console.log('Background image loaded successfully from:', imageUrl);
-                        console.log('Image ID:', imageData._id || 'Unknown');
-                        showToast('New background image loaded and cached!', 'success');
-                    } else {
-                        throw new Error('Failed to fetch image from CDN');
-                    }
-                } else {
-                    throw new Error('Failed to get image metadata');
-                }
-            } catch (error) {
-                console.error('Failed to load background image via API:', error);
-                // Fallback: Use direct URL but disable blob caching
-                document.body.style.backgroundImage = 'url("https://pic.re/image")';
-                backgroundImageBlob = null;
-                backgroundImageUrl = null;
-                window.backgroundImageData = null;
-                window.originalImageUrl = null;
-                showToast('Failed to load background, using fallback', 'error');
-            }
+        };        // Load background image on page load
+        function loadBackgroundImage() {
+            // Set background to pic.re directly - no caching needed
+            document.body.style.backgroundImage = 'url("https://pic.re/image")';
+            console.log('Background image set to pic.re');
         }
 
         function switchGame(game) {
@@ -794,14 +662,11 @@
             document.getElementById('totalCodes').textContent = totalCodes;
             document.getElementById('activeCodes').textContent = activeCodes;
             document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
-        }
-
-        function copyToClipboard(text) {
+        }        function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                showToast('Code copied to clipboard!', 'success');
+                console.log('Code copied to clipboard!');
             }).catch(err => {
                 console.error('Failed to copy text:', err);
-                showToast('Failed to copy code', 'error');
             });        }
 
         function showElement(elementId) {
@@ -817,159 +682,7 @@
             if (element) {
                 element.classList.add('d-none');
                 element.classList.remove('fade-in');
-            }
-        }        // Download background functionality
-        document.getElementById('downloadBgBtn').addEventListener('click', async function() {
-            try {
-                if (backgroundImageBlob) {
-                    // Use the cached background image blob (guaranteed to match background)
-                    showToast('Downloading background image...', 'success');
-                    
-                    const url = URL.createObjectURL(backgroundImageBlob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    
-                    // Try to get filename from the stored metadata
-                    let filename = `hoyo-codes-background-${Date.now()}.jpg`;
-                    if (window.backgroundImageData && window.backgroundImageData._id) {
-                        filename = `hoyo-codes-bg-${window.backgroundImageData._id}.jpg`;
-                    }
-                    link.download = filename;
-                    
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    
-                    URL.revokeObjectURL(url);
-                    showToast('Background image downloaded successfully!', 'success');
-                } else if (window.originalImageUrl) {
-                    // Use the stored original CDN URL (should match background)
-                    showToast('Downloading from stored URL...', 'success');
-                    
-                    try {
-                        const imageResponse = await fetch(window.originalImageUrl);
-                        if (imageResponse.ok) {
-                            const blob = await imageResponse.blob();
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            
-                            let filename = `hoyo-codes-background-${Date.now()}.jpg`;
-                            if (window.backgroundImageData && window.backgroundImageData._id) {
-                                filename = `hoyo-codes-bg-${window.backgroundImageData._id}.jpg`;
-                            }
-                            link.download = filename;
-                            
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            URL.revokeObjectURL(url);
-                            showToast('Background image downloaded successfully!', 'success');
-                        } else {
-                            throw new Error('Failed to fetch from stored URL');
-                        }
-                    } catch (urlError) {
-                        console.error('Stored URL download failed:', urlError);
-                        throw urlError; // Let it fall through to the final fallback
-                    }
-                } else {
-                    // No cached data available - warn user that it may not match
-                    showToast('No cached image available. Downloading a fresh image (may not match background)...', 'success');
-                    
-                    try {
-                        // Get image metadata from pic.re API
-                        const metaResponse = await fetch('https://pic.re/image', {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                            }
-                        });
-                        
-                        if (metaResponse.ok) {
-                            const imageData = await metaResponse.json();
-                            const imageUrl = imageData.file_url;
-                            
-                            // Fetch the actual image
-                            const imageResponse = await fetch(imageUrl);
-                            if (imageResponse.ok) {
-                                const blob = await imageResponse.blob();
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = `hoyo-codes-fresh-${imageData._id || Date.now()}.jpg`;
-                                
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                
-                                URL.revokeObjectURL(url);
-                                showToast('Fresh image downloaded (may differ from background)', 'success');
-                            } else {
-                                throw new Error('Failed to fetch image from CDN');
-                            }
-                        } else {
-                            throw new Error('Failed to get image metadata');
-                        }
-                    } catch (apiError) {
-                        console.error('API download failed:', apiError);
-                        throw apiError; // Let it fall through to the final fallback
-                    }
-                }
-            } catch (error) {
-                console.error('Download failed:', error);
-                
-                // Final fallback: Open image in new tab
-                try {
-                    showToast('Opening image in new tab for manual download...', 'success');
-                    const fallbackUrl = window.originalImageUrl || `https://pic.re/image?t=${Date.now()}`;
-                    window.open(fallbackUrl, '_blank');
-                    showToast('Image opened in new tab. Right-click and "Save As" to download.', 'success');
-                } catch (fallbackError) {
-                    console.error('All download methods failed:', fallbackError);
-                    showToast('Unable to download image. Please visit https://pic.re/image directly.', 'error');
-                }            }
-        });
-
-        // Refresh background functionality
-        document.getElementById('refreshBgBtn').addEventListener('click', async function() {
-            const refreshBtn = this;
-            const icon = refreshBtn.querySelector('i');
-            
-            // Add spinning animation
-            refreshBtn.classList.add('spinning');
-            refreshBtn.disabled = true;
-            
-            showToast('Loading new background image...', 'success');
-            
-            try {
-                // Clear current cache
-                clearImageCache();
-                
-                // Clean up current background URL
-                if (backgroundImageUrl) {
-                    URL.revokeObjectURL(backgroundImageUrl);
-                }
-                
-                // Reset variables
-                backgroundImageBlob = null;
-                backgroundImageUrl = null;
-                window.backgroundImageData = null;
-                window.originalImageUrl = null;
-                
-                // Load new background image
-                await loadBackgroundImage();
-                
-                showToast('New background loaded successfully!', 'success');
-            } catch (error) {
-                console.error('Failed to refresh background:', error);
-                showToast('Failed to load new background', 'error');
-            } finally {
-                // Remove spinning animation
-                refreshBtn.classList.remove('spinning');
-                refreshBtn.disabled = false;
-            }
-        });
+            }        }
 
         // Auto-refresh codes every 5 minutes
         let autoRefreshInterval;
@@ -996,16 +709,18 @@
             }
         });        // Initialize page
         document.addEventListener('DOMContentLoaded', () => {
+            // Clear any existing cache first
+            localStorage.removeItem('hoyo_cached_image_blob');
+            localStorage.removeItem('hoyo_cached_image_metadata');
+            localStorage.removeItem('hoyo_cached_image_timestamp');
+            console.log('Cache cleared on page load');
+            
             loadBackgroundImage(); // Load background image first
             fetchCodes();
             startAutoRefresh();
-        });        // Handle beforeunload to cleanup
+        });// Handle beforeunload to cleanup
         window.addEventListener('beforeunload', () => {
             stopAutoRefresh();
-            // Clean up background image URL
-            if (backgroundImageUrl) {
-                URL.revokeObjectURL(backgroundImageUrl);
-            }
         });
     </script>
     
