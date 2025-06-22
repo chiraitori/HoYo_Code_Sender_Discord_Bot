@@ -2,7 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>HoYo Game Codes</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Get the latest active redemption codes for HoYoverse games - Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero">
+    <meta name="keywords" content="HoYo codes, Genshin Impact codes, Honkai Star Rail codes, Zenless Zone Zero codes, redemption codes">
+    <meta name="author" content="Chiraitori">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="HoYo Game Codes - Active Redemption Codes">
+    <meta property="og:description" content="Get the latest active redemption codes for HoYoverse games">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://pic.re/image">
+    
+    <title>HoYo Game Codes - Active Redemption Codes</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://images.unsplash.com">
+    
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" 
           integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" 
           crossorigin="anonymous" 
@@ -10,331 +26,1185 @@
     <link rel="stylesheet" 
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" 
           integrity="sha384-3B6NwesSXE7YJlcLI9RpRqGf2p/EgVH8BgoKTaUrmKNDkHPStTQ3EyoYjCGXaOTS" 
-          crossorigin="anonymous">
-    <style>
-        .btn-discord:hover {
-            background-color: #5b73c7 !important;
-            color: white !important;
-            transform: translateY(-2px);
-            transition: all 0.2s ease;
-        }        body {
-            background-image: url("https://images.unsplash.com/photo-1512273222628-4daea6e55abb?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80");
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            background-position: center;
-        }
-        .glass-text-embed {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.15); /* Light translucent background */
-            backdrop-filter: blur(10px); /* Blurring for the glass effect */
-            border-radius: 30px; /* More rounded for a soft look */
-            padding: 20px 40px; /* Adds extra spacing around the text */
-            border: 1px solid rgba(255, 255, 255, 0.2); /* Subtle border for definition */
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25); /* Softer shadow for better depth */
-            color: white; /* Ensures text stands out on the glass */
-            font-size: 1.8rem; /* Slightly larger font for visibility */
-            font-weight: bold; /* Makes the text more prominent */
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+          crossorigin="anonymous">    <style>
+        :root {
+            --primary-color: #7289DA;
+            --primary-hover: #5b73c7;
+            --glass-bg: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --shadow-light: 0 8px 32px rgba(0, 0, 0, 0.25);
+            --shadow-hover: 0 12px 36px rgba(0, 0, 0, 0.35);
+            --text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
-        .glass-text-embed:hover {
-            transform: scale(1.05); /* Slight scaling effect on hover */
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35); /* Enhanced shadow on hover */
+        * {
+            box-sizing: border-box;
         }
 
-        footer {
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255, 255, 255, 0.4);
-            margin-bottom: 30px;
-
-        }
         html, body {
             height: 100%;
             margin: 0;
-        }
-
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }        
         body {
             display: flex;
-            flex-direction: column;            min-height: 100vh;
-            background-image: url("https://images.unsplash.com/photo-1512273222628-4daea6e55abb?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80");
+            flex-direction: column;
+            min-height: 100vh;
             background-size: cover;
             background-repeat: no-repeat;
             background-attachment: fixed;
             background-position: center;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: -1;
         }
 
         .container {
             flex: 1 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .glass-effect {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+            border-radius: 20px;
+        }
+
+        .glass-text-embed {
+            text-align: center;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 25px 40px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+            color: white;
+            font-size: 2rem;
+            font-weight: 700;
+            text-shadow: var(--text-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .glass-text-embed:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-discord {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            padding: 12px 30px;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-discord:hover {
+            background-color: var(--primary-hover);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(114, 137, 218, 0.4);
+        }
+
+        .game-selector {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 10px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+        }
+
+        .game-selector .btn {
+            border-radius: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            color: white;
+            border: 2px solid transparent;
+        }
+
+        .game-selector .btn.active {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(114, 137, 218, 0.4);
+        }
+
+        .game-selector .btn:not(.active) {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .game-selector .btn:not(.active):hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .main-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 25px;
+            box-shadow: var(--shadow-light);
+            overflow: hidden;
+        }
+
+        .table-container {
+            border-radius: 15px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .table th {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+            color: white;
+            border: none;
+            font-weight: 600;
+            padding: 15px;
+        }
+
+        .table td {
+            padding: 15px;
+            vertical-align: middle;
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .table tbody tr:hover {
+            background-color: rgba(114, 137, 218, 0.1);
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+
+        .code-badge {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            border: none;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .btn-copy {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-copy:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
+
+        .btn-refresh {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            border: none;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-refresh:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+            color: white;
+        }
+
+        .loading-spinner {
+            color: white;
+        }
+
+        .error-alert {
+            background: rgba(220, 53, 69, 0.9);
+            border: none;
+            border-radius: 15px;
+            color: white;
+        }
+
+        .topgg-widget {
+            text-align: center;
+            margin: 30px auto;
+            max-width: 500px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: var(--shadow-light);
+            border: 1px solid var(--glass-border);
+            transition: transform 0.3s ease;
+        }
+
+        .topgg-widget:hover {
+            transform: translateY(-3px);
+        }
+
+        .topgg-widget img {
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+            transition: transform 0.3s ease;
+        }
+
+        .topgg-widget:hover img {
+            transform: scale(1.05);
         }
 
         footer {
             flex-shrink: 0;
             width: 100%;
-            padding: 20px 0;
-            background: rgba(255, 255, 255, 0.4);
+            padding: 25px 0;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
             margin-top: auto;
-            margin-bottom: 0; /* Remove the margin-bottom */
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        /* Add these new styles */
-        .topgg-widget {
-            width: 100%;
-            max-width: 500px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
+        .footer-link {
+            color: #495057;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 10px;
+        }
+
+        .footer-link:hover {
+            color: var(--primary-color);
+            transform: translateY(-2px);
+            background: rgba(114, 137, 218, 0.1);
+        }
+
+        .toast-notification {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1050;
             border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
         }
 
-        .topgg-widget img {
-            width: 100%;
-            height: auto;
-            border-radius: 10px;
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            .glass-text-embed {
+                font-size: 1.5rem;
+                padding: 20px 25px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .game-selector {
+                padding: 5px;
+            }
+            
+            .table-responsive {
+                font-size: 0.9rem;
+            }
+            
+            .topgg-widget {
+                margin: 20px 15px;
+                padding: 20px;
+            }
         }
 
-        /* Add styles for Top.gg widget */
-        .topgg-widget {
-            text-align: center;
-            padding: 20px;
-            margin: 20px auto;
+        /* Loading animation */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
-        .topgg-widget img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.15);
+        .loading-pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }        /* Download button styles */
+        .download-bg-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
             backdrop-filter: blur(10px);
-            padding: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        
-        /* Update Top.gg widget styles */
-        .topgg-widget {
-            text-align: center;
-            margin: 20px auto;
-            width: 100%;
-            max-width: 600px;
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            width: auto;
+            height: 40px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-decoration: none;
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 600;
         }
 
-        .topgg-widget a {
-            display: block;
-            width: 100%;
+        .download-bg-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: var(--shadow-hover);
         }
 
-        .topgg-widget img {
-            width: 100%;
-            height: auto;
-            display: block;
-            background-color: rgba(255, 255, 255, 0.15);
-            border-radius: 10px;
+        .download-bg-btn:active {
+            transform: translateY(0) scale(0.95);
+        }
+
+        /* Refresh background button */
+        .refresh-bg-btn {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 1000;
+            background: linear-gradient(135deg, #11998e, #38ef7d);
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(56, 239, 125, 0.3);
+            border-radius: 15px;
+            width: auto;
+            height: 40px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-decoration: none;
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .refresh-bg-btn:hover {
+            background: linear-gradient(135deg, #0d7377, #2dd86b);
+            color: white;
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .refresh-bg-btn:active {
+            transform: translateY(0) scale(0.95);
+        }
+
+        .refresh-bg-btn.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }        /* Tooltip for download button */
+        .download-bg-btn::after {
+            content: 'Download Background';
+            position: absolute;
+            top: 50%;
+            right: calc(100% + 10px);
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .download-bg-btn:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Tooltip for refresh button */
+        .refresh-bg-btn::after {
+            content: 'Load New Background';
+            position: absolute;
+            top: 50%;
+            right: calc(100% + 10px);
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .refresh-bg-btn:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }/* Responsive adjustments for action buttons */
+        @media (max-width: 768px) {
+            .download-bg-btn {
+                top: 15px;
+                right: 15px;
+                padding: 6px 12px;
+                font-size: 0.8rem;
+                height: 35px;
+            }
+
+            .refresh-bg-btn {
+                top: 60px;
+                right: 15px;
+                padding: 6px 12px;
+                font-size: 0.8rem;
+                height: 35px;
+            }
+        }
+
+        /* Smooth transitions for content changes */
+        #tableContainer, #loadingSpinner, #errorAlert {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
-<body class="bg-light">
-    <div class="container py-5">
-        <h1 class="text-center mb-4 glass-text-embed">HoYo Game Codes Active</h1>
+<body class="bg-light">    <div class="container py-4">        <!-- Header -->
+        <header class="text-center mb-5">
+            <h1 class="glass-text-embed">
+                HoYo Game Codes
+                <div class="mt-2" style="font-size: 0.6em; opacity: 0.9;">Active Redemption Codes</div>
+            </h1>
+        </header>
         
         <!-- Discord invite bot button -->
-        <div class="row justify-content-center mb-4">
-            <div class="col-md-6 text-center">
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-8 col-lg-6 text-center">
                 <a href="https://discord.com/oauth2/authorize?client_id=1124167011585511516&permissions=2147765312&integration_type=0&scope=bot+applications.commands" 
                    target="_blank" 
-                   class="btn btn-discord btn-lg shadow-sm" 
-                   style="background-color: #7289DA; color: white;">
-                    <i class="fab fa-discord me-2"></i>
-                    Add Bot to Discord
+                   class="btn btn-discord btn-lg">
+                    <i class="fab fa-discord"></i>
+                    Add Bot to Discord Server
                 </a>
+                <p class="text-white mt-3 mb-0" style="text-shadow: 0 2px 4px rgba(0,0,0,0.5);">
+                    Get automatic code notifications in your Discord server!
+                </p>
             </div>
         </div>
 
         <!-- Game selector -->
         <div class="row justify-content-center mb-4">
-            <div class="col-md-6">
-                <div class="btn-group w-100 glass-text-embed" role="group">
-                    <button class="btn btn-outline-primary active" onclick="switchGame('genshin')" id="btn-genshin">Genshin</button>
-                    <button class="btn btn-outline-primary" onclick="switchGame('hsr')" id="btn-hsr">HSR</button>
-                    <button class="btn btn-outline-primary" onclick="switchGame('zzz')" id="btn-zzz">ZZZ</button>
+            <div class="col-md-8 col-lg-6">
+                <div class="game-selector">
+                    <div class="btn-group w-100" role="group" aria-label="Game selector">
+                        <button class="btn active" onclick="switchGame('genshin')" id="btn-genshin" aria-label="Genshin Impact codes">
+                            <i class="fas fa-star me-2"></i>Genshin Impact
+                        </button>
+                        <button class="btn" onclick="switchGame('hsr')" id="btn-hsr" aria-label="Honkai Star Rail codes">
+                            <i class="fas fa-rocket me-2"></i>Honkai: Star Rail
+                        </button>
+                        <button class="btn" onclick="switchGame('zzz')" id="btn-zzz" aria-label="Zenless Zone Zero codes">
+                            <i class="fas fa-bolt me-2"></i>Zenless Zone Zero
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-body">
+        <!-- Main content card -->
+        <div class="main-card">
+            <div class="card-body p-4">
                 <!-- Loading spinner -->
-                <div id="loadingSpinner" class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
+                <div id="loadingSpinner" class="text-center py-5 loading-pulse">
+                    <div class="spinner-border text-white mb-3" style="width: 3rem; height: 3rem;" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-2">Fetching codes...</p>
+                    <h4 class="text-white">Fetching latest codes...</h4>
+                    <p class="text-white-50">Please wait while we retrieve the most current redemption codes</p>
                 </div>
 
                 <!-- Error alert -->
-                <div id="errorAlert" class="alert alert-danger d-none" role="alert">
-                    <h4 class="alert-heading">Error Details:</h4>
-                    <p id="errorMessage">Error loading codes.</p>
-                </div>
-
-                <!-- Refresh button -->
-                <div class="d-flex justify-content-end mb-3">
-                    <button class="btn btn-primary" onclick="fetchCodes()">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
-                            <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                        </svg>
-                        Refresh Codes
+                <div id="errorAlert" class="alert error-alert d-none" role="alert">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                        <h4 class="mb-0">Oops! Something went wrong</h4>
+                    </div>
+                    <p id="errorMessage" class="mb-3">We encountered an error while loading the codes.</p>
+                    <button class="btn btn-light" onclick="fetchCodes()">
+                        <i class="fas fa-redo me-2"></i>Try Again
                     </button>
                 </div>
 
-                <!-- Table container -->
-                <div id="tableContainer" class="d-none">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Code</th>
-                                    <th>Status</th>
-                                    <th>Rewards</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="codesTable">
-                            </tbody>
-                        </table>
+                <!-- Controls -->
+                <div id="controls" class="d-flex justify-content-between align-items-center mb-4 d-none">
+                    <div>
+                        <h3 class="text-white mb-0">
+                            <span id="gameTitle">Genshin Impact</span> Codes
+                        </h3>
+                        <p class="text-white-50 mb-0">Updated every 5 minutes</p>
                     </div>
+                    <button class="btn btn-refresh" onclick="fetchCodes()" aria-label="Refresh codes">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                </div>
+
+                <!-- Codes statistics -->
+                <div id="statsContainer" class="row text-center mb-4 d-none">
+                    <div class="col-md-4">
+                        <div class="glass-effect p-3">
+                            <h4 class="text-white mb-1" id="totalCodes">0</h4>
+                            <small class="text-white-50">Total Codes</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="glass-effect p-3">
+                            <h4 class="text-white mb-1" id="activeCodes">0</h4>
+                            <small class="text-white-50">Active Codes</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="glass-effect p-3">
+                            <h4 class="text-white mb-1" id="lastUpdated">-</h4>
+                            <small class="text-white-50">Last Updated</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table container -->
+                <div id="tableContainer" class="d-none fade-in">
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th><i class="fas fa-code me-2"></i>Redemption Code</th>
+                                        <th><i class="fas fa-check-circle me-2"></i>Status</th>
+                                        <th><i class="fas fa-gift me-2"></i>Rewards</th>
+                                        <th><i class="fas fa-tools me-2"></i>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="codesTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- No codes message -->
+                <div id="noCodesMessage" class="text-center py-5 d-none">
+                    <i class="fas fa-inbox fa-3x text-white-50 mb-3"></i>
+                    <h4 class="text-white">No active codes available</h4>
+                    <p class="text-white-50">Check back later for new redemption codes!</p>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Top.gg Widget - Simplified structure -->
+    </div>    <!-- Top.gg Widget -->
     <div class="topgg-widget">
-        <a href="https://top.gg/bot/1124167011585511516">
-            <img src="https://top.gg/api/widget/1124167011585511516.svg" alt="Bot Widget">
+        <h3 class="text-white mb-3">
+            <i class="fas fa-star me-2"></i>Rate Our Bot
+        </h3>
+        <a href="https://top.gg/bot/1124167011585511516" target="_blank" rel="noopener noreferrer">
+            <img src="https://top.gg/api/widget/1124167011585511516.svg" alt="HoYo Code Sender Bot Widget" loading="lazy">
         </a>
+        <p class="text-white-50 mt-3 mb-0">Help us grow by rating our bot on Top.gg!</p>
     </div>
 
-    <footer>
-        <div class="d-flex justify-content-center gap-4">
-            <!-- GitHub Link -->
-            <a href="https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot" 
-               class="text-dark text-decoration-none" 
-               target="_blank" 
-               rel="noopener noreferrer">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-github" viewBox="0 0 16 16">
-                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-                </svg>
-                <span class="ms-2">View on GitHub</span>
-            </a>
-        </div>
-        <div class="text-center mt-3">
-            © <script>document.write(new Date().getFullYear());</script> Chiraitori with ❤️
-        </div>
-    </footer>
+    <!-- Footer -->
+    <footer class="text-center">
+        <div class="container">
+            <div class="d-flex justify-content-center gap-4 flex-wrap">
+                <!-- GitHub Link -->
+                <a href="https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot" 
+                   class="footer-link" 
+                   target="_blank" 
+                   rel="noopener noreferrer">
+                    <i class="fab fa-github"></i>
+                    <span>View on GitHub</span>
+                </a>
+                
+                <!-- Discord Support -->
+                <a href="https://discord.gg/your-support-server" 
+                   class="footer-link" 
+                   target="_blank" 
+                   rel="noopener noreferrer">
+                    <i class="fab fa-discord"></i>
+                    <span>Support Server</span>
+                </a>
+                
+                <!-- Donate -->
+                <a href="https://ko-fi.com/chiraitori" 
+                   class="footer-link" 
+                   target="_blank" 
+                   rel="noopener noreferrer">
+                    <i class="fas fa-heart"></i>
+                    <span>Donate</span>
+                </a>
+            </div>
+            <div class="mt-4">
+                <p class="mb-1" style="color: #6c757d; font-weight: 600;">
+                    © <script>document.write(new Date().getFullYear());</script> 
+                    <a href="https://github.com/chiraitori" target="_blank" rel="noopener noreferrer" style="color: #495057; text-decoration: none;">Chiraitori</a>
+                </p>
+                <small style="color: #6c757d;">
+                    Made with <i class="fas fa-heart text-danger"></i> for the HoYoverse community
+                </small>
+            </div>
+        </div>    </footer>    <!-- Download Background Button -->
+    <button class="download-bg-btn" id="downloadBgBtn" title="Download Background Image">
+        Download
+    </button>
 
-    <script>
-
+    <!-- Refresh Background Button -->
+    <button class="refresh-bg-btn" id="refreshBgBtn" title="Load New Background Image">
+        Refresh
+    </button><script>
         let currentGame = 'genshin';
+        let backgroundImageBlob = null; // Store the background image blob
+        let backgroundImageUrl = null;  // Store the background image URL
+        
+        const gameNames = {
+            'genshin': 'Genshin Impact',
+            'hsr': 'Honkai: Star Rail',
+            'zzz': 'Zenless Zone Zero'
+        };
+
+        const gameIcons = {
+            'genshin': 'fas fa-star',
+            'hsr': 'fas fa-rocket',
+            'zzz': 'fas fa-bolt'
+        };
+
+        const redeemUrls = {
+            'genshin': 'https://genshin.hoyoverse.com/en/gift',
+            'hsr': 'https://hsr.hoyoverse.com/gift',
+            'zzz': 'https://zenless.hoyoverse.com/redemption'
+        };        // Cache management functions
+        function clearImageCache() {
+            localStorage.removeItem('hoyo_cached_image_blob');
+            localStorage.removeItem('hoyo_cached_image_metadata');
+            localStorage.removeItem('hoyo_cached_image_timestamp');
+            console.log('Image cache cleared');
+        }
+
+        async function getCachedImage() {
+            try {
+                const cachedBlob = localStorage.getItem('hoyo_cached_image_blob');
+                const cachedMetadata = localStorage.getItem('hoyo_cached_image_metadata');
+                const cachedTimestamp = localStorage.getItem('hoyo_cached_image_timestamp');
+                
+                if (cachedBlob && cachedMetadata && cachedTimestamp) {
+                    // Convert base64 back to blob
+                    const response = await fetch(cachedBlob);
+                    const blob = await response.blob();
+                    const metadata = JSON.parse(cachedMetadata);
+                    
+                    return {
+                        blob: blob,
+                        metadata: metadata,
+                        timestamp: parseInt(cachedTimestamp)
+                    };
+                }
+                return null;
+            } catch (error) {
+                console.error('Error retrieving cached image:', error);
+                clearImageCache(); // Clear corrupted cache
+                return null;
+            }
+        }
+
+        async function cacheImage(blob, metadata) {
+            try {
+                // Convert blob to base64 for storage
+                const reader = new FileReader();
+                const base64Promise = new Promise((resolve) => {
+                    reader.onload = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+                
+                const base64Data = await base64Promise;
+                
+                // Store in localStorage
+                localStorage.setItem('hoyo_cached_image_blob', base64Data);
+                localStorage.setItem('hoyo_cached_image_metadata', JSON.stringify(metadata));
+                localStorage.setItem('hoyo_cached_image_timestamp', Date.now().toString());
+                
+                console.log('Image cached successfully, ID:', metadata._id);
+            } catch (error) {
+                console.error('Error caching image:', error);
+                // If storage fails, continue without caching
+            }
+        }
+
+        // Load background image on page load
+        async function loadBackgroundImage() {
+            try {
+                // First, check if we have a cached image
+                const cachedData = await getCachedImage();
+                
+                if (cachedData) {
+                    // Use cached image
+                    backgroundImageBlob = cachedData.blob;
+                    backgroundImageUrl = URL.createObjectURL(backgroundImageBlob);
+                    window.backgroundImageData = cachedData.metadata;
+                    window.originalImageUrl = cachedData.metadata.file_url;
+                    
+                    // Set the background image using the cached blob
+                    document.body.style.backgroundImage = `url(${backgroundImageUrl})`;
+                    
+                    console.log('Background image loaded from cache, ID:', cachedData.metadata._id);
+                    showToast('Background loaded from cache', 'success');
+                    return;
+                }
+                
+                // No cache or cache invalid, fetch new image
+                console.log('No cached image found, fetching new image...');
+                showToast('Loading new background image...', 'success');
+                
+                // Clear any old cache before fetching new
+                clearImageCache();
+                
+                // Get image metadata from pic.re API (this gives us a specific image)
+                const metaResponse = await fetch('https://pic.re/image', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (metaResponse.ok) {
+                    const imageData = await metaResponse.json();
+                    const imageUrl = imageData.file_url;
+                    
+                    // Store the image metadata and original CDN URL for download
+                    window.backgroundImageData = imageData;
+                    window.originalImageUrl = imageUrl;
+                    
+                    // Now fetch the actual image from the CDN
+                    const imageResponse = await fetch(imageUrl);
+                    
+                    if (imageResponse.ok) {
+                        backgroundImageBlob = await imageResponse.blob();
+                        backgroundImageUrl = URL.createObjectURL(backgroundImageBlob);
+                        
+                        // Cache the image for future page loads
+                        await cacheImage(backgroundImageBlob, imageData);
+                        
+                        // Set the background image using the blob URL
+                        document.body.style.backgroundImage = `url(${backgroundImageUrl})`;
+                        
+                        console.log('Background image loaded successfully from:', imageUrl);
+                        console.log('Image ID:', imageData._id || 'Unknown');
+                        showToast('New background image loaded and cached!', 'success');
+                    } else {
+                        throw new Error('Failed to fetch image from CDN');
+                    }
+                } else {
+                    throw new Error('Failed to get image metadata');
+                }
+            } catch (error) {
+                console.error('Failed to load background image via API:', error);
+                // Fallback: Use direct URL but disable blob caching
+                document.body.style.backgroundImage = 'url("https://pic.re/image")';
+                backgroundImageBlob = null;
+                backgroundImageUrl = null;
+                window.backgroundImageData = null;
+                window.originalImageUrl = null;
+                showToast('Failed to load background, using fallback', 'error');
+            }
+        }
 
         function switchGame(game) {
             // Update active button
-            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+            document.querySelectorAll('.game-selector .btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             document.getElementById(`btn-${game}`).classList.add('active');
             
             // Update current game and fetch new codes
             currentGame = game;
+            document.getElementById('gameTitle').textContent = gameNames[game];
             fetchCodes();
         }
 
         async function fetchCodes() {
-            // Show loading spinner, hide table and error
-            document.getElementById('loadingSpinner').classList.remove('d-none');
-            document.getElementById('tableContainer').classList.add('d-none');
-            document.getElementById('errorAlert').classList.add('d-none');
+            // Show loading state
+            showElement('loadingSpinner');
+            hideElement('tableContainer');
+            hideElement('errorAlert');
+            hideElement('controls');
+            hideElement('statsContainer');
+            hideElement('noCodesMessage');
 
             try {
                 const response = await fetch(`/api/codes/${currentGame}`);
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 const data = await response.json();
-                populateTable(data);
+                
+                if (data.codes && data.codes.length > 0) {
+                    populateTable(data);
+                    updateStats(data);
+                    showElement('tableContainer');
+                    showElement('controls');
+                    showElement('statsContainer');
+                } else {
+                    showElement('noCodesMessage');
+                    showElement('controls');
+                }
 
-                // Hide spinner, show table
-                document.getElementById('loadingSpinner').classList.add('d-none');
-                document.getElementById('tableContainer').classList.remove('d-none');
+                hideElement('loadingSpinner');
             } catch (error) {
                 console.error('Error fetching codes:', error);
-                document.getElementById('loadingSpinner').classList.add('d-none');
-                document.getElementById('errorAlert').classList.remove('d-none');
+                hideElement('loadingSpinner');
+                showElement('errorAlert');
                 document.getElementById('errorMessage').textContent = 
-                    `Error loading codes: ${error.message}. Try refreshing the page.`;
+                    `Failed to load codes for ${gameNames[currentGame]}. ${error.message}`;
             }
         }
 
         function populateTable(data) {
             const tableBody = document.getElementById('codesTable');
-            tableBody.innerHTML = ''; // Clear existing content
+            tableBody.innerHTML = '';
             
-            data.codes.forEach(item => {
+            data.codes.forEach((item, index) => {
                 const row = document.createElement('tr');
+                row.style.animationDelay = `${index * 0.1}s`;
+                row.className = 'fade-in';
+                
+                const statusClass = item.status === 'OK' ? 'success' : 'warning';
+                const rewardsText = item.rewards || 'Rewards not specified';
+                
                 row.innerHTML = `
                     <td>
-                        <code class="bg-light px-2 py-1 rounded">${item.code}</code>
+                        <span class="code-badge">${item.code}</span>
                     </td>
                     <td>
-                        <span class="badge bg-success">${item.status}</span>
+                        <span class="badge status-badge bg-${statusClass}">
+                            <i class="fas fa-check-circle me-1"></i>${item.status}
+                        </span>
                     </td>
-                    <td>${item.rewards}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" 
-                                onclick="copyToClipboard('${item.code}')">
-                            Copy Code
-                        </button>
+                        <small class="text-muted">${rewardsText}</small>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-copy btn-sm" 
+                                    onclick="copyToClipboard('${item.code}')"
+                                    title="Copy code to clipboard">
+                                <i class="fas fa-copy me-1"></i>Copy
+                            </button>
+                            <a href="${redeemUrls[currentGame]}?code=${item.code}" 
+                               target="_blank" 
+                               class="btn btn-outline-primary btn-sm"
+                               title="Open redemption page">
+                                <i class="fas fa-external-link-alt me-1"></i>Redeem
+                            </a>
+                        </div>
                     </td>
                 `;
                 tableBody.appendChild(row);
             });
         }
 
+        function updateStats(data) {
+            const totalCodes = data.codes.length;
+            const activeCodes = data.codes.filter(code => code.status === 'OK').length;
+            const now = new Date();
+            
+            document.getElementById('totalCodes').textContent = totalCodes;
+            document.getElementById('activeCodes').textContent = activeCodes;
+            document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
+        }
+
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                // Create and show toast notification
-                const toastContainer = document.createElement('div');
-                toastContainer.style.position = 'fixed';
-                toastContainer.style.bottom = '20px';
-                toastContainer.style.right = '20px';
-                toastContainer.style.zIndex = '1050';
-                
-                toastContainer.innerHTML = `
-                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-                        <div class="toast-header">
-                            <strong class="me-auto">Success</strong>
-                            <button type="button" class="btn-close" onclick="this.closest('.toast').remove()"></button>
-                        </div>
-                        <div class="toast-body">
-                            Code copied to clipboard!
-                        </div>
-                    </div>
-                `;
-                
-                document.body.appendChild(toastContainer);
-                setTimeout(() => toastContainer.remove(), 3000);
+                showToast('Code copied to clipboard!', 'success');
             }).catch(err => {
-                console.error('Failed to copy text: ', err);
+                console.error('Failed to copy text:', err);
+                showToast('Failed to copy code', 'error');
             });
         }
 
-        // Fetch codes when page loads
-        document.addEventListener('DOMContentLoaded', fetchCodes);    </script>
+        function showToast(message, type = 'success') {
+            // Remove existing toasts
+            document.querySelectorAll('.toast-notification').forEach(toast => toast.remove());
+            
+            const toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-notification';
+            
+            const iconClass = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+            
+            toastContainer.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-header" style="background: transparent; border: none; color: white;">
+                        <i class="${iconClass} me-2"></i>
+                        <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
+                        <button type="button" class="btn-close btn-close-white" onclick="this.closest('.toast-notification').remove()"></button>
+                    </div>
+                    <div class="toast-body" style="color: white;">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(toastContainer);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (toastContainer.parentNode) {
+                    toastContainer.remove();
+                }
+            }, 3000);
+        }
+
+        function showElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.remove('d-none');
+                element.classList.add('fade-in');
+            }
+        }
+
+        function hideElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.add('d-none');
+                element.classList.remove('fade-in');
+            }
+        }        // Download background functionality
+        document.getElementById('downloadBgBtn').addEventListener('click', async function() {
+            try {
+                if (backgroundImageBlob) {
+                    // Use the cached background image blob (guaranteed to match background)
+                    showToast('Downloading background image...', 'success');
+                    
+                    const url = URL.createObjectURL(backgroundImageBlob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    
+                    // Try to get filename from the stored metadata
+                    let filename = `hoyo-codes-background-${Date.now()}.jpg`;
+                    if (window.backgroundImageData && window.backgroundImageData._id) {
+                        filename = `hoyo-codes-bg-${window.backgroundImageData._id}.jpg`;
+                    }
+                    link.download = filename;
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    URL.revokeObjectURL(url);
+                    showToast('Background image downloaded successfully!', 'success');
+                } else if (window.originalImageUrl) {
+                    // Use the stored original CDN URL (should match background)
+                    showToast('Downloading from stored URL...', 'success');
+                    
+                    try {
+                        const imageResponse = await fetch(window.originalImageUrl);
+                        if (imageResponse.ok) {
+                            const blob = await imageResponse.blob();
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            
+                            let filename = `hoyo-codes-background-${Date.now()}.jpg`;
+                            if (window.backgroundImageData && window.backgroundImageData._id) {
+                                filename = `hoyo-codes-bg-${window.backgroundImageData._id}.jpg`;
+                            }
+                            link.download = filename;
+                            
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            
+                            URL.revokeObjectURL(url);
+                            showToast('Background image downloaded successfully!', 'success');
+                        } else {
+                            throw new Error('Failed to fetch from stored URL');
+                        }
+                    } catch (urlError) {
+                        console.error('Stored URL download failed:', urlError);
+                        throw urlError; // Let it fall through to the final fallback
+                    }
+                } else {
+                    // No cached data available - warn user that it may not match
+                    showToast('No cached image available. Downloading a fresh image (may not match background)...', 'success');
+                    
+                    try {
+                        // Get image metadata from pic.re API
+                        const metaResponse = await fetch('https://pic.re/image', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                            }
+                        });
+                        
+                        if (metaResponse.ok) {
+                            const imageData = await metaResponse.json();
+                            const imageUrl = imageData.file_url;
+                            
+                            // Fetch the actual image
+                            const imageResponse = await fetch(imageUrl);
+                            if (imageResponse.ok) {
+                                const blob = await imageResponse.blob();
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `hoyo-codes-fresh-${imageData._id || Date.now()}.jpg`;
+                                
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                
+                                URL.revokeObjectURL(url);
+                                showToast('Fresh image downloaded (may differ from background)', 'success');
+                            } else {
+                                throw new Error('Failed to fetch image from CDN');
+                            }
+                        } else {
+                            throw new Error('Failed to get image metadata');
+                        }
+                    } catch (apiError) {
+                        console.error('API download failed:', apiError);
+                        throw apiError; // Let it fall through to the final fallback
+                    }
+                }
+            } catch (error) {
+                console.error('Download failed:', error);
+                
+                // Final fallback: Open image in new tab
+                try {
+                    showToast('Opening image in new tab for manual download...', 'success');
+                    const fallbackUrl = window.originalImageUrl || `https://pic.re/image?t=${Date.now()}`;
+                    window.open(fallbackUrl, '_blank');
+                    showToast('Image opened in new tab. Right-click and "Save As" to download.', 'success');
+                } catch (fallbackError) {
+                    console.error('All download methods failed:', fallbackError);
+                    showToast('Unable to download image. Please visit https://pic.re/image directly.', 'error');
+                }            }
+        });
+
+        // Refresh background functionality
+        document.getElementById('refreshBgBtn').addEventListener('click', async function() {
+            const refreshBtn = this;
+            const icon = refreshBtn.querySelector('i');
+            
+            // Add spinning animation
+            refreshBtn.classList.add('spinning');
+            refreshBtn.disabled = true;
+            
+            showToast('Loading new background image...', 'success');
+            
+            try {
+                // Clear current cache
+                clearImageCache();
+                
+                // Clean up current background URL
+                if (backgroundImageUrl) {
+                    URL.revokeObjectURL(backgroundImageUrl);
+                }
+                
+                // Reset variables
+                backgroundImageBlob = null;
+                backgroundImageUrl = null;
+                window.backgroundImageData = null;
+                window.originalImageUrl = null;
+                
+                // Load new background image
+                await loadBackgroundImage();
+                
+                showToast('New background loaded successfully!', 'success');
+            } catch (error) {
+                console.error('Failed to refresh background:', error);
+                showToast('Failed to load new background', 'error');
+            } finally {
+                // Remove spinning animation
+                refreshBtn.classList.remove('spinning');
+                refreshBtn.disabled = false;
+            }
+        });
+
+        // Auto-refresh codes every 5 minutes
+        let autoRefreshInterval;
+
+        function startAutoRefresh() {
+            autoRefreshInterval = setInterval(() => {
+                console.log('Auto-refreshing codes...');
+                fetchCodes();
+            }, 5 * 60 * 1000); // 5 minutes
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        }
+
+        // Page visibility API to pause auto-refresh when tab is not visible
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
+        });        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBackgroundImage(); // Load background image first
+            fetchCodes();
+            startAutoRefresh();
+        });        // Handle beforeunload to cleanup
+        window.addEventListener('beforeunload', () => {
+            stopAutoRefresh();
+            // Clean up background image URL
+            if (backgroundImageUrl) {
+                URL.revokeObjectURL(backgroundImageUrl);
+            }
+        });
+    </script>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js" 
             integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" 
