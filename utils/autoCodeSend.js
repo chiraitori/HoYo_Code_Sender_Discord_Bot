@@ -4,7 +4,7 @@ const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const Language = require('../models/Language');
 const languageManager = require('./language');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
     'genshin': 'Genshin Impact',
@@ -140,15 +140,22 @@ async function checkAndSendNewCodes(client) {
         // Execute all database operations
         if (operations.length > 0) {
             await Promise.all(operations);
-        }
-
-        // Prepare message sending for guilds with new codes
+        }        // Prepare message sending for guilds with new codes
         const messageTasks = [];
+        const guildsToCleanup = [];
 
         // Filter configs that have autoSend enabled
         for (const config of configs) {
             const guildId = config.guildId;
             const settings = settingsMap[guildId];
+            
+            // Check if bot is still in the guild
+            const guild = client.guilds.cache.get(guildId);
+            if (!guild) {
+                // Bot was kicked/removed from guild, mark for cleanup
+                guildsToCleanup.push(guildId);
+                continue;
+            }
             
             // Skip if autoSend is disabled
             if (!settings?.autoSendEnabled) continue;
@@ -159,7 +166,6 @@ async function checkAndSendNewCodes(client) {
                 if (settings?.favoriteGames?.enabled && 
                     settings.favoriteGames.games && 
                     settings.favoriteGames.games[game] === false) {
-                    console.log(`Skipping ${game} codes for guild ${guildId} (filtered out)`);
                     continue;
                 }
 
@@ -170,9 +176,15 @@ async function checkAndSendNewCodes(client) {
             }
         }
 
+        // Clean up configurations for guilds where bot was removed
+        if (guildsToCleanup.length > 0) {
+            const cleanupTasks = guildsToCleanup.map(guildId => cleanupGuildConfiguration(guildId));
+            await Promise.allSettled(cleanupTasks);
+        }
+
         // Execute all message sending tasks 
         if (messageTasks.length > 0) {
-            await Promise.all(messageTasks);
+            await Promise.allSettled(messageTasks);
         }
         
         console.log(`Code check process completed. Found ${codesToSave.length} new codes.`);
@@ -182,7 +194,53 @@ async function checkAndSendNewCodes(client) {
 }
 
 async function sendCodeNotification(client, config, game, codes, guildId, guildLang) {
+    // Validate inputs silently
+    if (!config?.channel || !guildId || !codes?.length) {
+        return;
+    }
+
     try {
+        // Get guild and channel with silent validation
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            // Guild not found, clean up configuration
+            await cleanupGuildConfiguration(guildId);
+            return;
+        }        const channel = client.channels.cache.get(config.channel);
+        if (!channel) {
+            // Channel not found, notify owner once and return silently
+            await notifyGuildOwnerMissingChannel(client, guild, config);
+            return;
+        }
+
+        // Check if channel is text-based
+        if (!channel.isTextBased()) {
+            return;
+        }
+
+        // Check if channel.send is a function
+        if (typeof channel.send !== 'function') {
+            return;
+        }
+
+        // Check bot permissions
+        const botMember = guild.members.cache.get(client.user.id);
+        if (!botMember) {
+            return;
+        }        const channelPermissions = channel.permissionsFor(botMember);
+        if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
+            // Missing send messages permission, notify owner once
+            await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
+            return;
+        }
+
+        if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
+            // Missing embed links permission, notify owner once
+            await notifyGuildOwnerMissingPermissions(client, guild, config, 'EmbedLinks');
+            return;
+        }
+
+        // Generate notification content
         const title = await languageManager.getString(
             'commands.listcodes.newCodes',
             guildId,
@@ -194,7 +252,6 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
             guildId
         );
 
-        // Generate all descriptions at once
         const descriptionPromises = codes.map(async code => {
             const rewardString = code.rewards ? 
                 await languageManager.getRewardString(code.rewards, guildId) : 
@@ -206,7 +263,6 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
         const descriptions = await Promise.all(descriptionPromises);
         const finalDescription = descriptions.join('\n\n');
 
-        // Get support message in the server's language
         const supportMsg = await languageManager.getString(
             'common.supportMsg', 
             guildId
@@ -219,19 +275,152 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
             .setFooter({ text: supportMsg })
             .setTimestamp();
 
-        if (config?.channel) {
-            const channel = client.channels.cache.get(config.channel);
-            if (channel) {
-                const roleField = roleMapping[game];
-                const roleId = config[roleField];
-                const roleTag = roleId ? `<@&${roleId}> ` : '';
-                
-                await channel.send({ content: roleTag, embeds: [embed] });
-                console.log(`Sent ${game} notification to guild ${guildId}`);
+        // Prepare message content with proper role mentions
+        const roleField = roleMapping[game];
+        const roleId = config[roleField];
+        let content = '';
+        let allowedMentions = {};
+
+        if (roleId) {
+            content = `<@&${roleId}>`;
+            // Check role mention permissions
+            if (channelPermissions.has(PermissionFlagsBits.MentionEveryone)) {
+                allowedMentions = {
+                    roles: [roleId]
+                };
+            } else {
+                // Can't mention roles, just send without mentions
+                content = '';
+                allowedMentions = {
+                    roles: []
+                };
             }
         }
+
+        // Send the message
+        await channel.send({ 
+            content: content, 
+            embeds: [embed],
+            allowedMentions: allowedMentions
+        });
+
+    } catch (error) {        // Handle specific Discord API errors silently
+        if (error.code === 50001 || error.code === 50013) {
+            // Missing Access (50001) or Missing Permissions (50013)
+            const guild = client.guilds.cache.get(guildId);
+            if (guild) {
+                await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
+            }
+            return;
+        }
+
+        if (error.code === 10003) {
+            // Unknown Channel - channel was deleted
+            const guild = client.guilds.cache.get(guildId);
+            if (guild) {
+                await notifyGuildOwnerMissingChannel(client, guild, config);
+            }
+            return;
+        }
+
+        // For other errors, fail silently
+        return;
+    }
+}
+
+// Helper function to clean up guild configuration when bot is kicked
+async function cleanupGuildConfiguration(guildId) {
+    try {
+        await Promise.all([
+            Config.deleteOne({ guildId }),
+            Settings.deleteOne({ guildId }),
+            Language.deleteOne({ guildId })
+        ]);
     } catch (error) {
-        console.error(`Error sending message to guild ${guildId}:`, error);
+        // Silently handle cleanup errors
+    }
+}
+
+// Helper function to notify guild owner about missing channel (only once)
+async function notifyGuildOwnerMissingChannel(client, guild, config) {
+    try {
+        // Check if we've already notified about this issue
+        if (config.notifications?.channelMissing?.notified) {
+            return; // Already notified, don't spam
+        }
+
+        const owner = await guild.fetchOwner();
+        if (!owner || !owner.user) return;
+
+        const embed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('⚠️ HoYo Code Sender - Channel Issue')
+            .setDescription(`The notification channel in **${guild.name}** has been deleted or is no longer accessible.`)
+            .addFields(
+                { name: 'Action Required', value: 'Please run `/setup` again to configure a new notification channel.' },
+                { name: 'Server', value: guild.name, inline: true },
+                { name: 'Server ID', value: guild.id, inline: true }
+            )
+            .setFooter({ text: 'HoYo Code Sender Bot' })
+            .setTimestamp();
+
+        await owner.send({ embeds: [embed] });
+
+        // Mark as notified to prevent future spam
+        await Config.updateOne(
+            { guildId: guild.id },
+            { 
+                $set: { 
+                    'notifications.channelMissing.notified': true,
+                    'notifications.channelMissing.lastNotified': new Date()
+                }
+            }
+        );
+    } catch (error) {
+        // Silently handle DM errors (user might have DMs disabled)
+    }
+}
+
+// Helper function to notify guild owner about missing permissions (only once per permission)
+async function notifyGuildOwnerMissingPermissions(client, guild, config, permission) {
+    try {
+        // Check if we've already notified about this specific permission issue
+        if (config.notifications?.permissionMissing?.notified && 
+            config.notifications?.permissionMissing?.permission === permission) {
+            return; // Already notified about this permission, don't spam
+        }
+
+        const owner = await guild.fetchOwner();
+        if (!owner || !owner.user) return;
+
+        const embed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('⚠️ HoYo Code Sender - Permission Issue')
+            .setDescription(`The bot is missing the **${permission}** permission in **${guild.name}**.`)
+            .addFields(
+                { name: 'Action Required', value: 'Please grant the bot the required permissions or run `/setup` again.' },
+                { name: 'Missing Permission', value: permission, inline: true },
+                { name: 'Server', value: guild.name, inline: true },
+                { name: 'Server ID', value: guild.id, inline: true }
+            )
+            .setFooter({ text: 'HoYo Code Sender Bot' })
+            .setTimestamp();
+
+        await owner.send({ embeds: [embed] });
+
+        // Mark as notified to prevent future spam
+        await Config.updateOne(
+            { guildId: guild.id },
+            { 
+                $set: { 
+                    'notifications.permissionMissing.notified': true,
+                    'notifications.permissionMissing.lastNotified': new Date(),
+                    'notifications.permissionMissing.permission': permission
+                }
+            }
+        );
+    } catch (error) {
+        // Silently handle DM errors (user might have DMs disabled)
     }
 }
 

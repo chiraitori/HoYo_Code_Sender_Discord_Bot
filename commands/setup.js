@@ -83,16 +83,20 @@ module.exports = {
                     .setTimestamp();
                 
                 return interaction.editReply({ embeds: [errorEmbed] });
-            }
-
-            // If validation passed, update the full configuration
+            }            // If validation passed, update the full configuration
             await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 {
                     genshinRole: genshinRole.id,
                     hsrRole: hsrRole.id,
                     zzzRole: zzzRole.id,
-                    channel: channel.id
+                    channel: channel.id,
+                    // Reset notification flags since setup is successful
+                    'notifications.channelMissing.notified': false,
+                    'notifications.channelMissing.lastNotified': null,
+                    'notifications.permissionMissing.notified': false,
+                    'notifications.permissionMissing.lastNotified': null,
+                    'notifications.permissionMissing.permission': null
                 },
                 { upsert: true, new: true }
             );
