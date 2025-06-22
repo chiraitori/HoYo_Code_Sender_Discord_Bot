@@ -306,20 +306,7 @@
         .footer-link:hover {
             color: var(--primary-color);
             transform: translateY(-2px);
-            background: rgba(114, 137, 218, 0.1);
-        }
-
-        .toast-notification {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            z-index: 1050;
-            border-radius: 15px;
-            border: none;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-        }
+            background: rgba(114, 137, 218, 0.1);        }
 
         /* Responsive improvements */
         @media (max-width: 768px) {
@@ -351,150 +338,8 @@
             0% { opacity: 1; }
             50% { opacity: 0.5; }
             100% { opacity: 1; }
-        }
-
-        .loading-pulse {
-            animation: pulse 1.5s ease-in-out infinite;
-        }        /* Download button styles */
-        .download-bg-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 15px;
-            width: auto;
-            height: 40px;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            text-decoration: none;
-            box-shadow: var(--shadow-light);
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .download-bg-btn:hover {
-            background: rgba(255, 255, 255, 0.25);
-            color: white;
-            transform: translateY(-2px) scale(1.05);
-            box-shadow: var(--shadow-hover);
-        }
-
-        .download-bg-btn:active {
-            transform: translateY(0) scale(0.95);
-        }
-
-        /* Refresh background button */
-        .refresh-bg-btn {
-            position: fixed;
-            top: 70px;
-            right: 20px;
-            z-index: 1000;
-            background: linear-gradient(135deg, #11998e, #38ef7d);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(56, 239, 125, 0.3);
-            border-radius: 15px;
-            width: auto;
-            height: 40px;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            text-decoration: none;
-            box-shadow: var(--shadow-light);
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .refresh-bg-btn:hover {
-            background: linear-gradient(135deg, #0d7377, #2dd86b);
-            color: white;
-            transform: translateY(-2px) scale(1.05);
-            box-shadow: var(--shadow-hover);
-        }
-
-        .refresh-bg-btn:active {
-            transform: translateY(0) scale(0.95);
-        }
-
-        .refresh-bg-btn.spinning {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }        /* Tooltip for download button */
-        .download-bg-btn::after {
-            content: 'Download Background';
-            position: absolute;
-            top: 50%;
-            right: calc(100% + 10px);
-            transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            pointer-events: none;
-        }
-
-        .download-bg-btn:hover::after {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        /* Tooltip for refresh button */
-        .refresh-bg-btn::after {
-            content: 'Load New Background';
-            position: absolute;
-            top: 50%;
-            right: calc(100% + 10px);
-            transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            pointer-events: none;
-        }
-
-        .refresh-bg-btn:hover::after {
-            opacity: 1;
-            visibility: visible;
-        }/* Responsive adjustments for action buttons */
+        }        .loading-pulse {            animation: pulse 1.5s ease-in-out infinite;        }/* Responsive adjustments for action buttons */
         @media (max-width: 768px) {
-            .download-bg-btn {
-                top: 15px;
-                right: 15px;
-                padding: 6px 12px;
-                font-size: 0.8rem;
-                height: 35px;
-            }
-
-            .refresh-bg-btn {
-                top: 60px;
-                right: 15px;
-                padding: 6px 12px;
-                font-size: 0.8rem;
-                height: 35px;
-            }
         }
 
         /* Smooth transitions for content changes */
@@ -691,16 +536,7 @@
                 <small style="color: #6c757d;">
                     Made with <i class="fas fa-heart text-danger"></i> for the HoYoverse community
                 </small>
-            </div>
-        </div>    </footer>    <!-- Download Background Button -->
-    <button class="download-bg-btn" id="downloadBgBtn" title="Download Background Image">
-        Download
-    </button>
-
-    <!-- Refresh Background Button -->
-    <button class="refresh-bg-btn" id="refreshBgBtn" title="Load New Background Image">
-        Refresh
-    </button><script>
+            </div>        </div>    </footer><script>
         let currentGame = 'genshin';
         let backgroundImageBlob = null; // Store the background image blob
         let backgroundImageUrl = null;  // Store the background image URL
@@ -966,40 +802,7 @@
             }).catch(err => {
                 console.error('Failed to copy text:', err);
                 showToast('Failed to copy code', 'error');
-            });
-        }
-
-        function showToast(message, type = 'success') {
-            // Remove existing toasts
-            document.querySelectorAll('.toast-notification').forEach(toast => toast.remove());
-            
-            const toastContainer = document.createElement('div');
-            toastContainer.className = 'toast-notification';
-            
-            const iconClass = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
-            
-            toastContainer.innerHTML = `
-                <div class="toast show" role="alert">
-                    <div class="toast-header" style="background: transparent; border: none; color: white;">
-                        <i class="${iconClass} me-2"></i>
-                        <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
-                        <button type="button" class="btn-close btn-close-white" onclick="this.closest('.toast-notification').remove()"></button>
-                    </div>
-                    <div class="toast-body" style="color: white;">
-                        ${message}
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(toastContainer);
-            
-            // Auto-remove after 3 seconds
-            setTimeout(() => {
-                if (toastContainer.parentNode) {
-                    toastContainer.remove();
-                }
-            }, 3000);
-        }
+            });        }
 
         function showElement(elementId) {
             const element = document.getElementById(elementId);
