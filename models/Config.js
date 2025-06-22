@@ -8,4 +8,7 @@ const configSchema = new mongoose.Schema({
     channel: { type: String },
 });
 
+// Add index for faster lookups
+configSchema.index({ guildId: 1 });
+
 module.exports = mongoose.model('Config', configSchema);

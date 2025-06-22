@@ -58,22 +58,60 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Create a 'public' folder for static files
 
+// Simple cache for API responses
+const apiCache = new Map();
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+// Helper function to get cached or fresh API data
+async function getCachedApiData(game, apiUrl) {
+    const cacheKey = `codes_${game}`;
+    const cached = apiCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data;
+    }
+    
+    try {
+        const response = await axios.get(apiUrl, {
+            timeout: 10000, // 10 second timeout
+            headers: {
+                'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
+            }
+        });
+        
+        const data = response.data;
+        apiCache.set(cacheKey, {
+            data: data,
+            timestamp: Date.now()
+        });
+        
+        return data;
+    } catch (error) {
+        // If we have cached data, return it even if expired during error
+        if (cached) {
+            console.warn(`API error for ${game}, using cached data:`, error.message);
+            return cached.data;
+        }
+        throw error;
+    }
+}
+
 app.get('/api/codes/genshin', async (req, res) => {
     try {
-        const response = await axios.get('https://hoyo-codes.seria.moe/codes?game=genshin');
-        res.json(response.data);
+        const data = await getCachedApiData('genshin', 'https://hoyo-codes.seria.moe/codes?game=genshin');
+        res.json(data);
     } catch (error) {
-        console.error('Error fetching codes:', error);
+        console.error('Error fetching Genshin codes:', error);
         res.status(500).json({ error: 'Failed to fetch codes' });
     }
 });
 
 app.get('/api/codes/hsr', async (req, res) => {
     try {
-        const response = await axios.get('https://hoyo-codes.seria.moe/codes?game=hkrpg');
-        res.json(response.data);
+        const data = await getCachedApiData('hkrpg', 'https://hoyo-codes.seria.moe/codes?game=hkrpg');
+        res.json(data);
     } catch (error) {
-        console.error('Error fetching codes:', error);
+        console.error('Error fetching HSR codes:', error);
         res.status(500).json({ error: 'Failed to fetch codes' });
     }
 });
@@ -81,13 +119,23 @@ app.get('/api/codes/hsr', async (req, res) => {
 // API Routes
 app.get('/api/codes/zzz', async (req, res) => {
     try {
-        const response = await axios.get('https://hoyo-codes.seria.moe/codes?game=nap');
-        res.json(response.data);
+        const data = await getCachedApiData('nap', 'https://hoyo-codes.seria.moe/codes?game=nap');
+        res.json(data);
     } catch (error) {
-        console.error('Error fetching codes:', error);
+        console.error('Error fetching ZZZ codes:', error);
         res.status(500).json({ error: 'Failed to fetch codes' });
     }
 });
+
+// Clear old cache entries every hour
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of apiCache.entries()) {
+        if (now - value.timestamp > CACHE_DURATION * 2) { // Clear if 2x older than cache duration
+            apiCache.delete(key);
+        }
+    }
+}, 60 * 60 * 1000); // Every hour
 
 // Serve HTML
 app.get('/', (req, res) => {
@@ -174,6 +222,27 @@ client.once('ready', async () => {
     
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 });
+
+// Memory monitoring (optional)
+if (process.env.NODE_ENV === 'production') {
+    setInterval(() => {
+        const memUsage = process.memoryUsage();
+        const memUsageMB = {
+            rss: Math.round(memUsage.rss / 1024 / 1024 * 100) / 100,
+            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024 * 100) / 100,
+            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100
+        };
+        
+        // Log memory usage every 30 minutes
+        console.log(`Memory usage: RSS: ${memUsageMB.rss}MB, Heap: ${memUsageMB.heapUsed}/${memUsageMB.heapTotal}MB`);
+        
+        // Warn if memory usage is high
+        if (memUsageMB.heapUsed > 200) {
+            console.warn('High memory usage detected');
+        }
+    }, 30 * 60 * 1000); // Every 30 minutes
+}
+
 
 // Add event listeners for guild join/leave
 client.on('guildCreate', async (guild) => {

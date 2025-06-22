@@ -26,7 +26,12 @@ module.exports = {
             // Make the response ephemeral (visible only to the user who used the command)
             await interaction.reply({ content: loadingMessage, ephemeral: true });
 
-            const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`);
+            const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`, {
+                timeout: 10000, // 10 second timeout
+                headers: {
+                    'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
+                }
+            });
             
             // Get game choice
             const gameNames = {
