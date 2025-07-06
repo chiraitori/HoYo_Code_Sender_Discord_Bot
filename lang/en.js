@@ -11,7 +11,7 @@ module.exports = {
         enabled: 'ENABLED',
         disabled: 'DISABLED',
         notYourButton: 'This button is not for you.',
-        supportMsg: '❤️ Help the developer: ko-fi.com/chiraitori | paypal.me/chiraitori'
+        supportMsg: '❤️ Help the developer: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori'
     },
     welcome: {
         title: 'Thanks for Adding HoYo Code Sender!',
@@ -160,7 +160,8 @@ module.exports = {
             vote: 'Vote for the bot',
             github: 'GitHub Repository',
             devbio: 'Developer Bio',
-            donate: 'Donate'
+            donate: 'Donate',
+            sponsor: 'GitHub Sponsors'
         },
         deletesetup: {
             noPermission: 'You do not have permission to use this command.',

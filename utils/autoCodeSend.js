@@ -33,6 +33,7 @@ const settingsMapping = {
 // Support links for donations
 const supportLinks = {
     kofi: 'https://ko-fi.com/chiraitori',
+    sponsors: 'https://github.com/sponsors/chiraitori',
     paypal: 'https://paypal.me/chiraitori',
     banking: 'Use /about command for Vietnamese banking details'
 };
@@ -304,7 +305,7 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
         const supportMsg = await languageManager.getString(
             'common.supportMsg', 
             guildId
-        ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori';
+        ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori | github.com/sponsors/chiraitori';
 
         const embed = new EmbedBuilder()
             .setColor('#00ff00')

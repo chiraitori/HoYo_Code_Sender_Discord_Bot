@@ -36,6 +36,10 @@ module.exports = {
                         value: '[Buy me a coffee](https://ko-fi.com/chiraitori)'
                     },
                     {
+                        name: await languageManager.getString('commands.about.sponsor', interaction.guildId) || 'GitHub Sponsors',
+                        value: '[GitHub Sponsors](https://github.com/sponsors/chiraitori)'
+                    },
+                    {
                         name: await languageManager.getString('commands.about.devbio', interaction.guildId),
                         value: '[Bio Link](https://chiraitori.me)'
                     }

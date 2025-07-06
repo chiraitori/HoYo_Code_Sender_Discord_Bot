@@ -124,7 +124,7 @@ module.exports = {
             const supportMsg = await languageManager.getString(
                 'common.supportMsg', 
                 interaction.guildId
-            ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori';
+            ) || '❤️ Support: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori';
             
             const embeds = pages.map((pageContent, index) => {
                 const embed = new EmbedBuilder()

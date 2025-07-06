@@ -11,7 +11,7 @@ module.exports = {
         enabled: '有効',
         disabled: '無効',
         notYourButton: 'このボタンはあなたのものではありません。',
-        supportMsg: '❤️ 開発者を応援: ko-fi.com/chiraitori | paypal.me/chiraitori'
+        supportMsg: '❤️ 開発者を応援: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori'
     },
     welcome: {
         title: 'HoYo Code Senderを追加していただきありがとうございます！',
@@ -183,6 +183,7 @@ module.exports = {
             error: '情報の取得中にエラーが発生しました。もう一度お試しください',
             devbio: '開発者の自己紹介',
             donate: '寄付',
+            sponsor: 'GitHub スポンサー'
         },
         deletesetup: {
             noPermission: 'このコマンドを使用する権限がありません。',

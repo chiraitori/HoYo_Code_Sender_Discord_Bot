@@ -11,7 +11,7 @@ module.exports = {
         enabled: 'BẬT',
         disabled: 'TẮT',
         notYourButton: 'Nút này không dành cho bạn.',
-        supportMsg: '❤️ Hỗ trợ nhà phát triển: ko-fi.com/chiraitori | paypal.me/chiraitori | chiraitori.me'
+        supportMsg: '❤️ Hỗ trợ nhà phát triển: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori | chiraitori.me'
     },
     welcome: {
         title: 'Cảm ơn đã thêm HoYo Code Sender!',
@@ -181,7 +181,8 @@ module.exports = {
             vote: 'Bình chọn cho bot',
             github: 'Kho mã nguồn GitHub',
             devbio: 'Tiểu sử nhà phát triển',
-            donate: 'Ủng hộ tôi nếu trong nước thì có thể donate qua tiểu sử'
+            donate: 'Ủng hộ tôi nếu trong nước thì có thể donate qua tiểu sử',
+            sponsor: 'GitHub Sponsors'
         },
         deletesetup: {
             noPermission: 'Bạn không có quyền sử dụng lệnh này.',
