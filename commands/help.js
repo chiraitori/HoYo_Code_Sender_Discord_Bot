@@ -68,7 +68,9 @@ module.exports = {
 
             await interaction.reply({ 
                 embeds: [helpEmbed],
-                ephemeral: interaction.user.id !== interaction.guild.ownerId // Only show privately if not the server owner
+                ephemeral: interaction.guild ? 
+                    interaction.user.id !== interaction.guild.ownerId : 
+                    false // In DMs, always show non-ephemeral
             });
 
         } catch (error) {

@@ -22,6 +22,11 @@ class LanguageManager {
     }
 
     async getGuildLanguage(guildId) {
+        // If no guildId (DMs), return default language
+        if (!guildId) {
+            return 'en';
+        }
+
         // Check cache first
         const cached = this.languageCache.get(guildId);
         if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
@@ -49,6 +54,7 @@ class LanguageManager {
     async getString(key, guildId, replacements = {}) {
         try {
             // Get guild's language preference (with caching)
+            // For DMs (guildId = null), this will return 'en'
             const selectedLang = await this.getGuildLanguage(guildId);
             
             // Get the string from the language file
@@ -62,22 +68,34 @@ class LanguageManager {
                 text = this.getStringFromPath(key, this.languages.en, replacements);
             }
 
-            return text || key;
+            // If still no text found, return a meaningful fallback instead of the key
+            if (!text) {
+                console.warn(`Translation key not found: ${key}`);
+                return this.getFallbackText(key);
+            }
+
+            return text;
         } catch (error) {
             console.error('Language error:', error);
-            return key;
+            return this.getFallbackText(key);
         }
     }    async getRewardString(reward, guildId) {
         try {
+            // Get guild language (will return 'en' for DMs)
             const selectedLang = await this.getGuildLanguage(guildId);
             
             const translatedReward = translateReward(reward, selectedLang);
             const rewardTemplate = await this.getString('commands.listcodes.reward', guildId);
             
+            // If template is missing, use a simple fallback
+            if (rewardTemplate.startsWith('Translation missing:')) {
+                return `Reward: ${translatedReward}`;
+            }
+            
             return rewardTemplate.replace('{reward}', translatedReward);
         } catch (error) {
             console.error('Error translating reward:', error);
-            return reward;
+            return `Reward: ${reward}`;
         }
     }
 
@@ -91,6 +109,35 @@ class LanguageManager {
         });
 
         return text;
+    }
+
+    getFallbackText(key) {
+        // Provide meaningful fallbacks for common translation keys
+        const fallbacks = {
+            'commands.help.error': 'An error occurred while loading help information.',
+            'commands.help.title': 'HoYo Code Sender Help',
+            'commands.help.description': 'HoYo Code Sender automatically notifies your server about new redemption codes.',
+            'commands.vote.title': 'Vote for HoYo Code Sender',
+            'commands.vote.description': 'Support the bot by voting on Top.gg!',
+            'commands.vote.status': 'Vote Status',
+            'commands.vote.hasVoted': 'You have voted recently!',
+            'commands.vote.hasNotVoted': 'You haven\'t voted yet.',
+            'commands.vote.link': 'Vote on Top.gg',
+            'commands.vote.error': 'Error checking vote status.',
+            'commands.about.title': 'About HoYo Code Sender',
+            'commands.listcodes.loading': 'Loading codes...',
+            'commands.listcodes.error': 'Error loading codes.',
+            'commands.listcodes.newCodes': 'New {game} Codes!',
+            'commands.listcodes.redeemButton': 'Redeem',
+            'commands.listcodes.noReward': 'No reward information',
+            'errors.general': 'An error occurred. Please try again.',
+            'errors.dmNotAllowed': 'This command can only be used in Discord servers, not in direct messages.',
+            'common.enabled': 'ENABLED',
+            'common.disabled': 'DISABLED',
+            'common.notYourButton': 'This button is not for you.'
+        };
+
+        return fallbacks[key] || `Translation missing: ${key}`;
     }
 
     getAvailableLanguages() {

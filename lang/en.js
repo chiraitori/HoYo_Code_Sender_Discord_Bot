@@ -146,6 +146,7 @@ module.exports = {
                     '• Set different roles for each game type\n' +
                     '• Server admins can run `/setup` again to change settings',
             footer: 'HoYo Code Sender - Get HoYoverse game codes automatically!',
+            error: 'An error occurred while loading help information.',
             voteAgain: 'You can vote again in 12 hours.',
             dmThankTitle: 'Thank You for Your Vote!',
             dmThankMessage: 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.'
@@ -162,6 +163,16 @@ module.exports = {
             devbio: 'Developer Bio',
             donate: 'Donate',
             sponsor: 'GitHub Sponsors'
+        },
+        vote: {
+            title: 'Vote for HoYo Code Sender',
+            description: 'Support the bot by voting on Top.gg! Your vote helps us reach more servers and improve the bot.',
+            status: 'Vote Status',
+            hasVoted: '✅ You have voted recently! Thank you for your support.',
+            hasNotVoted: '❌ You haven\'t voted in the last 12 hours.',
+            link: 'Vote on Top.gg',
+            error: 'Error checking vote status.',
+            voteAgain: 'You can vote again in 12 hours.'
         },
         deletesetup: {
             noPermission: 'You do not have permission to use this command.',
