@@ -3,6 +3,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
+const { handleDMRestriction } = require('../utils/dmHandler');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,6 +22,11 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Check if command is used in DMs
+            if (await handleDMRestriction(interaction, 'toggleautosend')) {
+                return;
+            }
+
             // Check if user is admin or bot owner using our utility
             if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(

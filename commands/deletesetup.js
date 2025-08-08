@@ -5,6 +5,7 @@ const Settings = require('../models/Settings');
 const Language = require('../models/Language');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
+const { handleDMRestriction } = require('../utils/dmHandler');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,6 +16,11 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Check if command is used in DMs
+            if (await handleDMRestriction(interaction, 'deletesetup')) {
+                return;
+            }
+
             // Check if user is admin or bot owner using our utility
             if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(

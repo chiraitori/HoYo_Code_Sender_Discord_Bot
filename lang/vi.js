@@ -211,7 +211,9 @@ module.exports = {
         database: 'Đã xảy ra lỗi cơ sở dữ liệu',
         invalidChannel: 'Lỗi: Không tìm thấy kênh đã cấu hình',
         noConfig: 'Lỗi: Kênh chưa được cấu hình cho máy chủ này',
-        rateLimit: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.'
+        rateLimit: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
+        dmNotAllowed: '❌ Lệnh `/{command}` chỉ có thể được sử dụng trong máy chủ Discord, không phải trong tin nhắn riêng.\n\n' +
+                     'Vui lòng sử dụng lệnh này trong máy chủ có cài đặt bot HoYo Code Sender.'
     },
     system: {
         startup: 'Bot đang khởi động...',

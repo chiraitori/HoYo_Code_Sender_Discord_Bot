@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const Config = require('../models/Config');
 const languageManager = require('../utils/language');
+const { handleDMRestriction } = require('../utils/dmHandler');
 
 const gameNames = {
     'genshin': 'Genshin Impact',
@@ -35,6 +36,11 @@ module.exports = {
 
     async execute(interaction) {
         try {
+            // Check if command is used in DMs
+            if (await handleDMRestriction(interaction, 'postcode')) {
+                return;
+            }
+
             // Add strict permission check
             if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
                 const noPermMessage = await languageManager.getString(

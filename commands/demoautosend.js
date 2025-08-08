@@ -4,6 +4,7 @@ const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
 const { validateChannel } = require('../utils/channelValidator');
+const { handleDMRestriction } = require('../utils/dmHandler');
 
 // Game information mapping
 const gameNames = {
@@ -62,6 +63,11 @@ module.exports = {
                 )),
 
     async execute(interaction) {
+        // Check if command is used in DMs
+        if (await handleDMRestriction(interaction, 'demoautosend')) {
+            return;
+        }
+
         // Check if user is admin
         if (!hasAdminPermission(interaction)) {
             const noPermMessage = await languageManager.getString(

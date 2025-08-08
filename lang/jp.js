@@ -212,7 +212,9 @@ module.exports = {
         database: 'データベースエラーが発生しました',
         invalidChannel: 'エラー：設定されたチャンネルが見つかりません',
         noConfig: 'エラー：このサーバーのチャンネルが設定されていません',
-        rateLimit: 'リクエストが多すぎます。後でもう一度お試しください。'
+        rateLimit: 'リクエストが多すぎます。後でもう一度お試しください。',
+        dmNotAllowed: '❌ `/{command}` コマンドはダイレクトメッセージではなく、Discordサーバーでのみ使用できます。\n\n' +
+                     'HoYo Code Sender ボットがインストールされているサーバーでこのコマンドを使用してください。'
     },
     system: {
         startup: 'Botが起動中...',

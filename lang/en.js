@@ -190,7 +190,9 @@ module.exports = {
         database: 'Database error occurred',
         invalidChannel: 'Error: Could not find the configured channel',
         noConfig: 'Error: Channel not configured for this server',
-        rateLimit: 'Too many requests. Please try again later.'
+        rateLimit: 'Too many requests. Please try again later.',
+        dmNotAllowed: '❌ The `/{command}` command can only be used in Discord servers, not in direct messages.\n\n' +
+                     'Please use this command in a server where the HoYo Code Sender bot is installed.'
     },
     system: {
         startup: 'Bot is starting up...',
