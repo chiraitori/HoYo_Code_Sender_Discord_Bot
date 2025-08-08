@@ -1,0 +1,97 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Run security audit every Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run npm audit
+      run: npm audit --audit-level moderate
+      continue-on-error: true
+    
+    - name: Run npm audit (JSON output)
+      run: npm audit --json > audit-results.json
+      continue-on-error: true
+    
+    - name: Upload audit results
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-audit-results
+        path: audit-results.json
+        retention-days: 30
+    
+    - name: Check for high/critical vulnerabilities
+      run: |
+        HIGH_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.high // 0')
+        CRITICAL_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.critical // 0')
+        
+        echo "High severity vulnerabilities: $HIGH_VULNS"
+        echo "Critical severity vulnerabilities: $CRITICAL_VULNS"
+        
+        if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
+          echo "❌ High or critical vulnerabilities found!"
+          echo "::error::Security audit failed due to high/critical vulnerabilities"
+          exit 1
+        else
+          echo "✅ No high or critical vulnerabilities found"
+        fi
+    
+    - name: Comment PR with audit results (if PR)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const auditResults = JSON.parse(fs.readFileSync('audit-results.json', 'utf8'));
+            const vulnCount = auditResults.metadata?.vulnerabilities || {};
+            
+            const comment = `## 🔒 Security Audit Results
+            
+            **Vulnerability Summary:**
+            - Critical: ${vulnCount.critical || 0}
+            - High: ${vulnCount.high || 0}
+            - Moderate: ${vulnCount.moderate || 0}
+            - Low: ${vulnCount.low || 0}
+            
+            **Status:** ${(vulnCount.critical || 0) + (vulnCount.high || 0) > 0 ? '❌ Action Required' : '✅ Passed'}
+            
+            ${(vulnCount.critical || 0) + (vulnCount.high || 0) > 0 ? 
+              '**Action Required:** Please run `npm audit fix` to resolve vulnerabilities.' : 
+              '**All clear!** No critical or high severity vulnerabilities found.'}
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } catch (error) {
+            console.log('Could not parse audit results or create comment:', error);
+          }
