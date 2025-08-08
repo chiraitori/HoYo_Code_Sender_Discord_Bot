@@ -3,9 +3,9 @@ const about = require("../commands/about");
 
 module.exports = {
     games: {
-        genshin: 'Genshin Impact',
-        hkrpg: 'Honkai: Star Rail',
-        nap: 'Zenless Zone Zero'
+        genshin: '<:genshin:1368073403231375430> Genshin Impact',
+        hkrpg: '<:hsr:1368073099756703794> Honkai: Star Rail',
+        nap: '<:zzz:1368073452174704763> Zenless Zone Zero'
     },
     common: {
         enabled: 'ENABLED',

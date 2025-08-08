@@ -12,6 +12,12 @@ const gameNames = {
     'nap': 'Zenless Zone Zero'
 };
 
+const gameEmojis = {
+    'genshin': '<:genshin:1368073403231375430>',
+    'hkrpg': '<:hsr:1368073099756703794>',
+    'nap': '<:zzz:1368073452174704763>'
+};
+
 const redeemUrls = {
     'genshin': 'https://genshin.hoyoverse.com/en/gift',
     'hkrpg': 'https://hsr.hoyoverse.com/gift',
@@ -280,11 +286,12 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
         }
 
         // Generate notification content
-        const title = await languageManager.getString(
+        const baseTitle = await languageManager.getString(
             'commands.listcodes.newCodes',
             guildId,
             { game: gameNames[game] }
         );
+        const title = `${gameEmojis[game]} ${baseTitle}`;
 
         const redeemText = await languageManager.getString(
             'commands.listcodes.redeemButton',

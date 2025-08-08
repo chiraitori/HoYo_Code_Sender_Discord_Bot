@@ -145,9 +145,9 @@ module.exports = {
                 
             // Format role information for embed fields
             const roles = [
-                { role: genshinRole, type: genshin, emoji: '• ' },
-                { role: hsrRole, type: hsr, emoji: '• ' },
-                { role: zzzRole, type: zzz, emoji: '• ' }
+                { role: genshinRole, type: genshin, emoji: '<:genshin:1368073403231375430> ' },
+                { role: hsrRole, type: hsr, emoji: '<:hsr:1368073099756703794> ' },
+                { role: zzzRole, type: zzz, emoji: '<:zzz:1368073452174704763> ' }
             ];
 
             // Add roles field

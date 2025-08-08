@@ -40,11 +40,11 @@ module.exports = {
                 'nap': 'Zenless Zone Zero'
             };
             
-            // Get game emojis - using simple dots instead of custom emojis
+            // Get game emojis
             const gameEmojis = {
-                'genshin': '•',
-                'hkrpg': '•',
-                'nap': '•'
+                'genshin': '<:genshin:1368073403231375430>',
+                'hkrpg': '<:hsr:1368073099756703794>',
+                'nap': '<:zzz:1368073452174704763>'
             };
             
             if (!response.data?.codes?.length) {

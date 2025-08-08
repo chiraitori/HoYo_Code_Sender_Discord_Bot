@@ -8,6 +8,12 @@ const gameNames = {
     'zzz': 'Zenless Zone Zero'
 };
 
+const gameEmojis = {
+    'genshin': '<:genshin:1368073403231375430>',
+    'hsr': '<:hsr:1368073099756703794>',
+    'zzz': '<:zzz:1368073452174704763>'
+};
+
 const postcodeUrls = {
     'genshin': 'https://genshin.hoyoverse.com/en/gift',
     'hsr': 'https://hsr.hoyoverse.com/gift',
@@ -136,11 +142,12 @@ module.exports = {
             }
 
             // Create embed with translated content
-            const embedTitle = await languageManager.getString(
+            const baseEmbedTitle = await languageManager.getString(
                 'commands.postcode.embedTitle',
                 interaction.guildId,
                 { game: gameNames[game] }
             );
+            const embedTitle = `${gameEmojis[game]} ${baseEmbedTitle}`;
 
             const embed = new EmbedBuilder()
                 .setColor(0x0099FF)
