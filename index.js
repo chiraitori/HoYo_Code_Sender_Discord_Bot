@@ -53,6 +53,26 @@ const apiLimiter = rateLimit({
 // Apply the API-specific limiter to API routes
 app.use('/api/', apiLimiter);
 
+// Security middleware
+app.use((req, res, next) => {
+    // Content Security Policy
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
+        "img-src 'self' data: https: pic.re",
+        "connect-src 'self'"
+    ].join('; '));
+    
+    // Other security headers
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    next();
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -72,17 +92,25 @@ async function getCachedApiData(game, apiUrl) {
     }
     
     try {
+        const startTime = Date.now();
         const response = await axios.get(apiUrl, {
             timeout: 10000, // 10 second timeout
             headers: {
                 'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
             }
         });
+        const responseTime = Date.now() - startTime;
+        
+        // Log slow API responses
+        if (responseTime > 5000) {
+            console.warn(`⚠️  Slow API response for ${game}: ${responseTime}ms`);
+        }
         
         const data = response.data;
         apiCache.set(cacheKey, {
             data: data,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            responseTime
         });
         
         return data;
@@ -90,6 +118,7 @@ async function getCachedApiData(game, apiUrl) {
         // If we have cached data, return it even if expired during error
         if (cached) {
             console.warn(`API error for ${game}, using cached data:`, error.message);
+            console.log(`Using stale cached data for ${game} (age: ${Math.round((Date.now() - cached.timestamp) / 1000)}s)`);
             return cached.data;
         }
         throw error;
@@ -147,10 +176,34 @@ app.listen(PORT, () => {
     console.log(`Web server running on port ${PORT}`);
 });
 
-// Discord bot setup
-if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID || !process.env.MONGODB_URI) {
-    throw new Error('Missing required environment variables');
+// Discord bot setup - Enhanced environment validation
+const requiredEnvVars = [
+    'DISCORD_TOKEN',
+    'CLIENT_ID', 
+    'MONGODB_URI'
+];
+
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+if (missingEnvVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
+    console.error('Please check your .env file and ensure all required variables are set.');
+    process.exit(1);
 }
+
+// Optional environment variables with warnings
+const optionalEnvVars = {
+    'WEBHOOK_PASSWORD': 'Top.gg webhook functionality will be disabled',
+    'TOPGG_TOKEN': 'Vote checking functionality will be limited',
+    'VERSION': 'Version display will show as undefined'
+};
+
+Object.entries(optionalEnvVars).forEach(([varName, warning]) => {
+    if (!process.env[varName]) {
+        console.warn(`⚠️  Optional environment variable missing: ${varName} - ${warning}`);
+    }
+});
+
+console.log('✅ Environment validation completed');
 
 const client = new Client({
     intents: [

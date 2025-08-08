@@ -109,7 +109,9 @@ module.exports = {
             embedTitle: '新しいコードが引き換えられました',
             embedDescription: '{game}の新しいコードが引き換えられました！',
             messageLabel: 'メッセージ:',
-            redeemButton: 'クリックして引き換える'
+            redeemButton: 'クリックして引き換える',
+            invalidGame: '無効なゲーム。genshin、hsr、zzzのいずれかを使用してください',
+            noCode: '少なくとも1つのコードが必要です。'
         },
         toggleautosend: {
             loading: '自動送信設定を更新中...',

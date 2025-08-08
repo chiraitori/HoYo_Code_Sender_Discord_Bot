@@ -103,7 +103,9 @@ module.exports = {
             embedTitle: 'Mã code mới đã được đổi',
             embedDescription: 'Mã code mới đã được đổi cho {game}!',
             messageLabel: 'Tin nhắn:',
-            redeemButton: 'Nhấn để nhận'
+            redeemButton: 'Nhấn để nhận',
+            invalidGame: 'Game không hợp lệ. Vui lòng sử dụng: genshin, hsr, hoặc zzz',
+            noCode: 'Cần ít nhất một mã code.'
         },
         toggleautosend: {
             loading: 'Đang cập nhật cài đặt tự động gửi...',

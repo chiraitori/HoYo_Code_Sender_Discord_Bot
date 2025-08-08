@@ -11,14 +11,30 @@ const voteChannelTracker = new Map();
 const recentVotes = new Map();
 const VOTE_COOLDOWN = 60000; // 60 seconds cooldown to prevent duplicates
 
+// Add periodic cleanup for vote tracking maps to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    const DAY_IN_MS = 24 * 60 * 60 * 1000;
+    
+    // Clean up old vote tracking entries
+    for (const [userId, data] of voteChannelTracker.entries()) {
+        if (now - data.timestamp > DAY_IN_MS) {
+            voteChannelTracker.delete(userId);
+        }
+    }
+    
+    // Clean up old recent votes
+    for (const [userId, timestamp] of recentVotes.entries()) {
+        if (now - timestamp > VOTE_COOLDOWN * 2) { // Keep for 2x cooldown period
+            recentVotes.delete(userId);
+        }
+    }
+}, 60 * 60 * 1000); // Run cleanup every hour
+
 // Function to track which channel a user used the vote command in
 function trackVoteCommand(userId, channelId, guildId) {
     voteChannelTracker.set(userId, { channelId, guildId, timestamp: Date.now() });
-    
-    // Clear the entry after 24 hours to prevent memory leaks
-    setTimeout(() => {
-        voteChannelTracker.delete(userId);
-    }, 24 * 60 * 60 * 1000);
+    // Note: Cleanup is now handled by the periodic interval above
 }
 
 function setupTopggWebhook(app, client) {
@@ -66,16 +82,19 @@ function setupTopggWebhook(app, client) {
                         // Attempt to get the channel where the vote was initiated
                         const channel = await client.channels.fetch(trackingInfo.channelId);
                         if (channel) {
-                            // Get translated strings for this server
+                            // Check if this is a DM channel (no guild)
+                            const isDM = !trackingInfo.guildId;
+                            
+                            // Get translated strings - use DM-specific keys for DMs, regular keys for guild channels
                             const thankTitle = await languageManager.getString(
-                                'commands.vote.thankTitle', 
+                                isDM ? 'commands.vote.dmThankTitle' : 'commands.vote.thankTitle', 
                                 trackingInfo.guildId
-                            ) || 'Thank You for Voting! 🎉';
+                            ) || (isDM ? 'Thank You for Your Vote!' : 'Thank You for Voting! 🎉');
                             
                             const thankMessage = await languageManager.getString(
-                                'commands.vote.thankMessage', 
+                                isDM ? 'commands.vote.dmThankMessage' : 'commands.vote.thankMessage', 
                                 trackingInfo.guildId
-                            ) || 'Thank you {user} for supporting the bot by voting on Top.gg! Your support helps us grow.';
+                            ) || (isDM ? 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.' : 'Thank you {user} for supporting the bot by voting on Top.gg! Your support helps us grow.');
                             
                             const voteAgainMsg = await languageManager.getString(
                                 'commands.vote.voteAgain', 
@@ -85,7 +104,7 @@ function setupTopggWebhook(app, client) {
                             const embed = new EmbedBuilder()
                                 .setColor('#00FF00')
                                 .setTitle(thankTitle)
-                                .setDescription(thankMessage.replace('{user}', user.toString()))
+                                .setDescription(isDM ? thankMessage : thankMessage.replace('{user}', user.toString()))
                                 .setFooter({ 
                                     text: voteAgainMsg,
                                     iconURL: user.displayAvatarURL({ dynamic: true })

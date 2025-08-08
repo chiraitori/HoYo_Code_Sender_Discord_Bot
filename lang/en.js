@@ -97,6 +97,8 @@ module.exports = {
             error: 'Error occurred while processing the command',
             noPermission: 'You do not have permission to use this command',
             embedTitle: 'New Code Redeemed',
+            invalidGame: 'Invalid game. Please use: genshin, hsr, or zzz',
+            noCode: 'At least one code is required.',
             embedDescription: 'A new code has been redeemed for {game}!',
             messageLabel: 'Message:',
             redeemButton: 'Click to Redeem'
@@ -146,10 +148,7 @@ module.exports = {
                     '• Set different roles for each game type\n' +
                     '• Server admins can run `/setup` again to change settings',
             footer: 'HoYo Code Sender - Get HoYoverse game codes automatically!',
-            error: 'An error occurred while loading help information.',
-            voteAgain: 'You can vote again in 12 hours.',
-            dmThankTitle: 'Thank You for Your Vote!',
-            dmThankMessage: 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.'
+            error: 'An error occurred while loading help information.'
         },
         about: {
             title: 'About HoYo Code Sender',
@@ -172,7 +171,11 @@ module.exports = {
             hasNotVoted: '❌ You haven\'t voted in the last 12 hours.',
             link: 'Vote on Top.gg',
             error: 'Error checking vote status.',
-            voteAgain: 'You can vote again in 12 hours.'
+            voteAgain: 'You can vote again in 12 hours.',
+            thankTitle: 'Thank You for Your Vote! 🎉',
+            thankMessage: 'Thank you for supporting HoYo Code Sender on Top.gg! Your vote helps us grow and reach more users.',
+            dmThankTitle: 'Thank You for Your Vote!',
+            dmThankMessage: 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.'
         },
         deletesetup: {
             noPermission: 'You do not have permission to use this command.',

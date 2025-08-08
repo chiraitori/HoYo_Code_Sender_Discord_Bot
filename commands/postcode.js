@@ -118,11 +118,30 @@ module.exports = {
 
     async modalSubmit(interaction) {
         try {
-            const game = interaction.fields.getTextInputValue('game').toLowerCase();
-            const code1 = interaction.fields.getTextInputValue('code1');
-            const code2 = interaction.fields.getTextInputValue('code2');
-            const code3 = interaction.fields.getTextInputValue('code3');
-            const message = interaction.fields.getTextInputValue('message');
+            const game = interaction.fields.getTextInputValue('game').toLowerCase().trim();
+            const code1 = interaction.fields.getTextInputValue('code1').trim();
+            const code2 = interaction.fields.getTextInputValue('code2').trim();
+            const code3 = interaction.fields.getTextInputValue('code3').trim();
+            const message = interaction.fields.getTextInputValue('message').trim();
+
+            // Validate game input
+            const validGames = ['genshin', 'hsr', 'zzz', 'hkrpg', 'nap'];
+            if (!validGames.includes(game)) {
+                const invalidGameMessage = await languageManager.getString(
+                    'commands.postcode.invalidGame',
+                    interaction.guildId
+                ) || 'Invalid game. Please use: genshin, hsr, or zzz';
+                return interaction.reply({ content: invalidGameMessage, ephemeral: true });
+            }
+
+            // Validate at least one code is provided
+            if (!code1) {
+                const noCodeMessage = await languageManager.getString(
+                    'commands.postcode.noCode',
+                    interaction.guildId
+                ) || 'At least one code is required.';
+                return interaction.reply({ content: noCodeMessage, ephemeral: true });
+            }
 
             const codes = [code1];
             if (code2) codes.push(code2);
