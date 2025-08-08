@@ -14,22 +14,28 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 - **Role-based Notifications**: Mentions specific roles when new codes are available.
 - **Customizable Setup**: Configure notification channels and roles per server.
 - **Admin Controls**: Toggle auto-send feature and manually send codes.
+- **Multi-language Support**: Available in English, Japanese, and Vietnamese.
+- **Game Emojis**: Custom Discord emojis for each supported game for better visual appeal.
+- **Smart DM Handling**: Server-only commands automatically inform users when used incorrectly in DMs.
 - **Error Handling**: Improved error handling for API calls and interactions.
 
 ## Commands
 
+**🏠 Server-Only Commands** (must be used in Discord servers, not DMs):
 - `/setup` - Configure notification channels and roles (**Admin only**).
-- `/listcodes` - List all active codes for a selected game.
-- `/redeem` - Manually send redemption codes with custom messages (**Admin only**).
+- `/postcode` - Manually post redemption codes with custom messages (**Admin only**).
 - `/demoautosend` - Send demo codes to test the notification system (**Admin only**).
 - `/toggleautosend` - Enable or disable automatic code notifications (**Admin only**).
 - `/favgames` - Set which game codes you want to receive (**Admin only**).
 - `/setlang` - Set the bot language for this server (English/Vietnamese/Japanese) (**Admin only**).
-- `/help` - Shows how to setup the bot and provides usage tips.
-- `/about` - Show information about the bot.
 - `/checkchannels` - Check and validate notification channels (**Admin only**).
 - `/deletesetup` - Delete all bot configuration for this server (**Admin only**).
-- `/vote` - Get information about voting for the bot on Top.gg. (You can delete this command if self-hosting)
+
+**📱 Universal Commands** (work in both servers and DMs):
+- `/listcodes` - List all active codes for a selected game.
+- `/help` - Shows how to setup the bot and provides usage tips.
+- `/about` - Show information about the bot.
+- `/vote` - Get information about voting for the bot on Top.gg.
 
 ## Setup
 
@@ -85,21 +91,45 @@ For production deployment, see the [Deployment Guide](DEPLOYMENT.md) for detaile
 - [X] Add translate dictionary to full translate the api to some language (35% complete)
 
 ### Listing Codes
+
+Use the `/listcodes` command to view all active redemption codes:
+
 **Options:**
 
 - `game` - Select the game (`genshin`, `hsr`, or `zzz`).
 
-### Redeeming Codes
-- **Game selection**
-- **Up to three codes**
-- **An optional message**
-Redeeming Codes
+### Posting Custom Codes
+
+Use the `/postcode` command to manually post redemption codes with custom messages (**Admin only**):
+
+**Features:**
+- **Game selection** - Choose which game the codes are for
+- **Up to three codes** - Post multiple codes at once
+- **Custom message** - Add your own message with the codes
+- **Automatic role mentions** - Mentions the appropriate game role
 ### Toggle Auto-send
 
 Admins can enable or disable the automatic code sending feature using the `/toggleautosend` command:
+
 **Options:**
 
 - `status` - Choose `enable` or `disable`.
+
+### DM Usage
+
+The bot supports two types of commands:
+
+**🏠 Server-Only Commands:** These commands require server context and will show a helpful error message if used in DMs:
+- All admin commands (`/setup`, `/postcode`, `/toggleautosend`, etc.)
+- Server configuration commands (`/setlang`, `/favgames`, etc.)
+
+**📱 Universal Commands:** These work anywhere and can be used in both servers and DMs:
+- `/listcodes` - View active codes
+- `/help` - Get help information  
+- `/about` - Bot information
+- `/vote` - Voting information
+
+When a server-only command is used in DMs, the bot will respond with a clear explanation and guide users to use the command in a proper server.
 
 ### Error Handling
 - Try-catch blocks around API calls.
@@ -126,6 +156,7 @@ The bot implements several security measures:
 - **Rate Limiting**: API endpoints are protected against DoS attacks with request limits
 - **Input Validation**: All user inputs are validated before processing
 - **Permission Controls**: Command access is restricted based on user roles
+- **Context Validation**: Server-only commands are blocked in DMs with helpful error messages
 - **Secure Data Storage**: Sensitive data is stored securely using environment variables
 
 ## Disclaimer
