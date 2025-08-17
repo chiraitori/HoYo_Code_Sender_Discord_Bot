@@ -16,7 +16,6 @@ module.exports = {
                 .addFields(
                     {
                         name: await languageManager.getString('commands.about.version', interaction.guildId),
-                        value: process.env.VERSION,
                         value: process.env.VERSION || 'Unknown'
                     },
                     {

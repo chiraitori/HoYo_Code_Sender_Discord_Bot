@@ -163,6 +163,18 @@ module.exports = {
             donate: 'Donate',
             sponsor: 'GitHub Sponsors'
         },
+        dashboard: {
+            title: '🌐 Web Dashboard',
+            description: 'Access the HoYo Code Sender web dashboard to manage your server settings with a user-friendly interface.',
+            webInterface: 'Web Interface',
+            openDashboard: 'Open Dashboard',
+            features: 'Dashboard Features',
+            featuresList: '• 📊 Live server statistics\n• ⚙️ Visual configuration management\n• 🎮 Game role assignment\n• 📱 Mobile-friendly interface\n• 🔔 Test notifications\n• 🔄 Real-time updates',
+            requirements: 'Requirements',
+            requirementsList: '• Discord account login\n• Server administrator permissions\n• Bot must be in your server',
+            footer: 'Manage your bot settings easily with our web dashboard!',
+            error: 'Error loading dashboard information.'
+        },
         vote: {
             title: 'Vote for HoYo Code Sender',
             description: 'Support the bot by voting on Top.gg! Your vote helps us reach more servers and improve the bot.',

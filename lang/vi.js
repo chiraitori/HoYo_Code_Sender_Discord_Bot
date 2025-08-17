@@ -186,6 +186,18 @@ module.exports = {
             donate: 'Ủng hộ tôi nếu trong nước thì có thể donate qua tiểu sử',
             sponsor: 'GitHub Sponsors'
         },
+        dashboard: {
+            title: '🌐 Bảng Điều Khiển Web',
+            description: 'Truy cập bảng điều khiển web HoYo Code Sender để quản lý cài đặt máy chủ với giao diện thân thiện.',
+            webInterface: 'Giao Diện Web',
+            openDashboard: 'Mở Bảng Điều Khiển',
+            features: 'Tính Năng Bảng Điều Khiển',
+            featuresList: '• 📊 Thống kê máy chủ trực tiếp\n• ⚙️ Quản lý cấu hình trực quan\n• 🎮 Gán vai trò game\n• 📱 Giao diện thân thiện với mobile\n• 🔔 Kiểm tra thông báo\n• 🔄 Cập nhật thời gian thực',
+            requirements: 'Yêu Cầu',
+            requirementsList: '• Đăng nhập tài khoản Discord\n• Quyền quản trị viên máy chủ\n• Bot phải có trong máy chủ của bạn',
+            footer: 'Quản lý cài đặt bot dễ dàng với bảng điều khiển web!',
+            error: 'Lỗi khi tải thông tin bảng điều khiển.'
+        },
         deletesetup: {
             noPermission: 'Bạn không có quyền sử dụng lệnh này.',
             loading: 'Đang xóa cấu hình máy chủ...',

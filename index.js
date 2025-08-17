@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
 const { sendWelcomeMessage } = require('./utils/welcome');
+const authMiddleware = require('./utils/authMiddleware');
 
 // Express setup
 const app = express();
@@ -77,6 +78,10 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Create a 'public' folder for static files
+
+// Authentication middleware for protected bot API routes
+app.use('/api/bot', authMiddleware);
+app.use('/api/server', authMiddleware);
 
 // Simple cache for API responses
 const apiCache = new Map();
@@ -153,6 +158,361 @@ app.get('/api/codes/zzz', async (req, res) => {
     } catch (error) {
         console.error('Error fetching ZZZ codes:', error);
         res.status(500).json({ error: 'Failed to fetch codes' });
+    }
+});
+
+// Discord Bot Stats API Endpoints
+app.get('/api/bot/stats', async (req, res) => {
+    try {
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
+
+        const stats = {
+            guildCount: client.guilds.cache.size,
+            userCount: client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0),
+            channelCount: client.channels.cache.size,
+            uptime: process.uptime(),
+            memoryUsage: process.memoryUsage(),
+            botUser: {
+                username: client.user.username,
+                discriminator: client.user.discriminator,
+                id: client.user.id,
+                avatar: client.user.displayAvatarURL({ format: 'png', size: 256 })
+            },
+            status: client.ws.status,
+            ping: client.ws.ping,
+            version: process.env.VERSION || '1.0.0',
+            nodeVersion: process.version
+        };
+
+        res.json(stats);
+    } catch (error) {
+        console.error('Error fetching bot stats:', error);
+        res.status(500).json({ error: 'Failed to fetch bot stats' });
+    }
+});
+
+app.get('/api/bot/guilds', async (req, res) => {
+    try {
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
+
+        const guilds = client.guilds.cache.map(guild => ({
+            id: guild.id,
+            name: guild.name,
+            memberCount: guild.memberCount,
+            icon: guild.iconURL({ format: 'png', size: 128 }),
+            ownerId: guild.ownerId,
+            joinedAt: guild.joinedAt
+        }));
+
+        res.json({ guilds, total: guilds.length });
+    } catch (error) {
+        console.error('Error fetching guild info:', error);
+        res.status(500).json({ error: 'Failed to fetch guild info' });
+    }
+});
+
+app.get('/api/bot/commands', async (req, res) => {
+    try {
+        const commands = client.commands.map(command => ({
+            name: command.data.name,
+            description: command.data.description,
+            options: command.data.options || []
+        }));
+
+        res.json({ commands, total: commands.length });
+    } catch (error) {
+        console.error('Error fetching commands:', error);
+        res.status(500).json({ error: 'Failed to fetch commands' });
+    }
+});
+
+// Individual guild info endpoint
+app.get('/api/bot/guild/:guildId', async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Guild not found' });
+        }
+
+        const guildInfo = {
+            id: guild.id,
+            name: guild.name,
+            memberCount: guild.memberCount,
+            icon: guild.iconURL({ format: 'png', size: 128 }),
+            ownerId: guild.ownerId,
+            joinedAt: guild.joinedAt,
+            description: guild.description,
+            features: guild.features,
+            roles: guild.roles.cache
+                .filter(role => role.name !== '@everyone' && !role.managed)
+                .map(role => ({
+                    id: role.id,
+                    name: role.name,
+                    color: role.hexColor,
+                    position: role.position,
+                    mentionable: role.mentionable,
+                    managed: role.managed
+                }))
+                .sort((a, b) => b.position - a.position),
+            channels: guild.channels.cache
+                .filter(channel => channel.type === 0 && channel.permissionsFor(guild.members.me).has('SendMessages'))
+                .map(channel => ({
+                    id: channel.id,
+                    name: channel.name,
+                    type: channel.type,
+                    position: channel.position
+                }))
+                .sort((a, b) => a.position - b.position)
+        };
+
+        res.json(guildInfo);
+    } catch (error) {
+        console.error('Error fetching guild info:', error);
+        res.status(500).json({ error: 'Failed to fetch guild info' });
+    }
+});
+
+// Server configuration endpoint
+app.get('/api/server/:serverId/config', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        
+        const Config = require('./models/Config');
+        const config = await Config.findOne({ guildId: serverId });
+        
+        if (!config) {
+            return res.json({
+                guildId: serverId,
+                genshinRole: null,
+                hsrRole: null,
+                zzzRole: null,
+                channel: null
+            });
+        }
+
+        res.json({
+            guildId: config.guildId,
+            genshinRole: config.genshinRole,
+            hsrRole: config.hsrRole,
+            zzzRole: config.zzzRole,
+            channel: config.channel
+        });
+    } catch (error) {
+        console.error('Error fetching server config:', error);
+        res.status(500).json({ error: 'Failed to fetch server config' });
+    }
+});
+
+// Update server config endpoint
+app.put('/api/server/:serverId/config', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        const updateData = req.body;
+        
+        const Config = require('./models/Config');
+        
+        // Find existing config or create new one
+        let config = await Config.findOne({ guildId: serverId });
+        
+        if (!config) {
+            config = new Config({
+                guildId: serverId,
+                genshinRole: null,
+                hsrRole: null,
+                zzzRole: null,
+                channel: null
+            });
+        }
+
+        // Update fields that are provided
+        if (updateData.hasOwnProperty('genshinRole')) {
+            config.genshinRole = updateData.genshinRole;
+        }
+        if (updateData.hasOwnProperty('hsrRole')) {
+            config.hsrRole = updateData.hsrRole;
+        }
+        if (updateData.hasOwnProperty('zzzRole')) {
+            config.zzzRole = updateData.zzzRole;
+        }
+        if (updateData.hasOwnProperty('channel')) {
+            config.channel = updateData.channel;
+        }
+
+        await config.save();
+
+        res.json({
+            guildId: config.guildId,
+            genshinRole: config.genshinRole,
+            hsrRole: config.hsrRole,
+            zzzRole: config.zzzRole,
+            channel: config.channel
+        });
+    } catch (error) {
+        console.error('Error updating server config:', error);
+        res.status(500).json({ error: 'Failed to update server config' });
+    }
+});
+
+// Server settings endpoint
+app.get('/api/server/:serverId/settings', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        
+        const Settings = require('./models/Settings');
+        const settings = await Settings.findOne({ guildId: serverId });
+        
+        if (!settings) {
+            return res.json({
+                guildId: serverId,
+                autoSendEnabled: false,
+                favoriteGames: {
+                    enabled: false,
+                    games: {
+                        genshin: false,
+                        hkrpg: false,
+                        nap: false
+                    }
+                }
+            });
+        }
+
+        res.json({
+            guildId: settings.guildId,
+            autoSendEnabled: settings.autoSendEnabled,
+            favoriteGames: settings.favoriteGames
+        });
+    } catch (error) {
+        console.error('Error fetching server settings:', error);
+        res.status(500).json({ error: 'Failed to fetch server settings' });
+    }
+});
+
+// Update server settings endpoint
+app.put('/api/server/:serverId/settings', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        const updateData = req.body;
+        
+        const Settings = require('./models/Settings');
+        
+        // Find existing settings or create new one
+        let settings = await Settings.findOne({ guildId: serverId });
+        
+        if (!settings) {
+            settings = new Settings({
+                guildId: serverId,
+                autoSendEnabled: false,
+                favoriteGames: {
+                    enabled: false,
+                    games: {
+                        genshin: false,
+                        hkrpg: false,
+                        nap: false
+                    }
+                }
+            });
+        }
+
+        // Update fields that are provided
+        if (updateData.hasOwnProperty('autoSendEnabled')) {
+            settings.autoSendEnabled = updateData.autoSendEnabled;
+        }
+        
+        if (updateData.favoriteGames) {
+            if (updateData.favoriteGames.hasOwnProperty('enabled')) {
+                settings.favoriteGames.enabled = updateData.favoriteGames.enabled;
+            }
+            if (updateData.favoriteGames.games) {
+                Object.assign(settings.favoriteGames.games, updateData.favoriteGames.games);
+            }
+        }
+
+        await settings.save();
+
+        res.json({
+            guildId: settings.guildId,
+            autoSendEnabled: settings.autoSendEnabled,
+            favoriteGames: settings.favoriteGames
+        });
+    } catch (error) {
+        console.error('Error updating server settings:', error);
+        res.status(500).json({ error: 'Failed to update server settings' });
+    }
+});
+
+// Test notification endpoint
+app.post('/api/server/:serverId/test', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        
+        const Config = require('./models/Config');
+        const config = await Config.findOne({ guildId: serverId });
+        
+        if (!config || !config.channel) {
+            return res.status(400).json({ error: 'No notification channel configured' });
+        }
+
+        const guild = client.guilds.cache.get(serverId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Server not found' });
+        }
+
+        const channel = guild.channels.cache.get(config.channel);
+        if (!channel) {
+            return res.status(400).json({ error: 'Notification channel not found' });
+        }
+
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🧪 Test Notification')
+            .setDescription('This is a test notification from HoYo Code Sender!')
+            .addFields(
+                { name: '✅ Channel', value: `<#${config.channel}>`, inline: true },
+                { name: '🤖 Bot', value: 'Working correctly!', inline: true }
+            )
+            .setFooter({ text: 'Test completed successfully' })
+            .setTimestamp();
+
+        await channel.send({ embeds: [embed] });
+        
+        res.json({ success: true, message: 'Test notification sent successfully!' });
+    } catch (error) {
+        console.error('Error sending test notification:', error);
+        res.status(500).json({ error: 'Failed to send test notification' });
+    }
+});
+
+// Reset configuration endpoint
+app.post('/api/server/:serverId/reset', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        
+        const Config = require('./models/Config');
+        const Settings = require('./models/Settings');
+        const Language = require('./models/Language');
+        
+        // Delete all configuration data for this server
+        await Promise.all([
+            Config.deleteOne({ guildId: serverId }),
+            Settings.deleteOne({ guildId: serverId }),
+            Language.deleteOne({ guildId: serverId })
+        ]);
+        
+        res.json({ success: true, message: 'Configuration reset successfully!' });
+    } catch (error) {
+        console.error('Error resetting configuration:', error);
+        res.status(500).json({ error: 'Failed to reset configuration' });
     }
 });
 

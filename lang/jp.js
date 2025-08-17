@@ -187,6 +187,18 @@ module.exports = {
             donate: '寄付',
             sponsor: 'GitHub スポンサー'
         },
+        dashboard: {
+            title: '🌐 ウェブダッシュボード',
+            description: 'HoYo Code Sender ウェブダッシュボードにアクセスして、使いやすいインターフェースでサーバー設定を管理しましょう。',
+            webInterface: 'ウェブインターフェース',
+            openDashboard: 'ダッシュボードを開く',
+            features: 'ダッシュボード機能',
+            featuresList: '• 📊 リアルタイムサーバー統計\n• ⚙️ ビジュアル設定管理\n• 🎮 ゲームロール割り当て\n• 📱 モバイル対応インターフェース\n• 🔔 通知テスト\n• 🔄 リアルタイム更新',
+            requirements: '必要条件',
+            requirementsList: '• Discordアカウントでのログイン\n• サーバー管理者権限\n• ボットがサーバーに参加している必要があります',
+            footer: 'ウェブダッシュボードでボット設定を簡単に管理しましょう！',
+            error: 'ダッシュボード情報の読み込み中にエラーが発生しました。'
+        },
         deletesetup: {
             noPermission: 'このコマンドを使用する権限がありません。',
             loading: 'サーバー設定を削除しています...',
