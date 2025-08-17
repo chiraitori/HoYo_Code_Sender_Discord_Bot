@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "hoyo-code-sender-dashboard",
   "builds": [
     {
       "src": "package.json",
@@ -15,10 +14,5 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "src/app/api/**": {
-      "maxDuration": 10
-    }
   }
 }

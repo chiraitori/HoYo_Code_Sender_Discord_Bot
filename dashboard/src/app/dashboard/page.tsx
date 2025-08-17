@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 interface UserData {
@@ -10,7 +10,7 @@ interface UserData {
   guilds: number;
 }
 
-export default function Dashboard() {
+function DashboardContent() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
@@ -126,5 +126,15 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-purple-950 flex items-center justify-center">
+      <div className="text-white">Loading...</div>
+    </div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

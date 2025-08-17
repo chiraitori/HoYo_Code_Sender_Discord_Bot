@@ -1,9 +1,10 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import ServerPicker from '../../components/ServerPicker';
 
-export default function ServerPickerPage() {
+function ServerPickerContent() {
   const searchParams = useSearchParams();
   const authStatus = searchParams.get('auth');
 
@@ -16,5 +17,15 @@ export default function ServerPickerPage() {
       )}
       <ServerPicker />
     </div>
+  );
+}
+
+export default function ServerPickerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-purple-950 flex items-center justify-center">
+      <div className="text-white">Loading...</div>
+    </div>}>
+      <ServerPickerContent />
+    </Suspense>
   );
 }
