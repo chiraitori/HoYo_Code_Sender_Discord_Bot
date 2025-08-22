@@ -41,7 +41,7 @@ export default function SystemHealthDashboard() {
             status: 'online',
             uptime: 345600, // 4 days
             ping: 45,
-            lastRestart: new Date(Date.now() - 345600000).toISOString()
+            lastRestart: new Date('2024-01-01T00:00:00.000Z').toISOString() // Use fixed date
           },
           api: {
             status: 'healthy',
@@ -55,7 +55,7 @@ export default function SystemHealthDashboard() {
             queries24h: 8950
           },
           codes: {
-            lastCheck: new Date(Date.now() - 60000).toISOString(),
+            lastCheck: new Date('2024-01-01T00:01:00.000Z').toISOString(), // Use fixed date
             totalActive: 27,
             newToday: 5,
             expiredToday: 2

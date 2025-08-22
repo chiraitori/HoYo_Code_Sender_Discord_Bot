@@ -29,18 +29,18 @@ export default function HeroSection() {
   }, [isMounted]);
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden -mt-16 sm:-mt-20 pt-20 sm:pt-24">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden -mt-16 sm:-mt-20 pt-16 sm:pt-20">
       {/* Aurora background */}
       <Aurora
-        colorStops={["rgb(111, 98, 157)", "rgb(60, 69, 128)", "rgb(39, 37, 91)"]}
+        colorStops={["#6f629d", "#3c4580", "#27255b"]}
         blend={0.5}
         amplitude={1.0}
         speed={0.5}
       />
 
-      <div className="relative z-10 text-center px-4 max-w-6xl mx-auto">
+      <div className="relative z-10 text-center px-2 sm:px-4 max-w-6xl mx-auto">
         {/* Main heading */}
-        <h1 className="text-4xl sm:text-6xl md:text-8xl font-black mb-6 leading-tight">
+        <h1 className="text-3xl xs:text-4xl sm:text-6xl md:text-8xl font-black mb-4 sm:mb-6 leading-tight">
           <span 
             className="bg-clip-text text-transparent block"
             style={{ 
@@ -60,13 +60,15 @@ export default function HeroSection() {
         </h1>
 
         {/* Animated subtitle */}
-        <p className="text-xl sm:text-2xl md:text-3xl mb-8 font-light px-4" style={{ color: 'rgb(154, 145, 193)' }}>
-          {isMounted ? animatedText : fullText}
+        <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl mb-6 sm:mb-8 font-light px-2 sm:px-4" style={{ color: 'rgb(154, 145, 193)' }}>
+          <span suppressHydrationWarning>
+            {isMounted ? animatedText : fullText}
+          </span>
           {isMounted && <span className="animate-pulse">|</span>}
         </p>
 
         {/* Description */}
-        <p className="text-base sm:text-lg md:text-xl mb-12 max-w-4xl mx-auto leading-relaxed px-4" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
+        <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-8 sm:mb-12 max-w-4xl mx-auto leading-relaxed px-2 sm:px-4" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
           Automatically fetch and distribute HoYoverse game redemption codes to your Discord server. 
           Support for <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}>Genshin Impact</span>, 
           <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}> Honkai: Star Rail</span>, and 
@@ -74,12 +76,12 @@ export default function HeroSection() {
         </p>
 
         {/* Action buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center justify-center mb-16 px-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 lg:gap-6 items-center justify-center mb-8 sm:mb-16 px-2 sm:px-4">
           <a
             href="https://discord.com/api/oauth2/authorize?client_id=YOUR_BOT_ID&permissions=8&scope=bot%20applications.commands"
             target="_blank"
             rel="noopener noreferrer"
-            className="group w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 shadow-xl text-center"
+            className="group w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base lg:text-lg transition-all duration-300 transform hover:scale-105 shadow-xl text-center"
             style={{ 
               background: `linear-gradient(to right, rgb(111, 98, 157), rgb(154, 145, 193))`,
               color: 'rgb(213, 203, 225)'
@@ -95,7 +97,7 @@ export default function HeroSection() {
           
           <a
             href="/codes"
-            className="group border-2 w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold text-base sm:text-lg transition-all duration-300 text-center"
+            className="group border-2 w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base lg:text-lg transition-all duration-300 text-center"
             style={{ 
               borderColor: 'rgba(154, 145, 193, 0.5)',
               color: 'rgb(154, 145, 193)'
@@ -111,15 +113,15 @@ export default function HeroSection() {
         </div>
 
         {/* Game icons */}
-        <div className="flex items-center justify-center space-x-4 sm:space-x-8 opacity-80">
+        <div className="flex items-center justify-center space-x-3 sm:space-x-6 lg:space-x-8 opacity-80">
           <div className="animate-bounce delay-0">
-            <GameIcon gameId="genshin" size={48} className="sm:w-16 sm:h-16" />
+            <GameIcon gameId="genshin" size={40} className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
           </div>
           <div className="animate-bounce delay-200">
-            <GameIcon gameId="hsr" size={48} className="sm:w-16 sm:h-16" />
+            <GameIcon gameId="hsr" size={40} className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
           </div>
           <div className="animate-bounce delay-400">
-            <GameIcon gameId="zzz" size={48} className="sm:w-16 sm:h-16" />
+            <GameIcon gameId="zzz" size={40} className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
           </div>
         </div>
       </div>

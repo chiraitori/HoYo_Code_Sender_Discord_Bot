@@ -191,8 +191,16 @@ export default function Aurora(props: AuroraProps) {
         program.uniforms.uBlend.value = propsRef.current.blend ?? blend;
         const stops = propsRef.current.colorStops ?? colorStops;
         program.uniforms.uColorStops.value = stops.map((hex: string) => {
-          const c = new Color(hex);
-          return [c.r, c.g, c.b];
+          try {
+            // Ensure hex color format is valid
+            const validHex = hex.match(/^#[0-9A-Fa-f]{6}$/) ? hex : "#5227FF";
+            const c = new Color(validHex);
+            return [c.r, c.g, c.b];
+          } catch (error) {
+            // Fallback to default purple color if parsing fails
+            const fallback = new Color("#5227FF");
+            return [fallback.r, fallback.g, fallback.b];
+          }
         });
         renderer.render({ scene: mesh });
       }

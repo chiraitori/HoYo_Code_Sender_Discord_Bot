@@ -12,7 +12,7 @@ export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    const id = Date.now();
+    const id = performance.now(); // Use performance.now() for unique IDs
     const newToast = { id, message, type };
     
     setToasts(prev => [...prev, newToast]);
