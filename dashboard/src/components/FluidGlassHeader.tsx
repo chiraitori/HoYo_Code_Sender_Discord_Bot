@@ -60,11 +60,11 @@ export default function FluidGlassHeader() {
     return pathname === path;
   };
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 p-4">
+    <header className="fixed top-0 left-0 right-0 z-50 p-2 sm:p-4">
       <GlassSurface 
         width="100%" 
-        height={80}
-        borderRadius={24}
+        height={64}
+        borderRadius={20}
         className="mx-auto max-w-7xl"
         displace={15}
         distortionScale={-150}
@@ -77,16 +77,17 @@ export default function FluidGlassHeader() {
         backgroundOpacity={0.1}
         saturation={1.2}
       >
-        <nav className="w-full px-6">
+        <nav className="w-full px-4 sm:px-6">
           <div className="flex items-center justify-between h-full">
             {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="text-3xl">🎮</div>
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+              <div className="text-2xl sm:text-3xl">🎮</div>
               <button 
                 onClick={() => router.push('/')}
-                className="text-xl font-bold text-white drop-shadow-lg hover:scale-105 transition-transform duration-200"
+                className="text-base sm:text-xl font-bold text-white drop-shadow-lg hover:scale-105 transition-transform duration-200 truncate"
               >
-                HoYo Code Sender
+                <span className="hidden sm:inline">HoYo Code Sender</span>
+                <span className="sm:hidden">HoYo Codes</span>
               </button>
             </div>
 
@@ -143,11 +144,11 @@ export default function FluidGlassHeader() {
             </div>
 
             {/* User Profile / Login Button */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {loading ? (
-                <div className="animate-pulse bg-white/20 h-10 w-32 rounded-lg"></div>
+                <div className="animate-pulse bg-white/20 h-10 w-24 sm:w-32 rounded-lg"></div>
               ) : isLoggedIn ? (
-                <div className="flex items-center space-x-3">
+                <div className="hidden sm:flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
                     {user?.avatar && (
                       <img
@@ -156,7 +157,7 @@ export default function FluidGlassHeader() {
                         className="w-8 h-8 rounded-full border-2 border-white/30"
                       />
                     )}
-                    <span className="text-sm text-white font-medium">
+                    <span className="text-sm text-white font-medium max-w-20 truncate">
                       {user?.username}
                     </span>
                   </div>
@@ -168,22 +169,24 @@ export default function FluidGlassHeader() {
                   </button>
                 </div>
               ) : (
-                <GlassSurface
-                  width={160}
-                  height={40}
-                  borderRadius={12}
-                  brightness={80}
-                  opacity={0.9}
-                  displace={8}
-                  className="cursor-pointer hover:scale-105 transition-transform"
-                >
-                  <button 
-                    className="text-white font-medium text-sm w-full h-full"
-                    onClick={handleLogin}
+                <div className="hidden sm:block">
+                  <GlassSurface
+                    width={160}
+                    height={40}
+                    borderRadius={12}
+                    brightness={80}
+                    opacity={0.9}
+                    displace={8}
+                    className="cursor-pointer hover:scale-105 transition-transform"
                   >
-                    Login to Manage
-                  </button>
-                </GlassSurface>
+                    <button 
+                      className="text-white font-medium text-sm w-full h-full"
+                      onClick={handleLogin}
+                    >
+                      Login to Manage
+                    </button>
+                  </GlassSurface>
+                </div>
               )}
               
               {/* Mobile Menu Button */}
