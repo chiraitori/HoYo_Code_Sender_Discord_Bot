@@ -163,4 +163,6 @@ The bot implements several security measures:
 **This bot is NOT affiliated with, endorsed by, or connected to HoYoverse (miHoYo) in any way.** This is a fan-made tool created to help the community. All game names, logos, and related content are trademarks and copyrights of HoYoverse (miHoYo).
 
 ## Thank You
-- Thank [@seria](https://github.com/seriaati) for the code games Api
+- Thank [@seria](https://github.com/seriaati) for the code games API
+## Made by 
+![https://enka.network/u/802228840/](https://raw.githubusercontent.com/heartlog/Hoyocodes/refs/heads/main/assets/card.png)
