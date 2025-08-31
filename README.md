@@ -164,5 +164,3 @@ The bot implements several security measures:
 
 ## Thank You
 - Thank [@seria](https://github.com/seriaati) for the code games API
-## Made by 
-![https://enka.network/u/802228840/](https://raw.githubusercontent.com/heartlog/Hoyocodes/refs/heads/main/assets/card.png)
