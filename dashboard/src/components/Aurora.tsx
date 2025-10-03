@@ -196,7 +196,7 @@ export default function Aurora(props: AuroraProps) {
             const validHex = hex.match(/^#[0-9A-Fa-f]{6}$/) ? hex : "#5227FF";
             const c = new Color(validHex);
             return [c.r, c.g, c.b];
-          } catch (error) {
+          } catch {
             // Fallback to default purple color if parsing fails
             const fallback = new Color("#5227FF");
             return [fallback.r, fallback.g, fallback.b];
