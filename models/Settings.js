@@ -4,6 +4,10 @@ const mongoose = require('mongoose');
 const settingsSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     autoSendEnabled: { type: Boolean, default: true },
+    autoSendOptions: {
+        channel: { type: Boolean, default: true },  // Send to main channel
+        threads: { type: Boolean, default: true }   // Send to forum threads
+    },
     favoriteGames: {
         enabled: { type: Boolean, default: false },
         games: {

@@ -216,7 +216,7 @@ async function checkAndSendNewCodes(client) {
 
                 const codes = newCodesForGames[game];
                 if (codes.length > 0) {
-                    messageTasks.push(sendCodeNotification(client, config, game, codes, guildId, languageMap[guildId]));
+                    messageTasks.push(sendCodeNotification(client, config, settings, game, codes, guildId, languageMap[guildId]));
                 }
             }
         }
@@ -238,51 +238,69 @@ async function checkAndSendNewCodes(client) {
     }
 }
 
-async function sendCodeNotification(client, config, game, codes, guildId, guildLang) {
+async function sendCodeNotification(client, config, settings, game, codes, guildId, guildLang) {
     // Validate inputs silently
-    if (!config?.channel || !guildId || !codes?.length) {
+    if (!guildId || !codes?.length) {
         return;
     }
 
     try {
-        // Get guild and channel with silent validation
+        // Get guild with silent validation
         const guild = client.guilds.cache.get(guildId);
         if (!guild) {
             // Guild not found, clean up configuration
             await cleanupGuildConfiguration(guildId);
             return;
-        }        const channel = client.channels.cache.get(config.channel);
-        if (!channel) {
-            // Channel not found, notify owner once and return silently
-            await notifyGuildOwnerMissingChannel(client, guild, config);
+        }
+        
+        // Check auto-send options (default to true if not set)
+        const sendToChannel = settings?.autoSendOptions?.channel !== false;
+        const sendToThreads = settings?.autoSendOptions?.threads !== false;
+        
+        // If both are disabled, skip (shouldn't happen, but safety check)
+        if (!sendToChannel && !sendToThreads) {
             return;
         }
 
-        // Check if channel is text-based
-        if (!channel.isTextBased()) {
-            return;
+        // Validate channel if sending to it
+        const channel = sendToChannel ? client.channels.cache.get(config.channel) : null;
+        if (sendToChannel) {
+            if (!channel) {
+                // Channel not found, notify owner once and return silently
+                await notifyGuildOwnerMissingChannel(client, guild, config);
+                return;
+            }
+
+            // Check if channel is text-based
+            if (!channel.isTextBased()) {
+                return;
+            }
+
+            // Check if channel.send is a function
+            if (typeof channel.send !== 'function') {
+                return;
+            }
         }
 
-        // Check if channel.send is a function
-        if (typeof channel.send !== 'function') {
-            return;
-        }
-
-        // Check bot permissions
+        // Check bot permissions only if sending to channel
         const botMember = guild.members.cache.get(client.user.id);
         if (!botMember) {
             return;
-        }        const channelPermissions = channel.permissionsFor(botMember);
-        if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
-            // Missing send messages permission, notify owner once
-            await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
-            return;
         }
+        
+        if (sendToChannel && channel) {
+            const channelPermissions = channel.permissionsFor(botMember);
+            if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
+                // Missing send messages permission, notify owner once
+                await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
+                return;
+            }
 
-        if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
-            // Missing embed links permission, notify owner once
-            await notifyGuildOwnerMissingPermissions(client, guild, config, 'EmbedLinks');
-            return;
+            if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
+                // Missing embed links permission, notify owner once
+                await notifyGuildOwnerMissingPermissions(client, guild, config, 'EmbedLinks');
+                return;
+            }
         }
 
         // Generate notification content
@@ -343,12 +361,72 @@ async function sendCodeNotification(client, config, game, codes, guildId, guildL
             }
         }
 
-        // Send the message
-        await channel.send({ 
-            content: content, 
-            embeds: [embed],
-            allowedMentions: allowedMentions
-        });
+        // Send the message to main channel (if enabled)
+        if (sendToChannel && channel) {
+            await channel.send({ 
+                content: content, 
+                embeds: [embed],
+                allowedMentions: allowedMentions
+            });
+        }
+        
+        // Also send to dedicated forum thread for this game if configured (if enabled)
+        if (sendToThreads && config.forumThreads) {
+            try {
+                // Map game IDs to thread keys
+                const threadMapping = {
+                    'genshin': 'genshin',
+                    'hkrpg': 'hsr',
+                    'nap': 'zzz'
+                };
+                
+                const threadKey = threadMapping[game];
+                const threadId = config.forumThreads[threadKey];
+                
+                if (threadId) {
+                    const forumThread = guild.channels.cache.get(threadId);
+                    if (forumThread) {
+                        const { ChannelType } = require('discord.js');
+                        // Verify it's actually a thread
+                        if ([ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread].includes(forumThread.type)) {
+                            const botMember = await guild.members.fetch(client.user.id);
+                            const threadPermissions = forumThread.permissionsFor(botMember);
+                            
+                            if (threadPermissions && threadPermissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+                                // Get the role for this game to mention in thread
+                                const roleMapping = {
+                                    'genshin': config.genshinRole,
+                                    'hkrpg': config.hsrRole,
+                                    'nap': config.zzzRole
+                                };
+                                
+                                const roleId = roleMapping[game];
+                                let threadContent = '';
+                                let threadAllowedMentions = { roles: [] };
+                                
+                                // Add role mention if role is configured and bot has permission
+                                if (roleId && threadPermissions.has(PermissionFlagsBits.MentionEveryone)) {
+                                    threadContent = `<@&${roleId}>`;
+                                    threadAllowedMentions = { roles: [roleId] };
+                                }
+                                
+                                // Send to the dedicated thread with role mention
+                                await forumThread.send({ 
+                                    content: threadContent,
+                                    embeds: [embed],
+                                    allowedMentions: threadAllowedMentions
+                                });
+                                
+                                console.log(`✅ Posted ${gameNames[game]} codes to forum thread in guild ${guildId}`);
+                            }
+                        }
+                    }
+                }
+            } catch (forumError) {
+                // Silently fail forum thread posting, don't affect main channel
+                console.log(`Could not post to forum thread for guild ${guildId}:`, forumError.message);
+            }
+        }
 
     } catch (error) {        // Handle specific Discord API errors silently
         if (error.code === 50001 || error.code === 50013) {

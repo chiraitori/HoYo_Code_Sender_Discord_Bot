@@ -6,6 +6,11 @@ const configSchema = new mongoose.Schema({
     hsrRole: { type: String },
     zzzRole: { type: String },
     channel: { type: String },
+    forumThreads: {
+        genshin: { type: String }, // Genshin Impact forum thread ID
+        hsr: { type: String },     // Honkai: Star Rail forum thread ID
+        zzz: { type: String }      // Zenless Zone Zero forum thread ID
+    },
     // Notification tracking to prevent spam
     notifications: {
         channelMissing: {

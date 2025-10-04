@@ -89,7 +89,9 @@ module.exports = {
                     .setTimestamp();
                 
                 return interaction.editReply({ embeds: [errorEmbed] });
-            }            // If validation passed, update the full configuration
+            }
+            
+            // If validation passed, update the full configuration
             await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 {
@@ -175,7 +177,7 @@ module.exports = {
             const autoSendStatus = enableAutoSend ? 
                 await languageManager.getString('common.enabled', interaction.guildId) || 'ENABLED' : 
                 await languageManager.getString('common.disabled', interaction.guildId) || 'DISABLED';
-                  successEmbed.addFields({ 
+            successEmbed.addFields({ 
                 name: autoSendHeader, 
                 value: autoSendStatus
             });

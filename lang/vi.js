@@ -48,6 +48,9 @@ module.exports = {
             genshinRole: 'Role cho thông báo Genshin Impact',
             hsrRole: 'Role cho thông báo Honkai: Star Rail',
             zzzRole: 'Role cho thông báo Zenless Zone Zero',
+            forumThreadHeader: '🧵 Thread Diễn Đàn',
+            forumThreadSuccess: '✅ Code cũng sẽ được đăng lên thread này!',
+            forumThreadWarning: '⚠️ Thread diễn đàn đã được cung cấp nhưng bot không có quyền hoặc không phải là thread hợp lệ. Nó sẽ không được sử dụng.',
             channel: 'Kênh nhận thông báo code',
             success: 'Cài đặt máy chủ thành công!',
             error: 'Cài đặt thất bại',
@@ -112,6 +115,17 @@ module.exports = {
             success: 'Tự động gửi hiện đang: **{status}**',
             error: 'Không thể cập nhật cài đặt tự động gửi',
             noPermission: 'Bạn không có quyền sử dụng lệnh này'
+        },
+        autosendoptions: {
+            noPermission: 'Bạn cần quyền Quản trị viên để sử dụng lệnh này.',
+            success: '✅ Tùy chọn tự động gửi đã được cập nhật thành công!',
+            warning: {
+                autoSendDisabled: '⚠️ Tự động gửi hiện đang **tắt**. Hãy bật nó trước với `/toggleautosend status:Enable`'
+            },
+            error: {
+                bothDisabled: '⚠️ Bạn không thể tắt cả kênh và thread. Ít nhất một trong hai phải được bật.',
+                general: 'Đã xảy ra lỗi khi cập nhật tùy chọn tự động gửi.'
+            }
         },
         favgames: {
             noPermission: 'Bạn không có quyền sử dụng lệnh này.',
@@ -217,6 +231,27 @@ module.exports = {
             enabledNoRole: '⚠️ Thông báo **{game}** đã được bật, nhưng không có vai trò nào được đặt. Thêm vai trò với `{command}` hoặc thông báo sẽ được gửi mà không đề cập đến bất kỳ ai.',
             disabled: '❌ Thông báo **{game}** đã bị tắt.',
             error: 'Đã xảy ra lỗi khi chuyển đổi thông báo trò chơi.'
+        },
+        sendtothread: {
+            noPermission: 'Bạn cần quyền Quản trị viên để sử dụng lệnh này.',
+            noActiveCodes: 'Không tìm thấy code đang hoạt động cho {game}.',
+            success: '✅ Đã gửi thành công {count} code đang hoạt động cho {game} tới thread "{thread}"!',
+            instructions: '**Cách đổi code:**\n1. Nhấp vào liên kết bên trên\n2. Đăng nhập vào tài khoản của bạn\n3. Nhập code\n4. Nhận phần thưởng trong game!',
+            error: {
+                notThread: 'Kênh đã chọn không phải là thread. Vui lòng chọn một forum thread.',
+                noPermission: 'Tôi không có quyền gửi tin nhắn trong thread đó. Vui lòng kiểm tra quyền.',
+                general: 'Đã xảy ra lỗi khi gửi code đến thread.'
+            }
+        },
+        setupthread: {
+            noPermission: 'Bạn cần quyền Quản trị viên để sử dụng lệnh này.',
+            success: '✅ Các thread forum đã được cấu hình! Code sẽ được đăng vào thread cố định dành riêng cho từng game.',
+            error: {
+                notThread: 'Một trong các kênh đã chọn không phải là thread forum. Vui lòng chọn các thread forum.',
+                noPermission: 'Tôi không có quyền gửi tin nhắn trong một trong các thread. Vui lòng kiểm tra quyền của tôi.',
+                noSetup: 'Vui lòng chạy `/setup` trước để cấu hình kênh thông báo chính.',
+                general: 'Đã xảy ra lỗi khi thiết lập các thread forum.'
+            }
         }
     },
     errors: {

@@ -54,6 +54,9 @@ module.exports = {
             genshinRole: '原神の通知用ロール',
             hsrRole: 'スターレイルの通知用ロール',
             zzzRole: 'ゼンレスゾーンゼロの通知用ロール',
+            forumThreadHeader: '🧵 フォーラムスレッド',
+            forumThreadSuccess: '✅ このスレッドにもコードが投稿されます！',
+            forumThreadWarning: '⚠️ フォーラムスレッドが提供されましたが、権限がないか、有効なスレッドではありません。使用されません。',
             channel: 'コード通知用チャンネル',
             success: 'サーバー設定が完了しました！',
             error: 'セットアップに失敗しました',
@@ -118,6 +121,17 @@ module.exports = {
             success: '自動送信が「{status}」に設定されました',
             error: '自動送信設定の更新に失敗しました',
             noPermission: 'このコマンドを使用する権限がありません'
+        },
+        autosendoptions: {
+            noPermission: 'このコマンドを使用するには管理者権限が必要です。',
+            success: '✅ 自動送信オプションが正常に更新されました！',
+            warning: {
+                autoSendDisabled: '⚠️ 自動送信が現在**無効**です。まず `/toggleautosend status:Enable` で有効にしてください'
+            },
+            error: {
+                bothDisabled: '⚠️ チャンネルとスレッドの両方を無効にすることはできません。少なくとも1つを有効にする必要があります。',
+                general: '自動送信オプションの更新中にエラーが発生しました。'
+            }
         },
         favgames: {
             noPermission: 'このコマンドを使用する権限がありません',
@@ -218,6 +232,27 @@ module.exports = {
             enabledNoRole: '⚠️ **{game}**の通知は有効になりましたが、ロールが設定されていません。`{command}`でロールを追加するか、誰にも言及せずに通知が送信されます。',
             disabled: '❌ **{game}**の通知が無効になりました。',
             error: 'ゲーム通知の切り替え中にエラーが発生しました。'
+        },
+        sendtothread: {
+            noPermission: 'このコマンドを使用するには管理者権限が必要です。',
+            noActiveCodes: '{game}のアクティブなコードが見つかりませんでした。',
+            success: '✅ {game}の{count}個のアクティブなコードをスレッド「{thread}」に正常に送信しました！',
+            instructions: '**交換方法:**\n1. 上記のリンクをクリック\n2. アカウントにログイン\n3. コードを入力\n4. ゲーム内で報酬を受け取る！',
+            error: {
+                notThread: '選択したチャンネルはスレッドではありません。フォーラムスレッドを選択してください。',
+                noPermission: 'そのスレッドにメッセージを送信する権限がありません。権限を確認してください。',
+                general: 'スレッドにコードを送信中にエラーが発生しました。'
+            }
+        },
+        setupthread: {
+            noPermission: 'このコマンドを使用するには管理者権限が必要です。',
+            success: '✅ フォーラムスレッドが設定されました！各ゲームの専用スレッドにコードが投稿されます。',
+            error: {
+                notThread: '選択したチャンネルの1つがフォーラムスレッドではありません。フォーラムスレッドを選択してください。',
+                noPermission: 'いずれかのスレッドにメッセージを送信する権限がありません。権限を確認してください。',
+                noSetup: '最初に `/setup` を実行してメイン通知チャンネルを設定してください。',
+                general: 'フォーラムスレッドの設定中にエラーが発生しました。'
+            }
         }
     },
     errors: {

@@ -64,8 +64,14 @@ module.exports = {
                 { status: status.toUpperCase() }
             );
 
+            // Add helpful tip about autosendoptions
+            let extraInfo = '';
+            if (status === 'enable') {
+                extraInfo = '\n\n💡 **Tip:** Use `/autosendoptions` to control where codes are sent (channel, threads, or both).';
+            }
+
             await interaction.editReply({
-                content: successMessage
+                content: successMessage + extraInfo
             });
 
         } catch (error) {

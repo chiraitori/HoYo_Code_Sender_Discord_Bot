@@ -48,6 +48,9 @@ module.exports = {
             genshinRole: 'Role for Genshin Impact notifications',
             hsrRole: 'Role for Honkai: Star Rail notifications',
             zzzRole: 'Role for Zenless Zone Zero notifications',
+            forumThreadHeader: '🧵 Forum Thread',
+            forumThreadSuccess: '✅ Codes will also be posted to this thread!',
+            forumThreadWarning: '⚠️ Forum thread was provided but I don\'t have permissions or it\'s not a valid thread. It will not be used.',
             channel: 'Channel for code notifications',
             success: 'Server configuration completed successfully!',
             error: 'Setup failed',
@@ -108,6 +111,17 @@ module.exports = {
             success: 'Auto-send is now: **{status}**',
             error: 'Failed to update auto-send setting',
             noPermission: 'You do not have permission to use this command'
+        },
+        autosendoptions: {
+            noPermission: 'You need Administrator permission to use this command.',
+            success: '✅ Auto-send options have been updated successfully!',
+            warning: {
+                autoSendDisabled: '⚠️ Auto-send is currently **disabled**. Enable it first with `/toggleautosend status:Enable`'
+            },
+            error: {
+                bothDisabled: '⚠️ You cannot disable both channel and threads. At least one must be enabled.',
+                general: 'An error occurred while updating auto-send options.'
+            }
         },
         favgames: {
             noPermission: 'You do not have permission to use this command.',
@@ -208,6 +222,27 @@ module.exports = {
             enabledNoRole: '⚠️ **{game}** notifications have been enabled, but no role is set. Add a role with `{command}` or notifications will be sent without mentioning anyone.',
             disabled: '❌ **{game}** notifications have been disabled.',
             error: 'An error occurred while toggling game notifications.'
+        },
+        sendtothread: {
+            noPermission: 'You need Administrator permission to use this command.',
+            noActiveCodes: 'No active codes found for {game}.',
+            success: '✅ Successfully sent {count} active codes for {game} to thread "{thread}"!',
+            instructions: '**How to redeem:**\n1. Click the link above\n2. Log in to your account\n3. Enter the code\n4. Claim your rewards in-game!',
+            error: {
+                notThread: 'The selected channel is not a thread. Please select a forum thread.',
+                noPermission: 'I don\'t have permission to send messages in that thread. Please check my permissions.',
+                general: 'An error occurred while sending codes to the thread.'
+            }
+        },
+        setupthread: {
+            noPermission: 'You need Administrator permission to use this command.',
+            success: '✅ Forum threads have been configured! Codes will be posted to dedicated permanent threads for each game.',
+            error: {
+                notThread: 'One of the selected channels is not a forum thread. Please select forum threads.',
+                noPermission: 'I don\'t have permission to send messages in one of the threads. Please check my permissions.',
+                noSetup: 'Please run `/setup` first to configure the main notification channel.',
+                general: 'An error occurred while setting up the forum threads.'
+            }
         }
     },
     errors: {
