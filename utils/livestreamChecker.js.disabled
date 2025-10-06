@@ -1,0 +1,220 @@
+const { EmbedBuilder } = require('discord.js');
+const LivestreamTracking = require('../models/LivestreamTracking');
+const Code = require('../models/Code');
+const { getState, fetchLivestreamCodes, parseAndSaveCodes, getStateName } = require('./hoyolabAPI');
+
+/**
+ * Livestream Code Checker
+ * Runs every 3 minutes to check for new livestream codes
+ */
+
+const GAMES = ['genshin', 'hkrpg', 'nap'];
+const CHECK_INTERVAL = 3 * 60 * 1000; // 3 minutes in milliseconds
+
+let checkerInterval = null;
+
+/**
+ * Start the livestream checker
+ * @param {Client} client - Discord client
+ */
+function startLivestreamChecker(client) {
+    if (checkerInterval) {
+        console.log('[Livestream Checker] Already running');
+        return;
+    }
+
+    console.log('[Livestream Checker] Starting...');
+    
+    // Run immediately on start
+    checkAllGames(client);
+    
+    // Then run every 3 minutes
+    checkerInterval = setInterval(() => {
+        checkAllGames(client);
+    }, CHECK_INTERVAL);
+}
+
+/**
+ * Stop the livestream checker
+ */
+function stopLivestreamChecker() {
+    if (checkerInterval) {
+        clearInterval(checkerInterval);
+        checkerInterval = null;
+        console.log('[Livestream Checker] Stopped');
+    }
+}
+
+/**
+ * Check all games for livestream codes
+ * @param {Client} client - Discord client
+ */
+async function checkAllGames(client) {
+    console.log('[Livestream Checker] Running check...');
+    
+    for (const game of GAMES) {
+        try {
+            await checkGame(client, game);
+        } catch (error) {
+            console.error(`[Livestream Checker] Error checking ${game}:`, error);
+            // Don't crash - continue to next game
+        }
+    }
+}
+
+/**
+ * Check a single game for livestream codes
+ * @param {Client} client - Discord client
+ * @param {string} game - Game identifier
+ */
+async function checkGame(client, game) {
+    // Get tracking data
+    const tracking = await LivestreamTracking.findOne({ game });
+    
+    if (!tracking) {
+        return; // No tracking setup for this game
+    }
+
+    const version = tracking.version || '1.0';
+    const state = await getState(game, version);
+    
+    console.log(`[Livestream Checker] ${game} - State: ${state} (${getStateName(state)})`);
+
+    // Only process if STATE = 4 (Searching) or 5 (Found)
+    if (state === 4) {
+        // STATE 4: Searching - Poll API
+        const response = await fetchLivestreamCodes(game);
+        
+        if (response) {
+            const allCodesFound = await parseAndSaveCodes(response, game, version);
+            
+            if (allCodesFound) {
+                console.log(`[Livestream Checker] ✅ All codes found for ${game}!`);
+                
+                // Save codes to database for distribution
+                const updatedTracking = await LivestreamTracking.findOne({ game, version });
+                if (updatedTracking && updatedTracking.codes) {
+                    for (const codeData of updatedTracking.codes) {
+                        await Code.findOneAndUpdate(
+                            { game, code: codeData.code },
+                            {
+                                game,
+                                code: codeData.code,
+                                isExpired: false,
+                                timestamp: new Date()
+                            },
+                            { upsert: true }
+                        );
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update tracking message
+    await updateTrackingMessage(client, game, state, tracking);
+}
+
+/**
+ * Update the tracking message in Discord
+ * @param {Client} client - Discord client
+ * @param {string} game - Game identifier
+ * @param {number} state - Current state
+ * @param {Object} tracking - Tracking data
+ */
+async function updateTrackingMessage(client, game, state, tracking) {
+    if (!tracking.trackingChannel || !tracking.trackingMessage) {
+        return; // No tracking message setup
+    }
+
+    try {
+        const channel = await client.channels.fetch(tracking.trackingChannel);
+        if (!channel) return;
+
+        const message = await channel.messages.fetch(tracking.trackingMessage);
+        if (!message) return;
+
+        // Build embed
+        const embed = new EmbedBuilder()
+            .setColor(getStateColor(state))
+            .setTitle(`🎮 ${getGameName(game)} Livestream Codes`)
+            .setDescription(`**State:** ${getStateName(state)}`)
+            .setTimestamp();
+
+        // Add version info
+        if (tracking.version) {
+            embed.addFields({
+                name: '📦 Version',
+                value: tracking.version,
+                inline: true
+            });
+        }
+
+        // Add stream time info
+        if (tracking.streamTime && tracking.streamTime > 0) {
+            embed.addFields({
+                name: '⏰ Stream Time',
+                value: `<t:${tracking.streamTime}:F>`,
+                inline: true
+            });
+        }
+
+        // Add codes if found
+        if (state === 5 && tracking.codes && tracking.codes.length > 0) {
+            const codeList = tracking.codes.map(c => `\`${c.code}\``).join('\n');
+            embed.addFields({
+                name: `✅ Codes Found (${tracking.codes.length})`,
+                value: codeList,
+                inline: false
+            });
+        }
+
+        // Add next update countdown
+        const nextUpdate = Math.floor(Date.now() / 1000) + 180; // 3 minutes
+        embed.setFooter({ text: `Next check: ` });
+        
+        const content = `State \`${state}\` \`${getStateName(state)}\` | Next Update <t:${nextUpdate}:R>`;
+
+        await message.edit({ content, embeds: [embed] });
+    } catch (error) {
+        console.error(`[Livestream Checker] Error updating message for ${game}:`, error);
+    }
+}
+
+/**
+ * Get game display name
+ * @param {string} game - Game identifier
+ * @returns {string} Display name
+ */
+function getGameName(game) {
+    const names = {
+        'genshin': 'Genshin Impact',
+        'hkrpg': 'Honkai: Star Rail',
+        'nap': 'Zenless Zone Zero'
+    };
+    return names[game] || game;
+}
+
+/**
+ * Get embed color based on state
+ * @param {number} state - State number
+ * @returns {string} Hex color
+ */
+function getStateColor(state) {
+    const colors = {
+        0: '#808080', // Disabled - Gray
+        1: '#808080', // No Schedule - Gray
+        2: '#FFA500', // Not yet live - Orange
+        3: '#00FF00', // Distributed - Green
+        4: '#FFFF00', // Searching - Yellow
+        5: '#00FF00'  // Found - Green
+    };
+    return colors[state] || '#808080';
+}
+
+module.exports = {
+    startLivestreamChecker,
+    stopLivestreamChecker,
+    checkAllGames,
+    checkGame
+};

@@ -11,6 +11,9 @@ const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
 const { sendWelcomeMessage } = require('./utils/welcome');
 const authMiddleware = require('./utils/authMiddleware');
+// DISABLED: Livestream system
+// const { startLivestreamChecker } = require('./utils/livestreamChecker');
+// const { checkAndDistribute } = require('./utils/livestreamDistribution');
 
 // Express setup
 const app = express();
@@ -633,7 +636,14 @@ client.once('ready', async () => {
         status: 'online'
     });
     
-    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
+    // Start regular code checking (every 5 minutes)
+    setInterval(() => checkAndSendNewCodes(client), 1 * 60 * 1000);
+    
+    // DISABLED: Livestream code checker (every 3 minutes)
+    // startLivestreamChecker(client);
+    
+    // DISABLED: Check for distribution every 3 minutes (runs alongside checker)
+    // setInterval(() => checkAndDistribute(client), 3 * 60 * 1000);
 });
 
 // Memory monitoring (optional)

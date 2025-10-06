@@ -1,0 +1,290 @@
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
+const LivestreamTracking = require('../models/LivestreamTracking');
+const { hasAdminPermission } = require('../utils/permissions');
+const languageManager = require('../utils/language');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('livestreamsetup')
+        .setDescription('Setup livestream code tracking for a game')
+        .addStringOption(option =>
+            option.setName('game')
+                .setDescription('Select game to track')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Genshin Impact', value: 'genshin' },
+                    { name: 'Honkai: Star Rail', value: 'hkrpg' },
+                    { name: 'Zenless Zone Zero', value: 'nap' }
+                ))
+        .addStringOption(option =>
+            option.setName('action')
+                .setDescription('Action to perform')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Set Stream Time', value: 'settime' },
+                    { name: 'Set Tracking Channel', value: 'setchannel' },
+                    { name: 'Set Version', value: 'setversion' },
+                    { name: 'Enable Tracking', value: 'enable' },
+                    { name: 'Disable Tracking', value: 'disable' },
+                    { name: 'View Status', value: 'status' },
+                    { name: 'Reset Tracking', value: 'reset' }
+                ))
+        .addStringOption(option =>
+            option.setName('value')
+                .setDescription('Value for the action (unix timestamp for time, version number, etc.)')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('Channel for tracking messages')
+                .setRequired(false)
+                .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)),
+
+    async execute(interaction) {
+        // Check if command is used in DMs
+        if (!interaction.guild) {
+            return interaction.reply({
+                content: '❌ This command can only be used in Discord servers.',
+                ephemeral: true
+            });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        // Check admin permissions
+        if (!hasAdminPermission(interaction)) {
+            return interaction.editReply({
+                content: '❌ You need Administrator permission to use this command.',
+            });
+        }
+
+        const game = interaction.options.getString('game');
+        const action = interaction.options.getString('action');
+        const value = interaction.options.getString('value');
+        const channel = interaction.options.getChannel('channel');
+
+        try {
+            switch (action) {
+                case 'settime':
+                    await handleSetTime(interaction, game, value);
+                    break;
+                case 'setchannel':
+                    await handleSetChannel(interaction, game, channel);
+                    break;
+                case 'setversion':
+                    await handleSetVersion(interaction, game, value);
+                    break;
+                case 'enable':
+                    await handleEnable(interaction, game);
+                    break;
+                case 'disable':
+                    await handleDisable(interaction, game);
+                    break;
+                case 'status':
+                    await handleStatus(interaction, game);
+                    break;
+                case 'reset':
+                    await handleReset(interaction, game);
+                    break;
+                default:
+                    await interaction.editReply('❌ Unknown action.');
+            }
+        } catch (error) {
+            console.error('Error in livestreamsetup command:', error);
+            await interaction.editReply('❌ An error occurred while executing the command.');
+        }
+    }
+};
+
+async function handleSetTime(interaction, game, value) {
+    if (!value) {
+        return interaction.editReply('❌ Please provide a Unix timestamp for the stream time.');
+    }
+
+    const timestamp = parseInt(value);
+    if (isNaN(timestamp)) {
+        return interaction.editReply('❌ Invalid timestamp. Please provide a valid Unix timestamp.');
+    }
+
+    await LivestreamTracking.findOneAndUpdate(
+        { game },
+        { streamTime: timestamp },
+        { upsert: true }
+    );
+
+    const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ Stream Time Set')
+        .setDescription(`Stream time for ${getGameName(game)} has been set.`)
+        .addFields({
+            name: '⏰ Stream Time',
+            value: `<t:${timestamp}:F> (<t:${timestamp}:R>)`,
+            inline: false
+        })
+        .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+}
+
+async function handleSetChannel(interaction, game, channel) {
+    if (!channel) {
+        return interaction.editReply('❌ Please provide a channel for tracking messages.');
+    }
+
+    // Create initial tracking message
+    const embed = new EmbedBuilder()
+        .setColor('#808080')
+        .setTitle(`🎮 ${getGameName(game)} Livestream Codes`)
+        .setDescription('**State:** No Schedule\n\nWaiting for stream schedule...')
+        .setTimestamp();
+
+    const message = await channel.send({
+        content: 'State `1` `No Schedule` | Next Update <t:' + Math.floor(Date.now() / 1000 + 180) + ':R>',
+        embeds: [embed]
+    });
+
+    await LivestreamTracking.findOneAndUpdate(
+        { game },
+        {
+            trackingChannel: channel.id,
+            trackingMessage: message.id
+        },
+        { upsert: true }
+    );
+
+    await interaction.editReply({
+        content: `✅ Tracking channel set to ${channel}!\n\nTracking message created: ${message.url}`,
+    });
+}
+
+async function handleSetVersion(interaction, game, value) {
+    if (!value) {
+        return interaction.editReply('❌ Please provide a version number (e.g., 5.3, 2.7).');
+    }
+
+    await LivestreamTracking.findOneAndUpdate(
+        { game },
+        { version: value },
+        { upsert: true }
+    );
+
+    await interaction.editReply({
+        content: `✅ Version for ${getGameName(game)} set to **${value}**`,
+    });
+}
+
+async function handleEnable(interaction, game) {
+    await LivestreamTracking.findOneAndUpdate(
+        { game },
+        { disabled: false },
+        { upsert: true }
+    );
+
+    await interaction.editReply({
+        content: `✅ Livestream tracking **enabled** for ${getGameName(game)}`,
+    });
+}
+
+async function handleDisable(interaction, game) {
+    await LivestreamTracking.findOneAndUpdate(
+        { game },
+        { disabled: true },
+        { upsert: true }
+    );
+
+    await interaction.editReply({
+        content: `✅ Livestream tracking **disabled** for ${getGameName(game)}`,
+    });
+}
+
+async function handleStatus(interaction, game) {
+    const tracking = await LivestreamTracking.findOne({ game });
+
+    if (!tracking) {
+        return interaction.editReply({
+            content: `ℹ️ No tracking setup found for ${getGameName(game)}.\n\nUse \`/livestreamsetup\` to configure tracking.`,
+        });
+    }
+
+    const { getState, getStateName } = require('../utils/hoyolabAPI');
+    const state = await getState(game, tracking.version || '1.0');
+
+    const embed = new EmbedBuilder()
+        .setColor('#0099FF')
+        .setTitle(`📊 ${getGameName(game)} Tracking Status`)
+        .addFields(
+            {
+                name: '🎯 Current State',
+                value: `${state} - ${getStateName(state)}`,
+                inline: true
+            },
+            {
+                name: '🔄 Enabled',
+                value: tracking.disabled ? '❌ No' : '✅ Yes',
+                inline: true
+            }
+        );
+
+    if (tracking.version) {
+        embed.addFields({
+            name: '📦 Version',
+            value: tracking.version,
+            inline: true
+        });
+    }
+
+    if (tracking.streamTime && tracking.streamTime > 0) {
+        embed.addFields({
+            name: '⏰ Stream Time',
+            value: `<t:${tracking.streamTime}:F>`,
+            inline: false
+        });
+    }
+
+    if (tracking.trackingChannel) {
+        embed.addFields({
+            name: '📺 Tracking Channel',
+            value: `<#${tracking.trackingChannel}>`,
+            inline: true
+        });
+    }
+
+    if (tracking.codes && tracking.codes.length > 0) {
+        embed.addFields({
+            name: `📝 Codes (${tracking.codes.length})`,
+            value: tracking.codes.map(c => `\`${c.code}\``).join('\n'),
+            inline: false
+        });
+    }
+
+    if (tracking.lastChecked) {
+        embed.setFooter({ text: `Last checked: ${tracking.lastChecked.toLocaleString()}` });
+    }
+
+    await interaction.editReply({ embeds: [embed] });
+}
+
+async function handleReset(interaction, game) {
+    await LivestreamTracking.findOneAndUpdate(
+        { game },
+        {
+            found: false,
+            distributed: false,
+            codes: [],
+            streamTime: 0
+        },
+        { upsert: true }
+    );
+
+    await interaction.editReply({
+        content: `✅ Tracking data reset for ${getGameName(game)}\n\n**Note:** This keeps your channel and version settings, but resets the state to prepare for a new stream.`,
+    });
+}
+
+function getGameName(game) {
+    const names = {
+        'genshin': 'Genshin Impact',
+        'hkrpg': 'Honkai: Star Rail',
+        'nap': 'Zenless Zone Zero'
+    };
+    return names[game] || game;
+}

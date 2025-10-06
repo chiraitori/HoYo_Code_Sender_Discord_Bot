@@ -103,6 +103,11 @@ module.exports = {
                 });
             }
 
+            // Get settings to check where to send
+            const settings = await Settings.findOne({ guildId: interaction.guildId });
+            const sendToChannel = settings?.autoSendOptions?.channel !== false;
+            const sendToThreads = settings?.autoSendOptions?.threads !== false;
+
             // Get the game option
             const selectedGame = interaction.options.getString('game');
             
@@ -113,6 +118,13 @@ module.exports = {
             
             const channel = interaction.client.channels.cache.get(config.channel);
             const sentMessages = [];
+            
+            // Thread mapping for each game
+            const threadMapping = {
+                'genshin': config.forumThreads?.genshin,
+                'hkrpg': config.forumThreads?.hsr,
+                'nap': config.forumThreads?.zzz
+            };
             
             // Process each selected game
             for (const game of gamesToProcess) {
@@ -173,9 +185,39 @@ module.exports = {
                 const roleId = config[roleField];
                 const roleTag = roleId ? `<@&${roleId}> ` : '';
 
-                // Send the message
-                const sentMessage = await channel.send({ content: roleTag, embeds: [embed] });
-                sentMessages.push(`${gameNames[game]}: <${sentMessage.url}>`);
+                // Send to main channel if enabled
+                if (sendToChannel && channel) {
+                    try {
+                        const sentMessage = await channel.send({ content: roleTag, embeds: [embed] });
+                        sentMessages.push(`${gameNames[game]} (Channel): <${sentMessage.url}>`);
+                    } catch (error) {
+                        console.error(`[DemoAutoSend] Error sending to channel for ${game}:`, error);
+                        sentMessages.push(`${gameNames[game]} (Channel): ❌ Failed`);
+                    }
+                }
+
+                // Send to forum thread if enabled and configured
+                if (sendToThreads && threadMapping[game]) {
+                    try {
+                        const thread = await interaction.client.channels.fetch(threadMapping[game]).catch(() => null);
+                        if (thread) {
+                            const permissions = thread.permissionsFor(interaction.client.user);
+                            if (permissions && permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+                                const sentMessage = await thread.send({ content: roleTag, embeds: [embed] });
+                                sentMessages.push(`${gameNames[game]} (Thread): <${sentMessage.url}>`);
+                            } else {
+                                console.log(`[DemoAutoSend] Missing permissions for ${game} thread`);
+                                sentMessages.push(`${gameNames[game]} (Thread): ❌ Missing permissions`);
+                            }
+                        } else {
+                            console.log(`[DemoAutoSend] Thread not found for ${game}`);
+                            sentMessages.push(`${gameNames[game]} (Thread): ❌ Not configured`);
+                        }
+                    } catch (error) {
+                        console.error(`[DemoAutoSend] Error sending to thread for ${game}:`, error);
+                        sentMessages.push(`${gameNames[game]} (Thread): ❌ Error - ${error.message}`);
+                    }
+                }
             }
 
             // Notify the admin that demo codes were sent

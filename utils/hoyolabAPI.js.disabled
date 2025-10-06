@@ -1,0 +1,179 @@
+const axios = require('axios');
+const LivestreamTracking = require('../models/LivestreamTracking');
+
+/**
+ * Hoyolab API Client for Livestream Codes
+ * Fetches redemption codes from Hoyolab livestream API
+ */
+
+// Game ID mapping for Hoyolab API
+const GAME_IDS = {
+    'genshin': '2',
+    'hkrpg': '6',
+    'nap': '8'
+};
+
+// State names for display
+const STATE_NAMES = {
+    0: 'Disabled',
+    1: 'No Schedule',
+    2: 'Not yet live',
+    3: 'Distributed',
+    4: 'Searching',
+    5: 'Found'
+};
+
+/**
+ * Get current state for a game
+ * @param {string} game - Game identifier (genshin/hkrpg/nap)
+ * @param {string} version - Game version
+ * @returns {Promise<number>} State (0-5)
+ */
+async function getState(game, version) {
+    const tracking = await LivestreamTracking.findOne({ game, version });
+    
+    if (!tracking) {
+        return 1; // No Schedule
+    }
+    
+    // CHECK 1: Game disabled?
+    if (tracking.disabled) {
+        return 0; // Disabled
+    }
+    
+    // CHECK 2: Has schedule?
+    if (tracking.streamTime === 0) {
+        return 1; // No Schedule
+    }
+    
+    // CHECK 3: Stream started?
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (tracking.streamTime > currentTime) {
+        return 2; // Not yet live
+    }
+    
+    // CHECK 4: Already distributed?
+    if (tracking.distributed) {
+        return 3; // Distributed
+    }
+    
+    // CHECK 5: Found all codes?
+    if (tracking.found) {
+        return 5; // Found
+    }
+    
+    // Default: Searching
+    return 4; // Searching
+}
+
+/**
+ * Fetch livestream codes from Hoyolab API
+ * @param {string} game - Game identifier
+ * @returns {Promise<Object|null>} API response or null on error
+ */
+async function fetchLivestreamCodes(game) {
+    const gameId = GAME_IDS[game];
+    if (!gameId) {
+        console.error(`[Hoyolab API] Invalid game: ${game}`);
+        return null;
+    }
+    
+    const url = `https://bbs-api-os.hoyolab.com/community/painter/wapi/circle/channel/guide/material?game_id=${gameId}`;
+    
+    try {
+        // Fake mobile browser headers (important!)
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.hoyolab.com/',
+                'Origin': 'https://www.hoyolab.com'
+            },
+            timeout: 10000
+        });
+        
+        return response.data;
+    } catch (error) {
+        console.error(`[Hoyolab API] Error fetching codes for ${game}:`, error.message);
+        return null;
+    }
+}
+
+/**
+ * Parse API response and extract codes
+ * @param {Object} responseData - API response
+ * @param {string} game - Game identifier
+ * @param {string} version - Game version
+ * @returns {Promise<boolean>} True if all codes found
+ */
+async function parseAndSaveCodes(responseData, game, version) {
+    if (!responseData || !responseData.data || !responseData.data.modules) {
+        console.log(`[Hoyolab API] Invalid response structure for ${game}`);
+        return false;
+    }
+    
+    // STEP 1: Find module_type 7 (Stream Codes Module)
+    let moduleData = null;
+    for (const module of responseData.data.modules) {
+        if (module.module_type === 7) {
+            moduleData = module;
+            break;
+        }
+    }
+    
+    if (!moduleData) {
+        console.log(`[Hoyolab API] No stream codes module found for ${game}`);
+        return false;
+    }
+    
+    // STEP 2: Get expected code count
+    const expectedCount = moduleData.exchange_group?.bonuses_summary?.code_count || 3;
+    
+    // STEP 3: Parse codes
+    const codes = [];
+    const bonuses = moduleData.exchange_group?.bonuses || [];
+    
+    for (const bonus of bonuses) {
+        if (bonus.exchange_code) {
+            codes.push({
+                code: bonus.exchange_code,
+                expireAt: bonus.offline_at || 0,
+                discoveredAt: Math.floor(Date.now() / 1000)
+            });
+        }
+    }
+    
+    console.log(`[Hoyolab API] Found ${codes.length}/${expectedCount} codes for ${game} v${version}`);
+    
+    // STEP 4: Save to database
+    const tracking = await LivestreamTracking.findOneAndUpdate(
+        { game, version },
+        {
+            codes: codes,
+            lastChecked: new Date(),
+            found: codes.length === expectedCount && codes.length > 0
+        },
+        { upsert: true, new: true }
+    );
+    
+    // Return true only if we found ALL expected codes
+    return codes.length === expectedCount && codes.length > 0;
+}
+
+/**
+ * Get state name from state number
+ * @param {number} state - State number (0-5)
+ * @returns {string} State name
+ */
+function getStateName(state) {
+    return STATE_NAMES[state] || 'Unknown';
+}
+
+module.exports = {
+    getState,
+    fetchLivestreamCodes,
+    parseAndSaveCodes,
+    getStateName,
+    STATE_NAMES
+};

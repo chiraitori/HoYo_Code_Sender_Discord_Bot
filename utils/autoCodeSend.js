@@ -288,19 +288,25 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
             return;
         }
         
+        // Validate channel permissions only if we're sending to channel
+        let canSendToChannel = sendToChannel && channel; // Start with true if both conditions met
         if (sendToChannel && channel) {
             const channelPermissions = channel.permissionsFor(botMember);
             if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
                 // Missing send messages permission, notify owner once
                 await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
-                return;
-            }
-
-            if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
+                canSendToChannel = false;
+            } else if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
                 // Missing embed links permission, notify owner once
                 await notifyGuildOwnerMissingPermissions(client, guild, config, 'EmbedLinks');
-                return;
+                canSendToChannel = false;
             }
+            // If we reach here without setting to false, canSendToChannel remains true
+        }
+        
+        // If neither channel nor threads can receive, exit early
+        if (!canSendToChannel && !sendToThreads) {
+            return;
         }
 
         // Generate notification content
@@ -347,22 +353,30 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
 
         if (roleId) {
             content = `<@&${roleId}>`;
-            // Check role mention permissions
-            if (channelPermissions.has(PermissionFlagsBits.MentionEveryone)) {
+            // Check role mention permissions (only if we have a channel to check)
+            if (channel) {
+                const channelPermissions = channel.permissionsFor(botMember);
+                if (channelPermissions && channelPermissions.has(PermissionFlagsBits.MentionEveryone)) {
+                    allowedMentions = {
+                        roles: [roleId]
+                    };
+                } else {
+                    // Can't mention roles, just send without mentions
+                    content = '';
+                    allowedMentions = {
+                        roles: []
+                    };
+                }
+            } else {
+                // No channel to check permissions, allow mentions for threads
                 allowedMentions = {
                     roles: [roleId]
-                };
-            } else {
-                // Can't mention roles, just send without mentions
-                content = '';
-                allowedMentions = {
-                    roles: []
                 };
             }
         }
 
-        // Send the message to main channel (if enabled)
-        if (sendToChannel && channel) {
+        // Send the message to main channel (if enabled and has permissions)
+        if (canSendToChannel && channel) {
             await channel.send({ 
                 content: content, 
                 embeds: [embed],
@@ -416,8 +430,6 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                                     embeds: [embed],
                                     allowedMentions: threadAllowedMentions
                                 });
-                                
-                                console.log(`✅ Posted ${gameNames[game]} codes to forum thread in guild ${guildId}`);
                             }
                         }
                     }
