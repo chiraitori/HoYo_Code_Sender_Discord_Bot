@@ -637,7 +637,7 @@ client.once('ready', async () => {
     });
     
     // Start regular code checking (every 5 minutes)
-    setInterval(() => checkAndSendNewCodes(client), 1 * 60 * 1000);
+    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
     
     // DISABLED: Livestream code checker (every 3 minutes)
     // startLivestreamChecker(client);
