@@ -1,6 +1,6 @@
 # HoYo Code Sender Discord Bot
 
-A Discord bot that automatically fetches and sends redemption codes for HoYoverse games like **Genshin Impact**, **Honkai: Star Rail**, and **Zenless Zone Zero**. This bot allows users to receive the latest game codes directly in their Discord servers. [Invite the bot here](https://discord.com/oauth2/authorize?client_id=1124167011585511516&permissions=2147765312&integration_type=0&scope=bot+applications.commands) | [Bot website](https://hoyo-code.chiraitori.me) | [Documentation](https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot/wiki) | [Donate](https://github.com/sponsors/chiraitori)
+A Discord bot that automatically fetches and sends redemption codes for HoYoverse games like **Genshin Impact**, **Honkai: Star Rail**, and **Zenless Zone Zero**. This bot allows users to receive the latest game codes directly in their Discord servers. [Invite the bot here](https://discord.com/oauth2/authorize?client_id=1124167011585511516&permissions=2147765312&integration_type=0&scope=bot+applications.commands) | [Bot website](https://hoyo-code.chiraitori.me) | [Documentation](https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot/wiki) | [💖 Donate](#-support-the-project)
 
 > **Special Thanks**: This bot uses the [HoYo Codes API](https://github.com/seriaati/hoyo-codes) by [@seria](https://github.com/seriaati) for fetching game codes. Thank you for providing this amazing service! 🙏
 
@@ -246,7 +246,7 @@ Got some Counter-Strike 2 skins you don't need? Trade them for bot support! 😄
 For Vietnamese users, you can donate via bank transfer or PayOS:
 
 #### 🏦 Bank Transfer (QR Code - No Fees)
-- **Website**: [chiraitori.io.vn](https://chiraitori.io.vn) - Select **"QR"** option
+- **Website**: [chiraitori.io.vn](https://chiraitori.io.vn) - Scrow Down You Will See The **QR** Section
 - **Bank**: MB Bank (Ngân hàng TMCP Quân Đội)
 - **Account Number**: `19071945512011`
 - **Account Name**: `NGUYEN TAN TU`
@@ -254,11 +254,9 @@ For Vietnamese users, you can donate via bank transfer or PayOS:
 - **Note**: Direct bank transfer via QR code has **NO FEES** ✅
 
 #### 💳 PayOS (Convenient Payment - Has Fees)
-- **Website**: [chiraitori.io.vn](https://chiraitori.io.vn) - Select **"PayOS"** option
+- **Website**: [chiraitori.io.vn](https://chiraitori.io.vn) - Scrow Down You Will See The **"PayOS"** Section
 - **Supported**: ATM cards, credit cards, e-wallets (MoMo, ZaloPay, etc.)
 - **Note**: PayOS charges a small transaction fee (~2-3%) ⚠️
-
-**QR Code in Discord**: Use the `/about` command to get the bank QR code directly!
 
 ### Why Donate?
 
@@ -271,7 +269,27 @@ Your donations help:
 
 Every donation, no matter how small, is greatly appreciated and helps keep this project running! 🙏
 
-**Note**: Use the `/vote` command in Discord to support the bot for free by voting on Top.gg!
+### 💝 Free Ways to Support
+
+Love the project but don't have money to donate? No worries! Here are free ways to show your support:
+
+- ⭐ **Star this repository on GitHub** - It helps the project gain visibility and motivates development!
+  - Click the ⭐ Star button at the top of this page
+  - Takes 2 seconds, means a lot! 🌟
+  
+- 🗳️ **Vote on Top.gg** - Support the bot for free by voting!
+  - Use the `/vote` command in Discord to get the voting link
+  - You can vote every 12 hours
+  
+- 📢 **Share the bot** - Tell your friends and gaming communities!
+  - Invite the bot to more servers
+  - Share on Discord, Reddit, or social media
+  
+- 🐛 **Report bugs or suggest features** - Help improve the bot!
+  - Open issues on GitHub
+  - Your feedback is valuable!
+
+**Every star, vote, and share helps keep this project alive!** ❤️
 
 ## Thank You
 - Special thanks to [@seria](https://github.com/seriaati) for the [HoYo Codes API](https://github.com/seriaati/hoyo-codes)
