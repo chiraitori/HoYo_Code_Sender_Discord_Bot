@@ -3,9 +3,9 @@ const about = require("../commands/about");
 
 module.exports = {
     games: {
-        genshin: '<:genshin:1368073403231375430> 原神',
-        hkrpg: '<:hsr:1368073099756703794> 崩壊：スターレイル',
-        nap: '<:zzz:1368073452174704763> ゼンレス・ゾーン・ゼロ'
+        genshin: '原神',
+        hkrpg: '崩壊：スターレイル',
+        nap: 'ゼンレス・ゾーン・ゼロ'
     },
     common: {
         enabled: '有効',
