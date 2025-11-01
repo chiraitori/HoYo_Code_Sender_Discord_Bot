@@ -59,6 +59,10 @@ module.exports = {
             autoSendSetup: 'Auto-send feature: {status}',
             noPermission: 'You do not have permission to use this command',
             channelValidation: '✅ Channel validated successfully! Bot can send messages here.',
+            readyMessage: 'Your server is now ready to receive code notifications!',
+            rolesHeader: '🎭 Notification Roles',
+            channelHeader: '📣 Notification Channel',
+            autoSendHeader: '⚙️ Auto-send Feature',
             demoTipHeader: '💡 Testing Tip',
             demoTipText: 'You can test your setup right away by using the `/demoautosend` command to send demo notification messages.',
             error: {
