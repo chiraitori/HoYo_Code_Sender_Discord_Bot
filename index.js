@@ -1,3 +1,4 @@
+// TODO: refactor this mess before Ganyu gets disappointed
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType } = require('discord.js');
 const express = require('express');
