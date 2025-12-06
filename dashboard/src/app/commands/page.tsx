@@ -107,8 +107,8 @@ export default function CommandsPage() {
   };
 
   const categories = ['All', ...Array.from(new Set(commands.map(cmd => cmd.category)))];
-  const filteredCommands = selectedCategory === 'All' 
-    ? commands 
+  const filteredCommands = selectedCategory === 'All'
+    ? commands
     : commands.filter(cmd => cmd.category === selectedCategory);
 
   const getCategoryIcon = (category: string) => {
@@ -126,7 +126,7 @@ export default function CommandsPage() {
     <div className="min-h-screen relative overflow-hidden bg-black">
       <Aurora />
       <FluidGlassHeader />
-      
+
       <main className="relative z-10 pt-32 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
@@ -151,11 +151,10 @@ export default function CommandsPage() {
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                      selectedCategory === category
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
-                        : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-                    }`}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${selectedCategory === category
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+                      }`}
                   >
                     {category === 'All' ? '📋' : getCategoryIcon(category)} {category}
                   </button>
@@ -176,9 +175,9 @@ export default function CommandsPage() {
                         <span className="text-sm text-purple-300">{command.category}</span>
                       </div>
                     </div>
-                    
+
                     <p className="text-white/80 mb-4">{command.description}</p>
-                    
+
                     <div className="space-y-2">
                       <div>
                         <span className="text-sm font-medium text-purple-300">Usage:</span>
@@ -186,7 +185,7 @@ export default function CommandsPage() {
                           {command.usage}
                         </code>
                       </div>
-                      
+
                       {command.example && (
                         <div>
                           <span className="text-sm font-medium text-purple-300">Example:</span>
@@ -225,7 +224,7 @@ export default function CommandsPage() {
                       Join Support Server
                     </a>
                     <a
-                      href="https://discord.com/api/oauth2/authorize?client_id=918366001228300318&permissions=2048&scope=bot%20applications.commands"
+                      href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=2048&scope=bot%20applications.commands`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full border border-white/20 transition-all duration-300 transform hover:scale-105"

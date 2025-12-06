@@ -67,18 +67,18 @@ export default function FeaturesGrid() {
   ];
 
   const FeatureCard = ({ feature, index }: { feature: typeof features[0]; index: number }) => (
-    <div 
+    <div
       className="group bg-gradient-to-br from-purple-800/30 to-purple-700/20 backdrop-blur-sm border border-purple-300/20 rounded-2xl p-6 hover:from-purple-700/40 hover:to-purple-600/30 transition-all duration-500 hover:scale-105 hover:shadow-xl hover:shadow-purple-300/20"
       style={{ animationDelay: `${index * 100}ms` }}
     >
       <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br ${feature.gradient} backdrop-blur-sm border border-purple-300/30 rounded-2xl mb-6 text-3xl group-hover:scale-110 transition-transform duration-300`}>
         {feature.icon}
       </div>
-      
+
       <h3 className="text-xl font-bold text-purple-50 mb-3 group-hover:text-purple-100 transition-colors">
         {feature.title}
       </h3>
-      
+
       <p className="text-purple-100/70 leading-relaxed group-hover:text-purple-100/80 transition-colors">
         {feature.description}
       </p>
@@ -90,7 +90,7 @@ export default function FeaturesGrid() {
       <div className="container mx-auto max-w-7xl">
         {/* Section header */}
         <div className="text-center mb-16">
-          <h2 className="text-5xl font-black mb-6" style={{ 
+          <h2 className="text-5xl font-black mb-6" style={{
             backgroundImage: `linear-gradient(to right, rgb(213, 203, 225), rgb(154, 145, 193))`,
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
@@ -122,8 +122,8 @@ export default function FeaturesGrid() {
                   Why Choose HoYo Code Sender?
                 </h3>
                 <p className="mb-6 leading-relaxed" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
-                  We've built the most reliable and feature-rich HoYoverse code distribution bot for Discord. 
-                  Our bot ensures your community never misses out on free rewards and exclusive content from 
+                  We've built the most reliable and feature-rich HoYoverse code distribution bot for Discord.
+                  Our bot ensures your community never misses out on free rewards and exclusive content from
                   Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero.
                 </p>
                 <div className="space-y-3">
@@ -151,7 +151,7 @@ export default function FeaturesGrid() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="text-center lg:text-right">
                 <div className="inline-block">
                   <div className="text-8xl mb-4">🎮</div>
@@ -162,7 +162,7 @@ export default function FeaturesGrid() {
                     Join our growing community of server owners
                   </div>
                   <a
-                    href="https://discord.com/api/oauth2/authorize?client_id=918366001228300318&permissions=2048&scope=bot%20applications.commands"
+                    href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=2048&scope=bot%20applications.commands`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center space-x-3 bg-gradient-to-r from-purple-300 to-purple-100 text-purple-900 px-6 py-3 rounded-full font-bold hover:from-purple-100 hover:to-purple-300 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-300/50"
