@@ -12,41 +12,41 @@ export default function Header() {
               </div>
               <div className="absolute inset-0 text-4xl animate-pulse opacity-50">🎮</div>
             </div>
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-2xl font-bold bg-gradient-to-r from-purple-50 to-purple-100 bg-clip-text text-transparent hover:from-purple-100 hover:to-purple-50 transition-all duration-300"
             >
               HoYo Code Sender
             </Link>
           </div>
-          
+
           <nav className="hidden md:flex items-center space-x-8">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-purple-50 hover:text-purple-100 transition-colors duration-300 font-medium"
             >
               Home
             </Link>
-            <Link 
-              href="/dashboard" 
+            <Link
+              href="/dashboard"
               className="text-purple-50 hover:text-purple-100 transition-colors duration-300 font-medium"
             >
               Dashboard
             </Link>
-            <Link 
-              href="/codes" 
+            <Link
+              href="/codes"
               className="text-purple-50 hover:text-purple-100 transition-colors duration-300 font-medium"
             >
               Live Codes
             </Link>
-            <Link 
-              href="/about" 
+            <Link
+              href="/about"
               className="text-purple-50 hover:text-purple-100 transition-colors duration-300 font-medium"
             >
               About
             </Link>
             <a
-              href="https://discord.com/api/oauth2/authorize?client_id=YOUR_BOT_ID&permissions=8&scope=bot%20applications.commands"
+              href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`}
               target="_blank"
               rel="noopener noreferrer"
               className="bg-gradient-to-r from-purple-300 to-purple-100 text-purple-900 px-6 py-3 rounded-full font-bold hover:from-purple-100 hover:to-purple-300 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-300/50"

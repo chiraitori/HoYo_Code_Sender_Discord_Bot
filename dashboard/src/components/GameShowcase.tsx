@@ -87,10 +87,10 @@ export default function GameShowcase() {
         });
 
         const results = await Promise.all(promises);
-        
-        setGames(prevGames => 
+
+        setGames(prevGames =>
           prevGames.map(game => {
-            const result = results.find(r => 
+            const result = results.find(r =>
               (r.id === 'genshin' && game.name === 'Genshin Impact') ||
               (r.id === 'hsr' && game.name === 'Honkai: Star Rail') ||
               (r.id === 'zzz' && game.name === 'Zenless Zone Zero')
@@ -185,12 +185,11 @@ export default function GameShowcase() {
               🎁 Redeem Codes
             </a>
             <a
-              href={`/codes?game=${
-                game.name === 'Genshin Impact' ? 'genshin-impact' :
-                game.name === 'Honkai: Star Rail' ? 'honkai-star-rail' :
-                game.name === 'Zenless Zone Zero' ? 'zenless-zone-zero' :
-                game.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
-              }`}
+              href={`/codes?game=${game.name === 'Genshin Impact' ? 'genshin-impact' :
+                  game.name === 'Honkai: Star Rail' ? 'honkai-star-rail' :
+                    game.name === 'Zenless Zone Zero' ? 'zenless-zone-zero' :
+                      game.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+                }`}
               className="border-2 border-purple-300/50 text-purple-100 py-3 px-4 rounded-xl font-bold text-center hover:bg-purple-100/10 hover:border-purple-300 transition-all duration-300"
             >
               📋 View All
@@ -206,7 +205,7 @@ export default function GameShowcase() {
       <div className="container mx-auto max-w-7xl">
         {/* Section header */}
         <div className="text-center mb-16">
-          <h2 className="text-5xl font-black mb-6" style={{ 
+          <h2 className="text-5xl font-black mb-6" style={{
             backgroundImage: `linear-gradient(to right, rgb(213, 203, 225), rgb(154, 145, 193))`,
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
@@ -215,7 +214,7 @@ export default function GameShowcase() {
             Supported Games
           </h2>
           <p className="text-xl max-w-3xl mx-auto" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
-            Get the latest redemption codes for all your favorite HoYoverse games, 
+            Get the latest redemption codes for all your favorite HoYoverse games,
             delivered instantly to your Discord server
           </p>
         </div>
@@ -240,11 +239,11 @@ export default function GameShowcase() {
               Add HoYo Code Sender to your Discord server and let your members know about new codes automatically
             </p>
             <a
-              href="https://discord.com/api/oauth2/authorize?client_id=YOUR_BOT_ID&permissions=8&scope=bot%20applications.commands"
+              href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center space-x-3 px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-xl"
-              style={{ 
+              style={{
                 background: `linear-gradient(to right, rgb(111, 98, 157), rgb(154, 145, 193))`,
                 color: 'rgb(213, 203, 225)'
               }}

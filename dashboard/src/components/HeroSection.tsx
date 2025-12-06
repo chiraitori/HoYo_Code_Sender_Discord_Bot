@@ -15,7 +15,7 @@ export default function HeroSection() {
 
   useEffect(() => {
     if (!isMounted) return;
-    
+
     let index = 0;
     const timer = setInterval(() => {
       setAnimatedText(fullText.slice(0, index));
@@ -41,17 +41,17 @@ export default function HeroSection() {
       <div className="relative z-10 text-center px-2 sm:px-4 max-w-6xl mx-auto">
         {/* Main heading */}
         <h1 className="text-3xl xs:text-4xl sm:text-6xl md:text-8xl font-black mb-4 sm:mb-6 leading-tight">
-          <span 
+          <span
             className="bg-clip-text text-transparent block"
-            style={{ 
+            style={{
               backgroundImage: `linear-gradient(to right, rgb(213, 203, 225), rgb(154, 145, 193), rgb(213, 203, 225))`
             }}
           >
             HoYo Code
           </span>
-          <span 
+          <span
             className="bg-clip-text text-transparent block"
-            style={{ 
+            style={{
               backgroundImage: `linear-gradient(to right, rgb(154, 145, 193), rgb(111, 98, 157), rgb(154, 145, 193))`
             }}
           >
@@ -69,20 +69,20 @@ export default function HeroSection() {
 
         {/* Description */}
         <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-8 sm:mb-12 max-w-4xl mx-auto leading-relaxed px-2 sm:px-4" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
-          Automatically fetch and distribute HoYoverse game redemption codes to your Discord server. 
-          Support for <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}>Genshin Impact</span>, 
-          <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}> Honkai: Star Rail</span>, and 
+          Automatically fetch and distribute HoYoverse game redemption codes to your Discord server.
+          Support for <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}>Genshin Impact</span>,
+          <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}> Honkai: Star Rail</span>, and
           <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}> Zenless Zone Zero</span>.
         </p>
 
         {/* Action buttons */}
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 lg:gap-6 items-center justify-center mb-8 sm:mb-16 px-2 sm:px-4">
           <a
-            href="https://discord.com/api/oauth2/authorize?client_id=YOUR_BOT_ID&permissions=8&scope=bot%20applications.commands"
+            href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`}
             target="_blank"
             rel="noopener noreferrer"
             className="group w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base lg:text-lg transition-all duration-300 transform hover:scale-105 shadow-xl text-center"
-            style={{ 
+            style={{
               background: `linear-gradient(to right, rgb(111, 98, 157), rgb(154, 145, 193))`,
               color: 'rgb(213, 203, 225)'
             }}
@@ -94,11 +94,11 @@ export default function HeroSection() {
               </svg>
             </span>
           </a>
-          
+
           <a
             href="/codes"
             className="group border-2 w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base lg:text-lg transition-all duration-300 text-center"
-            style={{ 
+            style={{
               borderColor: 'rgba(154, 145, 193, 0.5)',
               color: 'rgb(154, 145, 193)'
             }}
