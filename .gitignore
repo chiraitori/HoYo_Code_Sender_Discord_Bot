@@ -86,3 +86,6 @@ public/build/
 
 # Optional eslint cache
 .eslintcache
+
+# Delete year messages script
+delete-year-messages.js

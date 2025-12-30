@@ -8,6 +8,12 @@ async function checkAndSendYearChangeMessage(client) {
         const currentYear = new Date().getFullYear();
         console.log(`Checking for year change messages (current year: ${currentYear})...`);
 
+        // Only send messages for 2026 and beyond
+        if (currentYear < 2026) {
+            console.log('Year is before 2026, skipping year change messages.');
+            return;
+        }
+
         // Get all guild configurations and settings
         const [configs, allSettings, yearMessages] = await Promise.all([
             Config.find({}).lean(),

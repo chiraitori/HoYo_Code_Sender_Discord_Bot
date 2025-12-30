@@ -642,10 +642,10 @@ client.once('ready', async () => {
     // Start regular code checking (every 5 minutes)
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
 
-    // Check for year change messages (every 30 minutes)
-    setInterval(() => checkAndSendYearChangeMessage(client), 30 * 60 * 1000);
+    // DISABLED TEMPORARILY: Check for year change messages (every 30 minutes)
+    // setInterval(() => checkAndSendYearChangeMessage(client), 30 * 60 * 1000);
     // Also run an initial check on startup
-    checkAndSendYearChangeMessage(client);
+    // checkAndSendYearChangeMessage(client);
 
     // DISABLED: Livestream code checker (every 3 minutes)
     // startLivestreamChecker(client);
