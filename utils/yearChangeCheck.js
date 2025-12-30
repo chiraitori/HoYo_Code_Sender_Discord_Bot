@@ -1,6 +1,7 @@
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const YearMessage = require('../models/YearMessage');
+const Language = require('../models/Language');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 async function checkAndSendYearChangeMessage(client) {
@@ -20,11 +21,12 @@ async function checkAndSendYearChangeMessage(client) {
             return;
         }
 
-        // Get all guild configurations and settings
-        const [configs, allSettings, yearMessages] = await Promise.all([
+        // Get all guild configurations, settings, and languages
+        const [configs, allSettings, yearMessages, languages] = await Promise.all([
             Config.find({}).lean(),
             Settings.find({}).lean(),
-            YearMessage.find({}).lean()
+            YearMessage.find({}).lean(),
+            Language.find({}).lean()
         ]);
 
         // Create lookup maps
@@ -35,6 +37,11 @@ async function checkAndSendYearChangeMessage(client) {
 
         const yearMessageMap = yearMessages.reduce((map, yearMsg) => {
             map[yearMsg.guildId] = yearMsg;
+            return map;
+        }, {});
+
+        const languageMap = languages.reduce((map, lang) => {
+            map[lang.guildId] = lang.language || 'en';
             return map;
         }, {});
 
@@ -63,7 +70,8 @@ async function checkAndSendYearChangeMessage(client) {
             }
 
             // Send the year change message
-            messageTasks.push(sendYearChangeMessage(client, config, guildId, currentYear));
+            const guildLanguage = languageMap[guildId] || 'en';
+            messageTasks.push(sendYearChangeMessage(client, config, guildId, currentYear, guildLanguage));
         }
 
         // Send all messages
@@ -79,7 +87,7 @@ async function checkAndSendYearChangeMessage(client) {
     }
 }
 
-async function sendYearChangeMessage(client, config, guildId, currentYear) {
+async function sendYearChangeMessage(client, config, guildId, currentYear, language) {
     try {
         const guild = client.guilds.cache.get(guildId);
         if (!guild) {
@@ -115,16 +123,32 @@ async function sendYearChangeMessage(client, config, guildId, currentYear) {
             return;
         }
 
-        // Create the embed message
-        const embed = new EmbedBuilder()
-            .setColor('#FFD700') // Gold/festive color
-            .setTitle(`🎉 Happy New Year ${currentYear}!`)
-            .setDescription(
+        // Prepare message content based on language
+        let title, description;
+
+        if (language === 'vi') {
+            // Vietnamese message
+            title = `🎉 Chúc mừng năm mới ${currentYear}!`;
+            description =
+                `Dù lời nhắn này đến với mọi người có hơi sớm hay hơi trễ một chút, thì khoảnh khắc bước sang năm ${currentYear} này, mình muốn gửi một lời cảm ơn to lớn đến tất cả các bạn.\n\n` +
+                `Thú thật là, ban đầu con bot này chỉ là một dự án nhỏ mình làm để cho bạn bè dùng thôi, rồi up lên top.gg cho vui. Mình chưa bao giờ nghĩ là nó sẽ được nhiều người biết đến và mời về server nhiều đến thế! Sự ủng hộ của mọi người thực sự là một bất ngờ quá lớn và mình vô cùng biết ơn vì điều đó.\n\n` +
+                `Năm mới này, mình xin hứa sẽ cố gắng làm việc chăm chỉ hơn để bot hoạt động ổn định và mang đến những tính năng mới xịn sò trong vài tháng tới. Cảm ơn mọi người đã đồng hành cùng mình.\n\n` +
+                `Chúc mừng năm mới! Mình là [Chiraitori](https://chiraitori.dev), người đã tạo ra con bot này.`;
+        } else {
+            // English message (default)
+            title = `🎉 Happy New Year ${currentYear}!`;
+            description =
                 `Whether this message reaches you a bit early or a little late, as we step into ${currentYear}, I just want to say a huge thank you to everyone.\n\n` +
                 `Honestly, this bot started out as a simple project just for my close friends. I uploaded it to top.gg mainly for fun, never expecting it to blow up like this. Seeing so many invites and people using it has been a huge surprise, and I am truly grateful for every single one of you.\n\n` +
                 `My promise for this new year is to work hard on stability and bring you guys some exciting new features in the coming months. Thank you for being part of this journey.\n\n` +
-                `Happy New Year! I'm [Chiraitori](https://chiraitori.dev), the creator of this bot.`
-            )
+                `Happy New Year! I'm [Chiraitori](https://chiraitori.dev), the creator of this bot.`;
+        }
+
+        // Create the embed message
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700') // Gold/festive color
+            .setTitle(title)
+            .setDescription(description)
             .setFooter({ text: 'Chiraitori', url: 'https://chiraitori.dev' })
             .setTimestamp();
 
