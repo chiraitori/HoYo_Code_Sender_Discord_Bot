@@ -9,6 +9,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
+const { checkAndSendYearChangeMessage } = require('./utils/yearChangeCheck');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
 const { sendWelcomeMessage } = require('./utils/welcome');
 const authMiddleware = require('./utils/authMiddleware');
@@ -69,12 +70,12 @@ app.use((req, res, next) => {
         "img-src 'self' data: https: pic.re",
         "connect-src 'self'"
     ].join('; '));
-    
+
     // Other security headers
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    
+
     next();
 });
 
@@ -95,11 +96,11 @@ const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 async function getCachedApiData(game, apiUrl) {
     const cacheKey = `codes_${game}`;
     const cached = apiCache.get(cacheKey);
-    
+
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
         return cached.data;
     }
-    
+
     try {
         const startTime = Date.now();
         const response = await axios.get(apiUrl, {
@@ -109,19 +110,19 @@ async function getCachedApiData(game, apiUrl) {
             }
         });
         const responseTime = Date.now() - startTime;
-        
+
         // Log slow API responses
         if (responseTime > 5000) {
             console.warn(`⚠️  Slow API response for ${game}: ${responseTime}ms`);
         }
-        
+
         const data = response.data;
         apiCache.set(cacheKey, {
             data: data,
             timestamp: Date.now(),
             responseTime
         });
-        
+
         return data;
     } catch (error) {
         // If we have cached data, return it even if expired during error
@@ -238,7 +239,7 @@ app.get('/api/bot/commands', async (req, res) => {
 app.get('/api/bot/guild/:guildId', async (req, res) => {
     try {
         const { guildId } = req.params;
-        
+
         if (!client || !client.isReady()) {
             return res.status(503).json({ error: 'Bot is not ready' });
         }
@@ -290,10 +291,10 @@ app.get('/api/bot/guild/:guildId', async (req, res) => {
 app.get('/api/server/:serverId/config', async (req, res) => {
     try {
         const { serverId } = req.params;
-        
+
         const Config = require('./models/Config');
         const config = await Config.findOne({ guildId: serverId });
-        
+
         if (!config) {
             return res.json({
                 guildId: serverId,
@@ -322,12 +323,12 @@ app.put('/api/server/:serverId/config', async (req, res) => {
     try {
         const { serverId } = req.params;
         const updateData = req.body;
-        
+
         const Config = require('./models/Config');
-        
+
         // Find existing config or create new one
         let config = await Config.findOne({ guildId: serverId });
-        
+
         if (!config) {
             config = new Config({
                 guildId: serverId,
@@ -371,10 +372,10 @@ app.put('/api/server/:serverId/config', async (req, res) => {
 app.get('/api/server/:serverId/settings', async (req, res) => {
     try {
         const { serverId } = req.params;
-        
+
         const Settings = require('./models/Settings');
         const settings = await Settings.findOne({ guildId: serverId });
-        
+
         if (!settings) {
             return res.json({
                 guildId: serverId,
@@ -406,12 +407,12 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
     try {
         const { serverId } = req.params;
         const updateData = req.body;
-        
+
         const Settings = require('./models/Settings');
-        
+
         // Find existing settings or create new one
         let settings = await Settings.findOne({ guildId: serverId });
-        
+
         if (!settings) {
             settings = new Settings({
                 guildId: serverId,
@@ -431,7 +432,7 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
         if (updateData.hasOwnProperty('autoSendEnabled')) {
             settings.autoSendEnabled = updateData.autoSendEnabled;
         }
-        
+
         if (updateData.favoriteGames) {
             if (updateData.favoriteGames.hasOwnProperty('enabled')) {
                 settings.favoriteGames.enabled = updateData.favoriteGames.enabled;
@@ -458,10 +459,10 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
 app.post('/api/server/:serverId/test', async (req, res) => {
     try {
         const { serverId } = req.params;
-        
+
         const Config = require('./models/Config');
         const config = await Config.findOne({ guildId: serverId });
-        
+
         if (!config || !config.channel) {
             return res.status(400).json({ error: 'No notification channel configured' });
         }
@@ -489,7 +490,7 @@ app.post('/api/server/:serverId/test', async (req, res) => {
             .setTimestamp();
 
         await channel.send({ embeds: [embed] });
-        
+
         res.json({ success: true, message: 'Test notification sent successfully!' });
     } catch (error) {
         console.error('Error sending test notification:', error);
@@ -501,18 +502,18 @@ app.post('/api/server/:serverId/test', async (req, res) => {
 app.post('/api/server/:serverId/reset', async (req, res) => {
     try {
         const { serverId } = req.params;
-        
+
         const Config = require('./models/Config');
         const Settings = require('./models/Settings');
         const Language = require('./models/Language');
-        
+
         // Delete all configuration data for this server
         await Promise.all([
             Config.deleteOne({ guildId: serverId }),
             Settings.deleteOne({ guildId: serverId }),
             Language.deleteOne({ guildId: serverId })
         ]);
-        
+
         res.json({ success: true, message: 'Configuration reset successfully!' });
     } catch (error) {
         console.error('Error resetting configuration:', error);
@@ -543,7 +544,7 @@ app.listen(PORT, () => {
 // Discord bot setup - Enhanced environment validation
 const requiredEnvVars = [
     'DISCORD_TOKEN',
-    'CLIENT_ID', 
+    'CLIENT_ID',
     'MONGODB_URI'
 ];
 
@@ -592,7 +593,7 @@ async function registerCommands() {
             // Clear require cache
             delete require.cache[require.resolve(filePath)];
             const command = require(filePath);
-            
+
             if ('data' in command && 'execute' in command) {
                 commands.push(command.data.toJSON());
                 client.commands.set(command.data.name, command);
@@ -636,13 +637,19 @@ client.once('ready', async () => {
         }],
         status: 'online'
     });
-    
+
+
     // Start regular code checking (every 5 minutes)
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
-    
+
+    // Check for year change messages (every 30 minutes)
+    setInterval(() => checkAndSendYearChangeMessage(client), 30 * 60 * 1000);
+    // Also run an initial check on startup
+    checkAndSendYearChangeMessage(client);
+
     // DISABLED: Livestream code checker (every 3 minutes)
     // startLivestreamChecker(client);
-    
+
     // DISABLED: Check for distribution every 3 minutes (runs alongside checker)
     // setInterval(() => checkAndDistribute(client), 3 * 60 * 1000);
 });
@@ -656,10 +663,10 @@ if (process.env.NODE_ENV === 'production') {
             heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024 * 100) / 100,
             heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100
         };
-        
+
         // Log memory usage every 30 minutes
         console.log(`Memory usage: RSS: ${memUsageMB.rss}MB, Heap: ${memUsageMB.heapUsed}/${memUsageMB.heapTotal}MB`);
-        
+
         // Warn if memory usage is high
         if (memUsageMB.heapUsed > 200) {
             console.warn('High memory usage detected');
@@ -671,26 +678,26 @@ if (process.env.NODE_ENV === 'production') {
 // Add event listeners for guild join/leave
 client.on('guildCreate', async (guild) => {
     console.log(`Joined new guild: ${guild.name} (${guild.id})`);
-    
+
     // Send welcome message with setup instructions
     await sendWelcomeMessage(guild, client);
 });
 
 client.on('guildDelete', async (guild) => {
     console.log(`Removed from guild: ${guild.name} (${guild.id})`);
-    
+
     // Clean up database entries for this guild
     try {
         const Config = require('./models/Config');
         const Settings = require('./models/Settings');
         const Language = require('./models/Language');
-        
+
         await Promise.all([
             Config.deleteOne({ guildId: guild.id }),
             Settings.deleteOne({ guildId: guild.id }),
             Language.deleteOne({ guildId: guild.id })
         ]);
-        
+
         console.log(`Cleaned up configuration for guild: ${guild.name} (${guild.id})`);
     } catch (error) {
         console.error(`Error cleaning up guild ${guild.id}:`, error);
@@ -712,9 +719,9 @@ client.on('interactionCreate', async interaction => {
                 await command.execute(interaction);
             } catch (error) {
                 console.error('Command execution error:', error);
-                const content = { 
+                const content = {
                     content: 'An error occurred while executing this command.',
-                    ephemeral: true 
+                    ephemeral: true
                 };
 
                 if (interaction.deferred || interaction.replied) {
@@ -724,7 +731,7 @@ client.on('interactionCreate', async interaction => {
                 }
             }
         }
-        
+
         // Modal submit interactions
         if (interaction.isModalSubmit() && interaction.customId === 'redeemModal') {
             const command = client.commands.get('redeem');
