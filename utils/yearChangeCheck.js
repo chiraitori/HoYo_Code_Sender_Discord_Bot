@@ -5,8 +5,14 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 async function checkAndSendYearChangeMessage(client) {
     try {
-        const currentYear = new Date().getFullYear();
-        console.log(`Checking for year change messages (current year: ${currentYear})...`);
+        // Get current year in Vietnam timezone (Asia/Ho_Chi_Minh = UTC+7)
+        const vietnamTime = new Date().toLocaleString('en-US', {
+            timeZone: 'Asia/Ho_Chi_Minh',
+            year: 'numeric'
+        });
+        const currentYear = parseInt(vietnamTime);
+
+        console.log(`Checking for year change messages (current year in Vietnam: ${currentYear})...`);
 
         // Only send messages for 2026 and beyond
         if (currentYear < 2026) {

@@ -89,3 +89,4 @@ public/build/
 
 # Delete year messages script
 delete-year-messages.js
+quick-db-cleanup.js
