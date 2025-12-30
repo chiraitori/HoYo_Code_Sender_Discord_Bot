@@ -149,7 +149,7 @@ async function sendYearChangeMessage(client, config, guildId, currentYear, langu
             .setColor('#FFD700') // Gold/festive color
             .setTitle(title)
             .setDescription(description)
-            .setFooter({ text: 'Chiraitori', url: 'https://chiraitori.dev' })
+            .setFooter({ text: 'https://chiraitori.dev' })
             .setTimestamp();
 
         // Send the message (no role mentions)
