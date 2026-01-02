@@ -7,13 +7,28 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 async function checkAndSendYearChangeMessage(client) {
     try {
         // Get current year in Vietnam timezone (Asia/Ho_Chi_Minh = UTC+7)
-        const vietnamTime = new Date().toLocaleString('en-US', {
+        // Get current date in Vietnam time
+        const formatter = new Intl.DateTimeFormat('en-US', {
             timeZone: 'Asia/Ho_Chi_Minh',
-            year: 'numeric'
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric'
         });
-        const currentYear = parseInt(vietnamTime);
 
-        console.log(`Checking for year change messages (current year in Vietnam: ${currentYear})...`);
+        const parts = formatter.formatToParts(new Date());
+        const day = parts.find(p => p.type === 'day').value;
+        const month = parts.find(p => p.type === 'month').value;
+        const yearStr = parts.find(p => p.type === 'year').value;
+        const currentYear = parseInt(yearStr);
+
+        // Check if today is January 1st
+        if (month !== '1' || day !== '1') {
+            // Uncomment to debug date checking
+            // console.log(`Not Jan 1st (Today is ${month}/${day}), skipping year change check.`);
+            return;
+        }
+
+        console.log(`It's Jan 1st! Checking for year change messages for ${currentYear}...`);
 
         // Only send messages for 2026 and beyond
         if (currentYear < 2026) {
