@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Aurora from './Aurora';
 
 interface Guild {
   id: string;
@@ -74,18 +75,19 @@ export default function ServerPicker({ onServerSelect }: ServerPickerProps) {
     const ADMINISTRATOR = BigInt(8); // 1 << 3
     const MANAGE_GUILD = BigInt(32); // 1 << 5
     const MANAGE_CHANNELS = BigInt(16); // 1 << 4
-    
-    return (perms & ADMINISTRATOR) === ADMINISTRATOR || 
-           (perms & MANAGE_GUILD) === MANAGE_GUILD || 
-           (perms & MANAGE_CHANNELS) === MANAGE_CHANNELS;
+
+    return (perms & ADMINISTRATOR) === ADMINISTRATOR ||
+      (perms & MANAGE_GUILD) === MANAGE_GUILD ||
+      (perms & MANAGE_CHANNELS) === MANAGE_CHANNELS;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-purple-900 via-purple-800 to-purple-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-300 mx-auto"></div>
-          <p className="text-purple-100 mt-4 text-xl">Loading your Discord servers...</p>
+      <div className="min-h-screen relative flex items-center justify-center overflow-hidden">
+        <Aurora colorStops={["#4b1ec8", "#00f0ff", "#ff3c96"]} speed={0.5} />
+        <div className="relative z-10 text-center">
+          <div className="animate-spin rounded-full h-24 w-24 border-b-4 border-accent-cyan mx-auto shadow-[0_0_30px_rgba(0,240,255,0.4)]"></div>
+          <p className="text-white mt-8 text-2xl font-bold animate-pulse">Loading servers...</p>
         </div>
       </div>
     );
@@ -93,28 +95,31 @@ export default function ServerPicker({ onServerSelect }: ServerPickerProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-purple-900 via-purple-800 to-purple-900 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-red-400 mb-4">Error</h1>
-          <p className="text-purple-300 mb-8">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen relative flex items-center justify-center overflow-hidden">
+        <Aurora colorStops={["#4b1ec8", "#ff3c96", "#4b1ec8"]} speed={0.3} />
+        <div className="relative z-10 text-center px-4">
+          <div className="glass-panel p-10 rounded-3xl border-red-500/30">
+            <h1 className="text-4xl font-bold text-red-400 mb-4">Connection Failed</h1>
+            <p className="text-violet-200 mb-8 text-lg">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="glass-button px-8 py-3 rounded-full text-white font-bold hover:text-red-300"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const managableGuilds = guilds.filter(guild => 
+  const managableGuilds = guilds.filter(guild =>
     guild.owner || hasManagePermissions(guild.permissions)
   );
 
   // Filter based on toggle state
-  const filteredGuilds = showInviteServers 
-    ? managableGuilds 
+  const filteredGuilds = showInviteServers
+    ? managableGuilds
     : managableGuilds.filter(guild => guild.botPresent);
 
   // Separate into bot-present and invite-only for display order
@@ -127,137 +132,178 @@ export default function ServerPicker({ onServerSelect }: ServerPickerProps) {
   const totalInviteServers = managableGuilds.filter(guild => guild.canInvite).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-purple-800 to-purple-900">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen relative overflow-x-hidden">
+      {/* Background */}
+      <div className="fixed inset-0 z-0">
+        <Aurora colorStops={["#2e1065", "#4c1d95", "#0f172a"]} blend={0.8} />
+        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
+      </div>
+
+      <div className="relative z-10 container mx-auto px-4 py-12">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-purple-100 mb-4">
-            🎮 Server Management
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-black mb-6 tracking-tight">
+            <span className="text-gradient drop-shadow-lg">
+              Server Management
+            </span>
           </h1>
-          <p className="text-purple-300 text-lg">
-            Hello, <strong>chiraitori</strong>! Manage your bot or invite it to new servers
+          <p className="text-violet-200/80 text-xl max-w-2xl mx-auto font-medium leading-relaxed">
+            Welcome back, <span className="text-accent-cyan font-bold">chiraitori</span>!
+            Select a server to manage configuration or invite the bot to a new community.
           </p>
-          
-          {/* Toggle Button */}
-          <div className="flex justify-center items-center gap-4 mt-6 mb-4">
+
+          {/* Controls Container */}
+          <div className="glass-panel mt-10 inline-flex flex-col sm:flex-row items-center gap-6 p-4 rounded-2xl border-white/5 bg-black/20">
+            {/* Toggle Button */}
             <button
               onClick={() => setShowInviteServers(!showInviteServers)}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                showInviteServers
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50'
-              }`}
+              className={`px-6 py-2.5 rounded-xl font-bold transition-all duration-300 flex items-center gap-2 ${showInviteServers
+                ? 'bg-violet-600/80 text-white shadow-lg shadow-violet-500/20'
+                : 'bg-white/5 text-violet-200 hover:bg-white/10'
+                }`}
             >
-              {showInviteServers ? '👁️ Hide Invite Servers' : '👁️‍🗨️ Show Invite Servers'}
+              {showInviteServers ? (
+                <>
+                  <span className="text-accent-pink">👁️</span> Hide Invite Servers
+                </>
+              ) : (
+                <>
+                  <span className="text-accent-cyan">👁️‍🗨️</span> Show Invite Servers
+                </>
+              )}
             </button>
-          </div>
 
-          {/* Server Counts */}
-          <div className="flex justify-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-purple-300">{totalBotServers} Active Servers</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-              <span className="text-gray-400">{totalInviteServers} Available to Invite</span>
+            {/* Separator */}
+            <div className="hidden sm:block w-px h-8 bg-white/10"></div>
+
+            {/* Server Counts */}
+            <div className="flex gap-6 text-sm font-medium">
+              <div className="flex items-center gap-2" title="Active Servers">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span className="text-white">{totalBotServers} Active</span>
+              </div>
+              <div className="flex items-center gap-2" title="Available to Invite">
+                <div className="w-2.5 h-2.5 bg-violet-400/50 rounded-full"></div>
+                <span className="text-violet-300">{totalInviteServers} Available</span>
+              </div>
             </div>
           </div>
-
-          <p className="text-purple-400 mt-2">
-            {showInviteServers 
-              ? `Showing ${orderedGuilds.length} total manageable servers`
-              : `Showing ${orderedGuilds.length} servers where bot is active`
-            }
-          </p>
         </div>
 
         {/* Server Grid */}
         {orderedGuilds.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-w-7xl mx-auto">
-            {orderedGuilds.map((guild) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-w-7xl mx-auto pb-20">
+            {orderedGuilds.map((guild, index) => (
               <div
                 key={guild.id}
                 onClick={() => handleServerSelect(guild)}
-                className={`group relative backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 cursor-pointer hover:scale-105 ${
-                  guild.canInvite 
-                    ? 'bg-gray-900/50 border-gray-500/50 hover:border-gray-400/70 hover:bg-gray-800/60' 
-                    : 'bg-purple-900/30 border-purple-500/30 hover:border-purple-400/60 hover:bg-purple-800/40'
-                }`}
+                className={`group glass-panel rounded-3xl p-6 transition-all duration-300 cursor-pointer hover:-translate-y-2 relative overflow-hidden ${guild.canInvite ? 'opacity-90 hover:opacity-100' : ''
+                  }`}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
+                {/* Glow Effect on Hover */}
+                <div className={`absolute inset-0 bg-gradient-to-br transition-opacity duration-500 opacity-0 group-hover:opacity-100 ${guild.botPresent
+                  ? 'from-violet-600/20 to-accent-cyan/20'
+                  : 'from-gray-600/20 to-gray-400/20'
+                  }`} />
+
                 {/* Server Icon */}
-                <div className="relative mb-4">
+                <div className="relative mb-5 mx-auto w-24 h-24">
+                  <div className={`absolute inset-0 rounded-full blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-300 ${guild.botPresent ? 'bg-violet-500' : 'bg-gray-500'
+                    }`} />
                   <img
                     src={getServerIcon(guild)}
                     alt={guild.name}
-                    className={`w-20 h-20 rounded-full mx-auto group-hover:scale-110 transition-transform duration-300 ${
-                      guild.canInvite ? 'filter grayscale' : ''
-                    }`}
+                    className={`w-full h-full rounded-full relative z-10 object-cover shadow-2xl border-4 transition-all duration-300 ${guild.canInvite
+                      ? 'border-white/5 grayscale group-hover:grayscale-0'
+                      : 'border-violet-500/30 group-hover:border-accent-cyan/50'
+                      }`}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.src = `https://cdn.discordapp.com/embed/avatars/${parseInt(guild.id) % 5}.png`;
                     }}
                   />
+
+                  {/* Status Badges */}
                   {guild.owner && (
-                    <div className="absolute -top-2 -right-2 bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full">
-                      👑 Owner
+                    <div className="absolute -top-1 -right-1 z-20 bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-amber-200">
+                      OWNER
                     </div>
                   )}
                   {guild.canInvite && (
-                    <div className="absolute -top-2 -left-2 bg-gray-600 text-gray-200 text-xs font-bold px-2 py-1 rounded-full">
-                      + Invite
+                    <div className="absolute -bottom-3 inset-x-0 z-20 flex justify-center">
+                      <span className="bg-black/50 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-lg group-hover:bg-violet-600 group-hover:border-violet-400 transition-colors uppercase tracking-wider">
+                        Invite
+                      </span>
                     </div>
                   )}
                   {guild.botPresent && (
-                    <div className="absolute -bottom-2 -right-2 bg-green-500 text-green-900 text-xs font-bold px-2 py-1 rounded-full">
-                      ✓ Active
+                    <div className="absolute bottom-0 right-0 z-20 w-6 h-6 bg-green-500 rounded-full border-4 border-[#1a1235] flex items-center justify-center text-white text-xs shadow-lg">
+                      ✓
                     </div>
                   )}
                 </div>
 
                 {/* Server Name */}
-                <div className="text-center">
-                  <h3 className={`font-semibold text-sm leading-tight transition-colors ${
-                    guild.canInvite 
-                      ? 'text-gray-300 group-hover:text-gray-100' 
-                      : 'text-purple-100 group-hover:text-white'
-                  }`}>
+                <div className="text-center relative z-10">
+                  <h3 className={`font-bold text-base leading-tight mb-2 line-clamp-2 transition-colors ${guild.canInvite
+                    ? 'text-violet-200/60 group-hover:text-white'
+                    : 'text-white group-hover:text-accent-cyan'
+                    }`}>
                     {guild.name}
                   </h3>
-                  {guild.canInvite && (
-                    <p className="text-gray-400 text-xs mt-1">Click to invite bot</p>
+                  {guild.canInvite ? (
+                    <p className="text-xs font-medium text-violet-300/50 group-hover:text-violet-300 transition-colors">
+                      Click to invite bot
+                    </p>
+                  ) : (
+                    <p className="text-xs font-medium text-green-400/80 group-hover:text-green-400 transition-colors flex items-center justify-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span> Active
+                    </p>
                   )}
                 </div>
-
-                {/* Hover Effect */}
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-400/0 to-purple-600/0 group-hover:from-purple-400/10 group-hover:to-purple-600/20 transition-all duration-300" />
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🤖</div>
-            <h2 className="text-2xl font-bold text-purple-100 mb-4">No Active Bot Servers</h2>
-            <p className="text-purple-300 mb-8 max-w-md mx-auto">
-              The bot isn't active in any servers where you have management permissions. 
-              Invite the bot to your servers first to start managing it.
-            </p>
-            <a
-              href="/"
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors inline-block"
-            >
-              Return to Home
-            </a>
+          <div className="text-center py-20 px-4">
+            <div className="glass-panel max-w-2xl mx-auto rounded-[2.5rem] p-12 border-white/5 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent opacity-50"></div>
+              <div className="text-8xl mb-6 opacity-80">👾</div>
+              <h2 className="text-3xl font-black text-white mb-4">No Active Servers Found</h2>
+              <p className="text-violet-200 mb-8 text-lg leading-relaxed">
+                The bot isn't active in any servers where you have management permissions.
+                Invite the bot to your community to start tracking codes automatically!
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-4">
+                <button
+                  onClick={() => setShowInviteServers(true)}
+                  className="glass-button bg-violet-600/20 text-white px-8 py-3 rounded-full font-bold hover:bg-violet-600/40"
+                >
+                  Show Invitable Servers
+                </button>
+                <a
+                  href="/"
+                  className="glass-button px-8 py-3 rounded-full text-violet-200 font-bold hover:text-white"
+                >
+                  Return Home
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Back Button */}
-        <div className="text-center mt-12">
+        {/* Home Button */}
+        <div className="text-center pb-12">
           <button
             onClick={() => router.push('/')}
-            className="bg-purple-700/50 hover:bg-purple-600/50 text-purple-200 hover:text-white px-6 py-3 rounded-lg transition-colors backdrop-blur-sm border border-purple-500/30"
+            className="group inline-flex items-center gap-2 text-violet-300 hover:text-white transition-colors font-medium px-6 py-3 rounded-full hover:bg-white/5"
           >
-            ← Back to Home
+            <span>←</span>
+            <span className="group-hover:translate-x-1 transition-transform">Back to Home</span>
           </button>
         </div>
       </div>

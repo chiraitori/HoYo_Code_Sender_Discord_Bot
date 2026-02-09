@@ -6,6 +6,7 @@ const configSchema = new mongoose.Schema({
     hsrRole: { type: String },
     zzzRole: { type: String },
     channel: { type: String },
+    livestreamChannel: { type: String }, // Optional: separate channel for livestream codes
     forumThreads: {
         genshin: { type: String }, // Genshin Impact forum thread ID
         hsr: { type: String },     // Honkai: Star Rail forum thread ID

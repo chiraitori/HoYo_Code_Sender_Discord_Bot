@@ -33,7 +33,7 @@ const ROLE_MAPPING = {
  */
 async function checkAndDistribute(client) {
     const games = ['genshin', 'hkrpg', 'nap'];
-    
+
     for (const game of games) {
         try {
             await distributeIfReady(client, game);
@@ -50,7 +50,7 @@ async function checkAndDistribute(client) {
  */
 async function distributeIfReady(client, game) {
     const tracking = await LivestreamTracking.findOne({ game });
-    
+
     if (!tracking) {
         return; // No tracking setup
     }
@@ -73,9 +73,17 @@ async function distributeIfReady(client, game) {
     for (const config of allConfigs) {
         try {
             const settings = await Settings.findOne({ guildId: config.guildId });
-            
+
             // Check if auto-send is enabled for this guild
             if (!settings || !settings.autoSendEnabled) {
+                continue;
+            }
+
+            // Check if this game is enabled via favoriteGames filter
+            if (settings.favoriteGames?.enabled &&
+                settings.favoriteGames.games &&
+                settings.favoriteGames.games[game] === false) {
+                // This guild doesn't want this game's codes
                 continue;
             }
 
@@ -112,6 +120,54 @@ async function distributeIfReady(client, game) {
 }
 
 /**
+ * Fetch Events Overview banner (available ~15 min after livestream)
+ */
+async function fetchEventsBanner(accountId, game) {
+    try {
+        const axios = require('axios');
+
+        const url = `https://bbs-api-os.hoyolab.com/community/post/wapi/userPost?uid=${accountId}`;
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'x-rpc-client_type': '4'
+            }
+        });
+
+        const posts = response.data?.data?.list || [];
+
+        // Look for Events Overview post
+        for (const postData of posts.slice(0, 10)) {
+            const post = postData.post;
+            const title = post.subject.toLowerCase();
+
+            if (title.includes('event') && (title.includes('overview') || title.includes('review'))) {
+                // Fetch full post
+                const detailUrl = `https://bbs-api-os.hoyolab.com/community/post/wapi/getPostFull?post_id=${post.post_id}`;
+                const detailResponse = await axios.get(detailUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'x-rpc-client_type': '4'
+                    }
+                });
+
+                const postWrapper = detailResponse.data?.data?.post;
+                if (postWrapper && (postWrapper.cover_list?.[0] || postWrapper.image_list?.[0])) {
+                    const bannerUrl = postWrapper.cover_list?.[0]?.url || postWrapper.image_list?.[0]?.url;
+                    console.log(`[Distribution] 🎨 Found Events Overview banner for ${game}`);
+                    return bannerUrl;
+                }
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error('[Distribution] Error fetching Events banner:', error.message);
+        return null;
+    }
+}
+
+/**
  * Send codes to main channel
  * @param {Client} client - Discord client
  * @param {Object} config - Guild config
@@ -119,7 +175,12 @@ async function distributeIfReady(client, game) {
  * @param {Object} tracking - Tracking data
  */
 async function sendToChannel(client, config, game, tracking) {
-    const channel = await client.channels.fetch(config.channel).catch(() => null);
+    // Use livestreamChannel if configured, otherwise fall back to regular channel
+    const channelId = config.livestreamChannel || config.channel;
+
+    if (!channelId) return;
+
+    const channel = await client.channels.fetch(channelId).catch(() => null);
     if (!channel) return;
 
     // Check permissions
@@ -137,8 +198,8 @@ async function sendToChannel(client, config, game, tracking) {
         roleMention = `<@&${roleId}> `;
     }
 
-    // Build embed
-    const embed = buildCodesEmbed(game, tracking);
+    // Build embed (will fetch Events banner inside)
+    const embed = await buildCodesEmbed(game, tracking);
 
     await channel.send({
         content: `${roleMention}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
@@ -181,8 +242,8 @@ async function sendToThread(client, config, game, tracking) {
         roleMention = `<@&${roleId}> `;
     }
 
-    // Build embed
-    const embed = buildCodesEmbed(game, tracking);
+    // Build embed (will fetch Events banner inside)
+    const embed = await buildCodesEmbed(game, tracking);
 
     await thread.send({
         content: `${roleMention}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
@@ -194,28 +255,52 @@ async function sendToThread(client, config, game, tracking) {
  * Build embed for codes
  * @param {string} game - Game identifier
  * @param {Object} tracking - Tracking data
- * @returns {EmbedBuilder} Embed
+ * @returns {Promise<EmbedBuilder>} Embed
  */
-function buildCodesEmbed(game, tracking) {
+async function buildCodesEmbed(game, tracking) {
+    // Try to fetch Events Overview banner (available ~15 min after livestream)
+    const OFFICIAL_ACCOUNTS = {
+        'genshin': '1015537',
+        'hkrpg': '172534910',
+        'nap': '219270333'
+    };
+
+    let finalBanner = tracking.bannerUrl; // Start with Special Program banner
+
+    // Try to get Events Overview banner
+    const eventsBanner = await fetchEventsBanner(OFFICIAL_ACCOUNTS[game], game);
+    if (eventsBanner) {
+        finalBanner = eventsBanner; // Use Events banner if available
+
+        // Update tracking with better banner for future use
+        await LivestreamTracking.findOneAndUpdate(
+            { game, version: tracking.version },
+            { bannerUrl: eventsBanner }
+        );
+    }
+
     const embed = new EmbedBuilder()
         .setColor('#FFD700') // Gold color for livestream codes
         .setTitle(`🎮 ${GAME_NAMES[game]} Livestream Codes`)
         .setDescription(`**Version ${tracking.version || 'N/A'}** - Found ${tracking.codes.length} codes!`)
         .setTimestamp();
 
-    // Add codes
+    // Add codes with rewards
     if (tracking.codes && tracking.codes.length > 0) {
         for (let i = 0; i < tracking.codes.length; i++) {
             const codeData = tracking.codes[i];
             let expireText = 'Unknown';
-            
+
             if (codeData.expireAt && codeData.expireAt > 0) {
                 expireText = `<t:${codeData.expireAt}:R>`;
             }
 
+            // Include rewards if available
+            const rewardText = codeData.title ? `\n**Rewards:** ${codeData.title}` : '';
+
             embed.addFields({
                 name: `Code ${i + 1}`,
-                value: `\`${codeData.code}\`\nExpires: ${expireText}`,
+                value: `\`${codeData.code}\`${rewardText}\n**Expires:** ${expireText}`,
                 inline: true
             });
         }
@@ -227,6 +312,11 @@ function buildCodesEmbed(game, tracking) {
         value: `[Click to Redeem](${REDEEM_URLS[game]})`,
         inline: false
     });
+
+    // Add banner as large image at bottom
+    if (finalBanner) {
+        embed.setImage(finalBanner);
+    }
 
     embed.setFooter({ text: '🎁 From Official Livestream' });
 

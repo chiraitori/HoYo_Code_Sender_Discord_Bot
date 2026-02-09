@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { getGameIconWithFallback, getGameIconStyles, type GameIconProps } from '@/utils/discordGameIcons';
 
-export default function GameIcon({ 
-  gameId, 
-  size = 32, 
-  className = '', 
-  showName = false 
+export default function GameIcon({
+  gameId,
+  size = 32,
+  className = '',
+  showName = false
 }: GameIconProps) {
   const [imageError, setImageError] = useState(false);
   const iconData = getGameIconWithFallback(gameId, size);
@@ -48,7 +48,7 @@ export default function GameIcon({
           {iconData.fallbackEmoji}
         </div>
       )}
-      
+
       {showName && (
         <span className="text-sm font-medium text-vietnamese-purple-200">
           {iconData.name}

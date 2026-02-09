@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const Code = require('../models/Code');
 const { getState, fetchLivestreamCodes, parseAndSaveCodes, getStateName } = require('./hoyolabAPI');
+const { distributeIfReady } = require('./livestreamDistribution');
 
 /**
  * Livestream Code Checker
@@ -24,10 +25,10 @@ function startLivestreamChecker(client) {
     }
 
     console.log('[Livestream Checker] Starting...');
-    
+
     // Run immediately on start
     checkAllGames(client);
-    
+
     // Then run every 3 minutes
     checkerInterval = setInterval(() => {
         checkAllGames(client);
@@ -51,7 +52,7 @@ function stopLivestreamChecker() {
  */
 async function checkAllGames(client) {
     console.log('[Livestream Checker] Running check...');
-    
+
     for (const game of GAMES) {
         try {
             await checkGame(client, game);
@@ -70,27 +71,27 @@ async function checkAllGames(client) {
 async function checkGame(client, game) {
     // Get tracking data
     const tracking = await LivestreamTracking.findOne({ game });
-    
+
     if (!tracking) {
         return; // No tracking setup for this game
     }
 
     const version = tracking.version || '1.0';
     const state = await getState(game, version);
-    
+
     console.log(`[Livestream Checker] ${game} - State: ${state} (${getStateName(state)})`);
 
     // Only process if STATE = 4 (Searching) or 5 (Found)
     if (state === 4) {
         // STATE 4: Searching - Poll API
         const response = await fetchLivestreamCodes(game);
-        
+
         if (response) {
             const allCodesFound = await parseAndSaveCodes(response, game, version);
-            
+
             if (allCodesFound) {
                 console.log(`[Livestream Checker] ✅ All codes found for ${game}!`);
-                
+
                 // Save codes to database for distribution
                 const updatedTracking = await LivestreamTracking.findOne({ game, version });
                 if (updatedTracking && updatedTracking.codes) {
@@ -106,11 +107,15 @@ async function checkGame(client, game) {
                             { upsert: true }
                         );
                     }
+
+                    // AUTO-DISTRIBUTE: Pop codes immediately when all 3 found
+                    console.log(`[Livestream Checker] 🚀 Triggering auto-distribution for ${game}...`);
+                    await distributeIfReady(client, game);
                 }
             }
         }
     }
-    
+
     // Update tracking message
     await updateTrackingMessage(client, game, state, tracking);
 }
@@ -172,7 +177,7 @@ async function updateTrackingMessage(client, game, state, tracking) {
         // Add next update countdown
         const nextUpdate = Math.floor(Date.now() / 1000) + 180; // 3 minutes
         embed.setFooter({ text: `Next check: ` });
-        
+
         const content = `State \`${state}\` \`${getStateName(state)}\` | Next Update <t:${nextUpdate}:R>`;
 
         await message.edit({ content, embeds: [embed] });

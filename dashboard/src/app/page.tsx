@@ -26,7 +26,7 @@ export default function Home() {
     // Scroll to LiveStats section
     const statsSection = document.querySelector('section:nth-of-type(1)'); // LiveStats is first section
     if (statsSection) {
-      statsSection.scrollIntoView({ 
+      statsSection.scrollIntoView({
         behavior: 'smooth',
         block: 'start'
       });
@@ -34,7 +34,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: 'var(--gradient-primary)' }}>
+    <div className="min-h-screen relative overflow-hidden bg-background">
       <FluidGlassHeader />
       <main className="relative z-10">
         <HeroSection />
@@ -42,12 +42,12 @@ export default function Home() {
         <GameShowcase />
         <FeaturesGrid />
       </main>
-      
+
       {/* Scroll indicator positioned at bottom of viewport */}
       {showScrollArrow && (
-        <button 
+        <button
           onClick={scrollToStats}
-          className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-vietnamese-purple-400 rounded-full p-2"
+          className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-violet-400 rounded-full p-2"
           aria-label="Scroll to statistics"
         >
           <div className="animate-bounce">
@@ -57,7 +57,7 @@ export default function Home() {
           </div>
         </button>
       )}
-      
+
       <Footer />
     </div>
   );

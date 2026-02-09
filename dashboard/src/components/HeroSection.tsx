@@ -30,64 +30,56 @@ export default function HeroSection() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden -mt-16 sm:-mt-20 pt-16 sm:pt-20">
-      {/* Aurora background */}
+      {/* Aurora background - using clearer, brighter colors */}
       <Aurora
-        colorStops={["#6f629d", "#3c4580", "#27255b"]}
-        blend={0.5}
-        amplitude={1.0}
-        speed={0.5}
+        colorStops={["#4b1ec8", "#00f0ff", "#ff3c96"]}
+        blend={0.6}
+        amplitude={1.2}
+        speed={0.4}
       />
 
-      <div className="relative z-10 text-center px-2 sm:px-4 max-w-6xl mx-auto">
+      <div className="relative z-10 text-center px-4 max-w-7xl mx-auto">
         {/* Main heading */}
-        <h1 className="text-3xl xs:text-4xl sm:text-6xl md:text-8xl font-black mb-4 sm:mb-6 leading-tight">
-          <span
-            className="bg-clip-text text-transparent block"
-            style={{
-              backgroundImage: `linear-gradient(to right, rgb(213, 203, 225), rgb(154, 145, 193), rgb(213, 203, 225))`
-            }}
-          >
-            HoYo Code
-          </span>
-          <span
-            className="bg-clip-text text-transparent block"
-            style={{
-              backgroundImage: `linear-gradient(to right, rgb(154, 145, 193), rgb(111, 98, 157), rgb(154, 145, 193))`
-            }}
-          >
-            Sender
-          </span>
-        </h1>
+        <div className="mb-6 sm:mb-8 space-y-2">
+          <h1 className="text-5xl sm:text-7xl md:text-9xl font-black tracking-tight leading-none">
+            <span className="text-gradient block drop-shadow-lg">
+              HoYo Code
+            </span>
+            <span className="text-gradient-accent block drop-shadow-2xl">
+              Sender
+            </span>
+          </h1>
+        </div>
 
         {/* Animated subtitle */}
-        <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl mb-6 sm:mb-8 font-light px-2 sm:px-4" style={{ color: 'rgb(154, 145, 193)' }}>
-          <span suppressHydrationWarning>
+        <p className="text-xl sm:text-2xl md:text-4xl mb-8 sm:mb-10 font-bold tracking-wide h-12 flex items-center justify-center space-x-2" style={{ color: 'var(--color-violet-200)' }}>
+          <span suppressHydrationWarning className="drop-shadow-md">
             {isMounted ? animatedText : fullText}
           </span>
-          {isMounted && <span className="animate-pulse">|</span>}
+          {isMounted && <span className="animate-pulse text-cyan-400">|</span>}
         </p>
 
         {/* Description */}
-        <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-8 sm:mb-12 max-w-4xl mx-auto leading-relaxed px-2 sm:px-4" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
+        <p className="text-base sm:text-lg md:text-xl mb-10 sm:mb-14 max-w-3xl mx-auto leading-relaxed px-4 text-violet-100/80 font-medium">
           Automatically fetch and distribute HoYoverse game redemption codes to your Discord server.
-          Support for <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}>Genshin Impact</span>,
-          <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}> Honkai: Star Rail</span>, and
-          <span className="font-semibold" style={{ color: 'rgb(154, 145, 193)' }}> Zenless Zone Zero</span>.
+          Support for <span className="text-violet-50 font-bold border-b border-cyan-400/30">Genshin Impact</span>,
+          <span className="text-violet-50 font-bold border-b border-cyan-400/30 mx-1">Honkai: Star Rail</span>, and
+          <span className="text-violet-50 font-bold border-b border-cyan-400/30">Zenless Zone Zero</span>.
         </p>
 
         {/* Action buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 lg:gap-6 items-center justify-center mb-8 sm:mb-16 px-2 sm:px-4">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center justify-center mb-12 sm:mb-20 px-4">
           <a
             href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`}
             target="_blank"
             rel="noopener noreferrer"
-            className="group w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base lg:text-lg transition-all duration-300 transform hover:scale-105 shadow-xl text-center"
+            className="group glass-button px-8 py-4 rounded-full font-bold text-lg w-full sm:w-auto min-w-[200px]"
             style={{
-              background: `linear-gradient(to right, rgb(111, 98, 157), rgb(154, 145, 193))`,
-              color: 'rgb(213, 203, 225)'
+              background: 'linear-gradient(135deg, rgba(110, 60, 255, 0.5), rgba(0, 240, 255, 0.2))',
+              borderColor: 'rgba(255, 255, 255, 0.2)'
             }}
           >
-            <span className="flex items-center justify-center space-x-3">
+            <span className="flex items-center justify-center space-x-3 text-white">
               <span>🚀 Add to Discord</span>
               <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -97,13 +89,9 @@ export default function HeroSection() {
 
           <a
             href="/codes"
-            className="group border-2 w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 rounded-full font-bold text-sm sm:text-base lg:text-lg transition-all duration-300 text-center"
-            style={{
-              borderColor: 'rgba(154, 145, 193, 0.5)',
-              color: 'rgb(154, 145, 193)'
-            }}
+            className="group glass-button px-8 py-4 rounded-full font-bold text-lg w-full sm:w-auto min-w-[200px]"
           >
-            <span className="flex items-center justify-center space-x-3">
+            <span className="flex items-center justify-center space-x-3 text-violet-100 group-hover:text-white transition-colors">
               <span>📋 View Live Codes</span>
               <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -113,15 +101,15 @@ export default function HeroSection() {
         </div>
 
         {/* Game icons */}
-        <div className="flex items-center justify-center space-x-3 sm:space-x-6 lg:space-x-8 opacity-80">
-          <div className="animate-bounce delay-0">
-            <GameIcon gameId="genshin" size={40} className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
+        <div className="flex items-center justify-center gap-8 sm:gap-12 opacity-90">
+          <div className="animate-bounce hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(110,60,255,0.5)]">
+            <GameIcon gameId="genshin" size={40} className="w-12 h-12 sm:w-16 sm:h-16" />
           </div>
-          <div className="animate-bounce delay-200">
-            <GameIcon gameId="hsr" size={40} className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
+          <div className="animate-bounce delay-150 hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(0,240,255,0.5)]">
+            <GameIcon gameId="hsr" size={40} className="w-12 h-12 sm:w-16 sm:h-16" />
           </div>
-          <div className="animate-bounce delay-400">
-            <GameIcon gameId="zzz" size={40} className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
+          <div className="animate-bounce delay-300 hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(255,60,150,0.5)]">
+            <GameIcon gameId="zzz" size={40} className="w-12 h-12 sm:w-16 sm:h-16" />
           </div>
         </div>
       </div>

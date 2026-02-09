@@ -9,6 +9,7 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 
 ## Features
 
+- **Web Dashboard**: Intuitive web interface for easy configuration and management.
 - **Automatic Code Detection**: Checks for new redemption codes every 5 minutes.
 - **Forum Thread Support**: Configure dedicated permanent threads for each game in forum channels.
 - **Flexible Code Delivery**: Send codes to main channel, forum threads, or both.
@@ -35,6 +36,10 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 - `/setlang` - Set the bot language for this server (English/Vietnamese/Japanese) (**Admin only**).
 - `/checkchannels` - Check and validate notification channels (**Admin only**).
 - `/deletesetup` - Delete all bot configuration for this server (**Admin only**).
+- `/dashboard` - Get the link to the web dashboard for easier configuration.
+- `/livestreamcodesetup` - Configure the livestream code tracking system (**Admin only**).
+
+> **💡 Tip**: Why type commands? You can configure everything easily using the [Web Dashboard](http://localhost:3000) (if enabled on the bot hosting). Use `/dashboard` to get the link!
 
 **📱 Universal Commands** (work in both servers and DMs):
 - `/listcodes` - List all active codes for a selected game.
@@ -58,22 +63,40 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
    git clone https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot.git
    cd HoYo_Code_Sender_Discord_Bot
 ```
-2. **Install dependencies:**
+2. **Install dependencies (Bot):**
 ```bash
    npm install
 ```
-3. **Configure environment variables:**
+3. **Install dependencies (Dashboard):**
+```bash
+   cd dashboard
+   npm install
+   cd ..
+```
+4. **Configure environment variables:**
 Create a .env file in the root directory and add the following:
 ```env
    DISCORD_TOKEN=your_discord_bot_token
    MONGODB_URI=your_mongodb_connection_string
    CLIENT_ID=your_discord_client_id
    OWNER_ID=your_id_in_discord
+   # Dashboard URL (optional, for development)
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
-Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord_client_id with your actual credentials. 4. **Run the bot:**
+Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord_client_id with your actual credentials.
+
+5. **Run the bot:**
  ```bash
  node index.js
  ```
+
+6. **Run the Dashboard (optional):**
+Open a new terminal, navigate to the dashboard folder, and start the development server:
+```bash
+cd dashboard
+npm run dev
+```
+The dashboard will be available at `http://localhost:3000`.
 
 For production deployment, see the [Deployment Guide](DEPLOYMENT.md) for detailed instructions including Docker, PM2, and reverse proxy configuration.
 

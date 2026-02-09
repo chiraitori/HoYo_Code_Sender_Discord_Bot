@@ -19,7 +19,6 @@ interface GameData {
 }
 
 export default function GameShowcase() {
-  // Helper function to get game ID from name
   const getGameId = (gameName: string): 'genshin' | 'hsr' | 'zzz' => {
     switch (gameName) {
       case 'Genshin Impact': return 'genshin';
@@ -33,7 +32,7 @@ export default function GameShowcase() {
     {
       name: 'Genshin Impact',
       emoji: '⚔️',
-      gradient: 'from-purple-300 to-purple-100',
+      gradient: 'from-violet-500/20 to-violet-800/20',
       description: 'Explore the magical world of Teyvat and collect Primogems with exclusive codes',
       codes: [],
       redeemUrl: 'https://genshin.hoyoverse.com/en/gift'
@@ -41,7 +40,7 @@ export default function GameShowcase() {
     {
       name: 'Honkai: Star Rail',
       emoji: '🚂',
-      gradient: 'from-purple-100 to-purple-300',
+      gradient: 'from-blue-500/20 to-cyan-500/20',
       description: 'Journey across the galaxy and earn Stellar Jade with special redemption codes',
       codes: [],
       redeemUrl: 'https://hsr.hoyoverse.com/gift'
@@ -49,7 +48,7 @@ export default function GameShowcase() {
     {
       name: 'Zenless Zone Zero',
       emoji: '🏙️',
-      gradient: 'from-purple-300 to-purple-500',
+      gradient: 'from-pink-500/20 to-red-500/20',
       description: 'Dive into New Eridu and earn Polychrome with exclusive redemption codes',
       codes: [],
       redeemUrl: 'https://zenless.hoyoverse.com/redemption'
@@ -66,7 +65,6 @@ export default function GameShowcase() {
   useEffect(() => {
     const fetchGameCodes = async () => {
       try {
-        // Fetch from dashboard's own API routes
         const gameEndpoints = [
           { id: 'genshin', url: '/api/codes/genshin' },
           { id: 'hsr', url: '/api/codes/hsr' },
@@ -106,7 +104,6 @@ export default function GameShowcase() {
     };
 
     fetchGameCodes();
-    // Refresh every 5 minutes
     const interval = setInterval(fetchGameCodes, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -116,11 +113,13 @@ export default function GameShowcase() {
     const latestCode = activeCodes[0];
 
     return (
-      <div className="group relative bg-gradient-to-br from-purple-800/40 to-purple-700/20 backdrop-blur-sm border border-purple-300/20 rounded-3xl p-8 hover:from-purple-700/50 hover:to-purple-600/30 transition-all duration-500 hover:scale-105 hover:shadow-2xl hover:shadow-purple-300/20 overflow-hidden">
+      <div className="group relative glass-panel rounded-3xl p-8 transition-all duration-500 hover:scale-105 hover:shadow-2xl overflow-hidden hover:border-violet-400/30">
+        <div className={`absolute inset-0 bg-gradient-to-br ${game.gradient} opacity-50 group-hover:opacity-100 transition-opacity duration-500`}></div>
+
         {/* Background decoration */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-4 right-4 opacity-50">
-            <GameIcon gameId={getGameId(game.name)} size={96} />
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute top-4 right-4 opacity-50 transform rotate-12 group-hover:rotate-0 transition-transform duration-500">
+            <GameIcon gameId={getGameId(game.name)} size={120} />
           </div>
         </div>
 
@@ -128,47 +127,46 @@ export default function GameShowcase() {
           {/* Game header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
-              <div className="group-hover:scale-110 transition-transform duration-300">
+              <div className="group-hover:scale-110 transition-transform duration-300 drop-shadow-lg">
                 <GameIcon gameId={getGameId(game.name)} size={64} />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-purple-50">{game.name}</h3>
+                <h3 className="text-2xl font-black text-white">{game.name}</h3>
                 <div className="flex items-center space-x-2 mt-1">
-                  <span className="text-purple-100/80 text-sm">
+                  <span className="text-violet-200 text-sm font-medium">
                     {activeCodes.length} active codes
                   </span>
-                  <div className={`w-2 h-2 rounded-full ${activeCodes.length > 0 ? 'bg-green-400' : 'bg-gray-400'} animate-pulse`}></div>
+                  <div className={`w-2 h-2 rounded-full ${activeCodes.length > 0 ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-gray-400'} animate-pulse`}></div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Description */}
-          <p className="text-purple-100/70 mb-6 leading-relaxed">
+          <p className="text-violet-100/80 mb-6 leading-relaxed font-medium">
             {game.description}
           </p>
 
           {/* Latest code preview */}
           {latestCode ? (
-            <div className="bg-purple-900/50 border border-purple-300/30 rounded-xl p-4 mb-6">
+            <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-xl p-4 mb-6 group-hover:bg-black/40 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-purple-100/60 mb-1">Latest Code</div>
-                  <code className="text-lg font-mono font-bold text-purple-100 bg-purple-800/50 px-3 py-1 rounded-lg">
+                  <div className="text-xs uppercase tracking-wider text-violet-300 mb-1 font-bold">Latest Code</div>
+                  <code className="text-xl font-mono font-black text-white tracking-wide">
                     {latestCode.code}
                   </code>
                 </div>
                 <button
                   onClick={() => navigator.clipboard.writeText(latestCode.code)}
-                  className="bg-gradient-to-r from-purple-300 to-purple-100 text-purple-900 px-3 py-2 rounded-lg font-medium hover:from-purple-100 hover:to-purple-300 transition-all duration-300"
+                  className="glass-button text-white px-4 py-2 rounded-lg font-bold text-sm"
                 >
-                  📋 Copy
+                  COPY
                 </button>
               </div>
             </div>
           ) : (
-            <div className="bg-purple-900/30 border border-purple-300/20 rounded-xl p-4 mb-6 text-center">
-              <div className="text-purple-100/50">
+            <div className="bg-black/20 border border-white/5 rounded-xl p-4 mb-6 text-center">
+              <div className="text-violet-300/50 font-medium">
                 {!isMounted || loading ? '🔄 Loading codes...' : '📭 No active codes available'}
               </div>
             </div>
@@ -180,19 +178,19 @@ export default function GameShowcase() {
               href={game.redeemUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 bg-gradient-to-r from-purple-300 to-purple-100 text-purple-900 py-3 px-4 rounded-xl font-bold text-center hover:from-purple-100 hover:to-purple-300 transition-all duration-300 hover:scale-105"
+              className="flex-1 bg-white text-violet-900 py-3 px-4 rounded-xl font-black text-center hover:bg-violet-50 transition-colors duration-300 shadow-lg hover:shadow-xl"
             >
-              🎁 Redeem Codes
+              REDEEM
             </a>
             <a
               href={`/codes?game=${game.name === 'Genshin Impact' ? 'genshin-impact' :
-                  game.name === 'Honkai: Star Rail' ? 'honkai-star-rail' :
-                    game.name === 'Zenless Zone Zero' ? 'zenless-zone-zero' :
-                      game.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+                game.name === 'Honkai: Star Rail' ? 'honkai-star-rail' :
+                  game.name === 'Zenless Zone Zero' ? 'zenless-zone-zero' :
+                    game.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
                 }`}
-              className="border-2 border-purple-300/50 text-purple-100 py-3 px-4 rounded-xl font-bold text-center hover:bg-purple-100/10 hover:border-purple-300 transition-all duration-300"
+              className="glass-button flex-1 text-white py-3 px-4 rounded-xl font-bold text-center"
             >
-              📋 View All
+              VIEW ALL
             </a>
           </div>
         </div>
@@ -201,19 +199,14 @@ export default function GameShowcase() {
   };
 
   return (
-    <div className="py-20 px-4" style={{ background: 'transparent' }}>
+    <div className="py-20 px-4 relative">
       <div className="container mx-auto max-w-7xl">
         {/* Section header */}
         <div className="text-center mb-16">
-          <h2 className="text-5xl font-black mb-6" style={{
-            backgroundImage: `linear-gradient(to right, rgb(213, 203, 225), rgb(154, 145, 193))`,
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            color: 'transparent'
-          }}>
-            Supported Games
+          <h2 className="text-5xl font-black mb-6">
+            <span className="text-gradient">Supported Games</span>
           </h2>
-          <p className="text-xl max-w-3xl mx-auto" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
+          <p className="text-xl max-w-3xl mx-auto text-violet-200/80 font-medium">
             Get the latest redemption codes for all your favorite HoYoverse games,
             delivered instantly to your Discord server
           </p>
@@ -227,26 +220,19 @@ export default function GameShowcase() {
         </div>
 
         {/* CTA section */}
-        <div className="mt-16 text-center">
-          <div className="backdrop-blur-sm border rounded-3xl p-8" style={{
-            background: 'var(--gradient-card)',
-            borderColor: 'rgba(111, 98, 157, 0.3)'
-          }}>
-            <h3 className="text-3xl font-bold mb-4" style={{ color: 'rgb(213, 203, 225)' }}>
+        <div className="mt-20 text-center">
+          <div className="glass-panel border-white/10 rounded-[2.5rem] p-12 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+            <h3 className="text-3xl md:text-4xl font-black mb-4 text-white">
               Ready to never miss a code again?
             </h3>
-            <p className="mb-6 max-w-2xl mx-auto" style={{ color: 'rgba(213, 203, 225, 0.8)' }}>
-              Add HoYo Code Sender to your Discord server and let your members know about new codes automatically
+            <p className="mb-8 max-w-2xl mx-auto text-lg text-violet-200">
+              Add HoYoverse Code Sender to your Discord server and let your members know about new codes automatically
             </p>
             <a
               href={`https://discord.com/api/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID}&permissions=8&scope=bot%20applications.commands`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-3 px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-xl"
-              style={{
-                background: `linear-gradient(to right, rgb(111, 98, 157), rgb(154, 145, 193))`,
-                color: 'rgb(213, 203, 225)'
-              }}
             >
               <span>🚀 Add to Discord</span>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -30,14 +30,12 @@ app.set('trust proxy', true);
 // Rate limiting middleware
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    max: 1000, // increased from 100
+    standardHeaders: true,
+    legacyHeaders: false,
     message: 'Too many requests from this IP, please try again after 15 minutes',
-    // Use a more robust key generator that works well with proxies
-    keyGenerator: (req) => {
-        return req.ip; // This will use the real IP when trust proxy is enabled
-    }
+    keyGenerator: (req) => req.ip,
+    skip: (req) => true // Bypass rate limiting for now (as requested)
 });
 
 // Apply rate limiting to all routes
@@ -46,14 +44,12 @@ app.use(limiter);
 // API-specific stricter rate limiter
 const apiLimiter = rateLimit({
     windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 30, // limit each IP to 30 requests per 5 minutes
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: 'Too many API requests from this IP, please try again after 5 minutes',
-    // Use a more robust key generator that works well with proxies
-    keyGenerator: (req) => {
-        return req.ip; // This will use the real IP when trust proxy is enabled
-    }
+    keyGenerator: (req) => req.ip,
+    skip: (req) => true // Bypass rate limiting for now (as requested)
 });
 
 // Apply the API-specific limiter to API routes
@@ -301,7 +297,8 @@ app.get('/api/server/:serverId/config', async (req, res) => {
                 genshinRole: null,
                 hsrRole: null,
                 zzzRole: null,
-                channel: null
+                channel: null,
+                livestreamChannel: null
             });
         }
 
@@ -310,7 +307,8 @@ app.get('/api/server/:serverId/config', async (req, res) => {
             genshinRole: config.genshinRole,
             hsrRole: config.hsrRole,
             zzzRole: config.zzzRole,
-            channel: config.channel
+            channel: config.channel,
+            livestreamChannel: config.livestreamChannel || null
         });
     } catch (error) {
         console.error('Error fetching server config:', error);
@@ -335,7 +333,8 @@ app.put('/api/server/:serverId/config', async (req, res) => {
                 genshinRole: null,
                 hsrRole: null,
                 zzzRole: null,
-                channel: null
+                channel: null,
+                livestreamChannel: null
             });
         }
 
@@ -352,6 +351,9 @@ app.put('/api/server/:serverId/config', async (req, res) => {
         if (updateData.hasOwnProperty('channel')) {
             config.channel = updateData.channel;
         }
+        if (updateData.hasOwnProperty('livestreamChannel')) {
+            config.livestreamChannel = updateData.livestreamChannel;
+        }
 
         await config.save();
 
@@ -360,11 +362,52 @@ app.put('/api/server/:serverId/config', async (req, res) => {
             genshinRole: config.genshinRole,
             hsrRole: config.hsrRole,
             zzzRole: config.zzzRole,
-            channel: config.channel
+            channel: config.channel,
+            livestreamChannel: config.livestreamChannel
         });
     } catch (error) {
         console.error('Error updating server config:', error);
         res.status(500).json({ error: 'Failed to update server config' });
+    }
+});
+
+// Language API Endpoints
+app.get('/api/server/:serverId/language', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        const Language = require('./models/Language');
+        const langConfig = await Language.findOne({ guildId: serverId });
+
+        res.json({
+            guildId: serverId,
+            language: langConfig ? langConfig.language : 'en'
+        });
+    } catch (error) {
+        console.error('Error fetching server language:', error);
+        res.status(500).json({ error: 'Failed to fetch server language' });
+    }
+});
+
+app.put('/api/server/:serverId/language', async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        const { language } = req.body;
+
+        if (!['en', 'jp', 'vi'].includes(language)) {
+            return res.status(400).json({ error: 'Invalid language code' });
+        }
+
+        const Language = require('./models/Language');
+        await Language.findOneAndUpdate(
+            { guildId: serverId },
+            { language },
+            { upsert: true }
+        );
+
+        res.json({ success: true, language });
+    } catch (error) {
+        console.error('Error updating server language:', error);
+        res.status(500).json({ error: 'Failed to update server language' });
     }
 });
 
