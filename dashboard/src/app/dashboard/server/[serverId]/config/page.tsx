@@ -273,7 +273,7 @@ export default function ServerConfiguration() {
                                 <div key={game.id}>
                                     <CustomSelect
                                         label={game.label}
-                                        // @ts-ignore
+                                        // @ts-expect-error - Dynamic field access on config object
                                         value={config?.[game.field] || ''}
                                         onChange={(val) => updateRole(game.id as any, val)}
                                         options={roleOptions}
