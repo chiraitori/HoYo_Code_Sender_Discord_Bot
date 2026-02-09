@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Interface for external API code response
+// Interface for hoyo-codes.seria.moe API code response
 interface ExternalCode {
   code: string;
   isExpired?: boolean;
   timestamp?: string;
 }
 
-// Interface for our transformed code
+// Interface for a transformed game code
 interface GameCode {
   code: string;
   isExpired: boolean;
