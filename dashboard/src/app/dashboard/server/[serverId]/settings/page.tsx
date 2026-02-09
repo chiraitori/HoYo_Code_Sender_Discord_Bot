@@ -348,10 +348,10 @@ export default function ServerSettingsPage() {
                                         </div>
 
                                         <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${
-                                            // @ts-ignore
+                                            // @ts-expect-error - Dynamic property access on settings object
                                             settings.favoriteGames.games[game.id] ? 'bg-yellow-500 border-yellow-500' : 'border-white/20 group-hover:border-white/40'
                                             }`}>
-                                            {/* @ts-ignore */}
+                                            {/* @ts-expect-error - Dynamic property access on settings object */}
                                             {settings.favoriteGames.games[game.id] && <span className="text-black text-xs font-bold">✓</span>}
                                         </div>
                                     </div>

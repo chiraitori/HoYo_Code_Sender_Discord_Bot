@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Interface for hoyo-codes.seria.moe API code response
+interface ExternalCode {
+  code: string;
+  isExpired?: boolean;
+  timestamp?: string;
+}
+
+// Interface for a transformed game code
+interface GameCode {
+  code: string;
+  isExpired: boolean;
+  timestamp: string;
+}
+
 // Game mapping for API compatibility
 const gameMapping: Record<string, string> = {
   'genshin': 'genshin',
@@ -48,7 +62,7 @@ export async function GET(
     console.log(`[API] Received ${data.codes?.length || 0} codes for ${game}`);
     
     // Transform the response to match our interface
-    const codes = (data.codes || []).map((code: any) => ({
+    const codes = (data.codes || []).map((code: ExternalCode): GameCode => ({
       code: code.code,
       isExpired: code.isExpired || false,
       timestamp: code.timestamp || new Date().toISOString()
@@ -59,8 +73,8 @@ export async function GET(
       codes: codes,
       lastUpdated: new Date().toISOString(),
       total: codes.length,
-      active: codes.filter((c: any) => !c.isExpired).length,
-      expired: codes.filter((c: any) => c.isExpired).length
+      active: codes.filter((c: GameCode) => !c.isExpired).length,
+      expired: codes.filter((c: GameCode) => c.isExpired).length
     });
 
   } catch (error) {
