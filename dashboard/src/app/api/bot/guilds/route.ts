@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createBotApiUrl, createBotApiOptions } from '@/utils/botApiUrl';
 
+// Discord API Guild interface
+interface DiscordGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  permissions: string;
+}
+
+// Bot API Guild interface
+interface BotGuild {
+  id: string;
+  name?: string;
+}
+
+// Enhanced Guild interface with bot presence info
+interface EnhancedGuild extends DiscordGuild {
+  botPresent: boolean;
+  canInvite: boolean;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userCookie = request.cookies.get('discord_user');
@@ -41,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter user guilds where the user has management permissions
-    const managementGuilds = userGuilds.filter((guild: any) => {
+    const managementGuilds = userGuilds.filter((guild: DiscordGuild) => {
       const permissions = BigInt(guild.permissions);
       const ADMINISTRATOR = BigInt(8); // 1 << 3
       const MANAGE_GUILD = BigInt(32); // 1 << 5
@@ -54,8 +75,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Combine data to show bot presence
-    const enhancedGuilds = managementGuilds.map((guild: any) => {
-      const botPresent = botGuilds.some((botGuild: any) => botGuild.id === guild.id);
+    const enhancedGuilds = managementGuilds.map((guild: DiscordGuild): EnhancedGuild => {
+      const botPresent = botGuilds.some((botGuild: BotGuild) => botGuild.id === guild.id);
       return {
         ...guild,
         botPresent,
