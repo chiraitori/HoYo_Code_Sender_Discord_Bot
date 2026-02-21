@@ -18,9 +18,9 @@ module.exports = {
         description: 'Thanks for adding me to your server! I\'ll help you get HoYoverse game codes automatically.',
         setupHeader: '🔧 Quick Setup Guide',
         setupSteps: '1. Run `/setup` to configure notification channel & roles\n' +
-                    '2. (Optional) Use `/favgames` to select which games to receive notifications for\n' +
-                    '3. (Optional) Change the language with `/setlang`\n\n' +
-                    'That\'s it! I\'ll now automatically send new game codes to your configured channel.',
+            '2. (Optional) Use `/favgames` to select which games to receive notifications for\n' +
+            '3. (Optional) Change the language with `/setlang`\n\n' +
+            'That\'s it! I\'ll now automatically send new game codes to your configured channel.',
         helpTip: 'For more information and tips, run `/help` anytime.',
         footer: 'HoYo Code Sender - Get your game codes automatically!',
         dmInfo: 'I couldn\'t find a suitable channel to send the welcome message in your server, so I\'m sending it to you directly.'
@@ -42,7 +42,7 @@ module.exports = {
             },
             loading: 'Loading codes...',
             page: 'Page'
-        },        
+        },
         setup: {
             description: 'Setup roles and channel for code notifications',
             genshinRole: 'Role for Genshin Impact notifications',
@@ -141,30 +141,38 @@ module.exports = {
             description: 'HoYo Code Sender automatically notifies your server about new redemption codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero.',
             setupHeader: '📌 Initial Setup',
             setupSteps: '1. Run `/setup` to configure:\n' +
-                        '   • Choose a notification channel\n' +
-                        '   • Set roles for each game (to mention when codes arrive)\n' +
-                        '   • Enable/disable automatic code sending\n\n' +
-                        '2. Customize your experience:\n' +
-                        '   • `/favgames` - Choose which games to receive codes for\n' +
-                        '   • `/setlang` - Change the bot\'s language\n' +
-                        '   • `/toggleautosend` - Enable/disable automatic code notifications',
+                '   • Choose a notification channel\n' +
+                '   • Set roles for each game (to mention when codes arrive)\n' +
+                '   • Enable/disable automatic code sending\n\n' +
+                '2. Customize your experience:\n' +
+                '   • `/favgames` - Choose which games to receive codes for\n' +
+                '   • `/setlang` - Change the bot\'s language\n' +
+                '   • `/toggleautosend` - Enable/disable automatic code notifications',
             commandsHeader: '📋 Available Commands',
             commandsList: '• `/setup` - Initial bot setup\n' +
-                        '• `/favgames` - Choose which games to receive codes for\n' +
-                        '• `/toggleautosend` - Turn automatic notifications on/off\n' +
-                        '• `/listcodes` - Show active codes for a game\n' +
-                        '• `/redeem` - Send specific codes to your channel\n' +
-                        '• `/demoautosend` - Send demo codes to test notifications\n' +
-                        '• `/setlang` - Change bot language (English/Vietnamese/Japanese)\n' +
-                        '• `/help` - Show this help message\n' +
-                        '• `/about` - Information about the bot',
-            tipsHeader: '💡 Tips & Tricks',            
+                '• `/deletesetup` - Delete server configuration\n' +
+                '• `/favgames` - Choose which games to receive codes for\n' +
+                '• `/toggleautosend` - Turn automatic notifications on/off\n' +
+                '• `/autosendoptions` - Configure auto-send options\n' +
+                '• `/listcodes` - Show active codes for a game\n' +
+                '• `/postcode` - Send specific codes to your channel\n' +
+                '• `/demoautosend` - Send demo codes to test notifications\n' +
+                '• `/setupthread` - Setup forum threads for code notifications\n' +
+                '• `/checkchannels` - Check configured notification channels\n' +
+                '• `/livestreamcodesetup` - Configure livestream code channel\n' +
+                '• `/setlang` - Change bot language (English/Vietnamese/Japanese)\n' +
+                '• `/dashboard` - Open the web dashboard\n' +
+                '• `/vote` - Vote for the bot on Top.gg\n' +
+                '• `/help` - Show this help message\n' +
+                '• `/about` - Information about the bot',
+            tipsHeader: '💡 Tips & Tricks',
             tipsList: '• The bot checks for new codes every 5 minutes\n' +
-                    '• You can manually post codes with `/redeem`\n' +
-                    '• After setup, use `/demoautosend` to test the notification system\n' +
-                    '• Use `/favgames` to filter notifications by game\n' +
-                    '• Set different roles for each game type\n' +
-                    '• Server admins can run `/setup` again to change settings',
+                '• You can manually post codes with `/postcode`\n' +
+                '• After setup, use `/demoautosend` to test the notification system\n' +
+                '• Use `/favgames` to filter notifications by game\n' +
+                '• Set different roles for each game type\n' +
+                '• Use `/livestreamcodesetup` to set a separate channel for livestream codes\n' +
+                '• Server admins can run `/setup` again to change settings',
             footer: 'HoYo Code Sender - Get HoYoverse game codes automatically!',
             error: 'An error occurred while loading help information.'
         },
@@ -257,7 +265,7 @@ module.exports = {
         noConfig: 'Error: Channel not configured for this server',
         rateLimit: 'Too many requests. Please try again later.',
         dmNotAllowed: '❌ The `/{command}` command can only be used in Discord servers, not in direct messages.\n\n' +
-                     'Please use this command in a server where the HoYo Code Sender bot is installed.'
+            'Please use this command in a server where the HoYo Code Sender bot is installed.'
     },
     system: {
         startup: 'Bot is starting up...',

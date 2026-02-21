@@ -18,9 +18,9 @@ module.exports = {
         description: 'Cảm ơn đã thêm tôi vào máy chủ của bạn! Tôi sẽ giúp bạn nhận mã code game HoYoverse tự động.',
         setupHeader: '🔧 Hướng dẫn cài đặt nhanh',
         setupSteps: '1. Sử dụng lệnh `/setup` để cấu hình kênh thông báo & vai trò\n' +
-                   '2. (Tùy chọn) Sử dụng `/favgames` để chọn game bạn muốn nhận mã code\n' +
-                   '3. (Tùy chọn) Thay đổi ngôn ngữ với `/setlang`\n\n' +
-                   'Chỉ vậy thôi! Tôi sẽ tự động gửi mã code game mới đến kênh đã cấu hình.',
+            '2. (Tùy chọn) Sử dụng `/favgames` để chọn game bạn muốn nhận mã code\n' +
+            '3. (Tùy chọn) Thay đổi ngôn ngữ với `/setlang`\n\n' +
+            'Chỉ vậy thôi! Tôi sẽ tự động gửi mã code game mới đến kênh đã cấu hình.',
         helpTip: 'Để biết thêm thông tin và mẹo, hãy sử dụng lệnh `/help` bất kỳ lúc nào.',
         footer: 'HoYo Code Sender - Nhận mã code game tự động!',
         dmInfo: 'Tôi không thể tìm thấy kênh phù hợp để gửi tin nhắn chào mừng trong máy chủ của bạn, vì vậy tôi đang gửi trực tiếp cho bạn.'
@@ -42,7 +42,7 @@ module.exports = {
             newCodes: 'Mã code mới cho {game}!',
             noReward: 'Chưa có thông tin phần thưởng',
             page: 'Trang'
-        },       
+        },
         setup: {
             description: 'Thiết lập role và kênh cho thông báo code',
             genshinRole: 'Role cho thông báo Genshin Impact',
@@ -141,30 +141,38 @@ module.exports = {
             description: 'HoYo Code Sender tự động thông báo cho máy chủ của bạn về các mã đổi thưởng mới cho Genshin Impact, Honkai: Star Rail và Zenless Zone Zero.',
             setupHeader: '📌 Cài đặt ban đầu',
             setupSteps: '1. Sử dụng `/setup` để cấu hình:\n' +
-                       '   • Chọn kênh thông báo\n' +
-                       '   • Đặt vai trò cho mỗi game (để nhắc đến khi có mã mới)\n' +
-                       '   • Bật/tắt tự động gửi mã\n\n' +
-                       '2. Tùy chỉnh trải nghiệm của bạn:\n' +
-                       '   • `/favgames` - Chọn game bạn muốn nhận mã\n' +
-                       '   • `/setlang` - Thay đổi ngôn ngữ của bot\n' +
-                       '   • `/toggleautosend` - Bật/tắt thông báo mã tự động',
-            commandsHeader: '📋 Các lệnh có sẵn',            
+                '   • Chọn kênh thông báo\n' +
+                '   • Đặt vai trò cho mỗi game (để nhắc đến khi có mã mới)\n' +
+                '   • Bật/tắt tự động gửi mã\n\n' +
+                '2. Tùy chỉnh trải nghiệm của bạn:\n' +
+                '   • `/favgames` - Chọn game bạn muốn nhận mã\n' +
+                '   • `/setlang` - Thay đổi ngôn ngữ của bot\n' +
+                '   • `/toggleautosend` - Bật/tắt thông báo mã tự động',
+            commandsHeader: '📋 Các lệnh có sẵn',
             commandsList: '• `/setup` - Cài đặt bot ban đầu\n' +
-                         '• `/favgames` - Chọn game bạn muốn nhận mã\n' +
-                         '• `/toggleautosend` - Bật/tắt thông báo tự động\n' +
-                         '• `/listcodes` - Hiển thị mã đang hoạt động cho một game\n' +
-                         '• `/redeem` - Gửi mã cụ thể đến kênh của bạn\n' +
-                         '• `/demoautosend` - Gửi mã code demo để kiểm tra thông báo\n' +
-                         '• `/setlang` - Thay đổi ngôn ngữ bot (Tiếng Anh/Tiếng Việt/Tiếng Nhật)\n' +
-                         '• `/help` - Hiển thị trợ giúp này\n' +
-                         '• `/about` - Thông tin về bot',
-            tipsHeader: '💡 Mẹo & thủ thuật',            
+                '• `/deletesetup` - Xóa cấu hình máy chủ\n' +
+                '• `/favgames` - Chọn game bạn muốn nhận mã\n' +
+                '• `/toggleautosend` - Bật/tắt thông báo tự động\n' +
+                '• `/autosendoptions` - Cấu hình tùy chọn tự động gửi\n' +
+                '• `/listcodes` - Hiển thị mã đang hoạt động cho một game\n' +
+                '• `/postcode` - Gửi mã cụ thể đến kênh của bạn\n' +
+                '• `/demoautosend` - Gửi mã code demo để kiểm tra thông báo\n' +
+                '• `/setupthread` - Thiết lập thread diễn đàn cho thông báo mã\n' +
+                '• `/checkchannels` - Kiểm tra các kênh thông báo đã cấu hình\n' +
+                '• `/livestreamcodesetup` - Cấu hình kênh mã livestream\n' +
+                '• `/setlang` - Thay đổi ngôn ngữ bot (Tiếng Anh/Tiếng Việt/Tiếng Nhật)\n' +
+                '• `/dashboard` - Mở bảng điều khiển web\n' +
+                '• `/vote` - Bình chọn cho bot trên Top.gg\n' +
+                '• `/help` - Hiển thị trợ giúp này\n' +
+                '• `/about` - Thông tin về bot',
+            tipsHeader: '💡 Mẹo & thủ thuật',
             tipsList: '• Bot kiểm tra mã mới mỗi 5 phút\n' +
-                     '• Bạn có thể đăng mã thủ công với `/redeem`\n' +
-                     '• Sau khi thiết lập, sử dụng `/demoautosend` để kiểm tra hệ thống thông báo\n' +
-                     '• Sử dụng `/favgames` để lọc thông báo theo game\n' +
-                     '• Đặt vai trò khác nhau cho từng loại game\n' +
-                     '• Quản trị viên máy chủ có thể chạy `/setup` lại để thay đổi cài đặt',
+                '• Bạn có thể đăng mã thủ công với `/postcode`\n' +
+                '• Sau khi thiết lập, sử dụng `/demoautosend` để kiểm tra hệ thống thông báo\n' +
+                '• Sử dụng `/favgames` để lọc thông báo theo game\n' +
+                '• Đặt vai trò khác nhau cho từng loại game\n' +
+                '• Sử dụng `/livestreamcodesetup` để đặt kênh riêng cho mã livestream\n' +
+                '• Quản trị viên máy chủ có thể chạy `/setup` lại để thay đổi cài đặt',
             footer: 'HoYo Code Sender - Nhận mã game HoYoverse tự động!',
             error: 'Đã xảy ra lỗi khi hiển thị trợ giúp.'
         },
@@ -262,7 +270,7 @@ module.exports = {
         noConfig: 'Lỗi: Kênh chưa được cấu hình cho máy chủ này',
         rateLimit: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
         dmNotAllowed: '❌ Lệnh `/{command}` chỉ có thể được sử dụng trong máy chủ Discord, không phải trong tin nhắn riêng.\n\n' +
-                     'Vui lòng sử dụng lệnh này trong máy chủ có cài đặt bot HoYo Code Sender.'
+            'Vui lòng sử dụng lệnh này trong máy chủ có cài đặt bot HoYo Code Sender.'
     },
     system: {
         startup: 'Bot đang khởi động...',
