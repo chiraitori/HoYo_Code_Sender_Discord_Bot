@@ -9,10 +9,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('livestreamcodesetup')
         .setDescription('Configure separate channel for livestream codes')
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('Channel for livestream code notifications (leave empty to use main channel)')
-                .setRequired(false))
         .addStringOption(option =>
             option.setName('action')
                 .setDescription('Action to perform')
@@ -21,7 +17,11 @@ module.exports = {
                     { name: 'Remove (use main channel)', value: 'remove' },
                     { name: 'View Current', value: 'view' }
                 )
-                .setRequired(true)),
+                .setRequired(true))
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('Channel for livestream code notifications (leave empty to use main channel)')
+                .setRequired(false)),
 
     async execute(interaction) {
         // Check if command is used in DMs
