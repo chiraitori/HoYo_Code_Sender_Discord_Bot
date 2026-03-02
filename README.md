@@ -7,11 +7,11 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 ![Discord Bots](https://top.gg/api/widget/1124167011585511516.svg)
 
 
->If you guy want to hosting plz hosting seprate the dashboard hosting and the bot hosting
- I recomend for self-hosting services like:
- Dashboard: [Vercel](https://vercel.com/), [Netlify](https://netlify.com/) or just buy a VPS for hosting like for cheap like [OVH](https://ovhcloud.com/)
- Discord Bot: [Render](http://render.com/) or [OVH](https://ovhcloud.com/)
- If you guy have some error with env can dm on discord for more info
+>- If you guy want to hosting plz hosting seprate the dashboard hosting and the bot hosting
+ - I recomend for self-hosting services like:
+ - Dashboard: [Vercel](https://vercel.com/), [Netlify](https://netlify.com/) or just buy a VPS for hosting like for cheap like [OVH](https://ovhcloud.com/)
+ - Discord Bot: [Render](http://render.com/) or [OVH](https://ovhcloud.com/)
+ - If you guy have some error with env can dm on discord for more info
 
 ## Features
 
