@@ -1,5 +1,5 @@
 // commands/favgames.js
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
@@ -41,7 +41,7 @@ module.exports = {
                     'commands.favgames.noPermission',
                     interaction.guildId
                 );
-                return interaction.reply({ content: noPermMessage, ephemeral: true });
+                return interaction.reply({ content: noPermMessage, flags: MessageFlags.Ephemeral });
             }
 
             // Get loading message
@@ -50,7 +50,7 @@ module.exports = {
                 interaction.guildId
             );
             
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const enableFilter = interaction.options.getBoolean('enable_filter');
             
@@ -156,10 +156,16 @@ module.exports = {
                 interaction.guildId
             ) || 'An error occurred while setting favorite games.';
 
-            if (interaction.replied || interaction.deferred) {
-                await interaction.editReply({ content: errorMessage });
-            } else {
-                await interaction.reply({ content: errorMessage, ephemeral: true });
+            try {
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.editReply({ content: errorMessage });
+                } else {
+                    await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+                }
+            } catch (responseError) {
+                if (responseError?.code !== 40060) {
+                    throw responseError;
+                }
             }
         }
     }

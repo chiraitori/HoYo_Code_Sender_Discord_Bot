@@ -1,6 +1,6 @@
 // TODO: refactor this mess before Ganyu gets disappointed
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType, MessageFlags } = require('discord.js');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -721,7 +721,7 @@ mongoose.connect(process.env.MONGODB_URI)
     })
     .catch(err => console.error('MongoDB connection error:', err));
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     const shardIds = Array.from(client.ws.shards.keys());
     console.log(`Logged in as ${client.user.tag} | Shards: [${shardIds.join(', ')}]`);
     try {
@@ -821,13 +821,19 @@ client.on('interactionCreate', async interaction => {
                 console.error('Command execution error:', error);
                 const content = {
                     content: 'An error occurred while executing this command.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 };
 
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply(content);
-                } else {
-                    await interaction.reply(content);
+                try {
+                    if (interaction.deferred || interaction.replied) {
+                        await interaction.editReply(content);
+                    } else {
+                        await interaction.reply(content);
+                    }
+                } catch (responseError) {
+                    if (responseError?.code !== 40060) {
+                        throw responseError;
+                    }
                 }
             }
         }
