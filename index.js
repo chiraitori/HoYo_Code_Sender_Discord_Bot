@@ -616,7 +616,7 @@ console.log('✅ Environment validation completed');
 const shardCountFromEnv = Number.parseInt(process.env.SHARD_COUNT || '', 10);
 const shardCount = Number.isInteger(shardCountFromEnv) && shardCountFromEnv > 0
     ? shardCountFromEnv
-    : 'auto';
+    : undefined;
 
 const shardIdsFromEnv = (process.env.SHARD_IDS || '')
     .split(',')
@@ -624,18 +624,26 @@ const shardIdsFromEnv = (process.env.SHARD_IDS || '')
     .filter(Number.isInteger)
     .filter(id => id >= 0);
 
-const shards = shardIdsFromEnv.length > 0 ? shardIdsFromEnv : 'auto';
+const shards = shardIdsFromEnv.length > 0 ? shardIdsFromEnv : undefined;
 
-const client = new Client({
+const clientOptions = {
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         //GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
     ],
-    shards,
-    shardCount
-});
+};
+
+if (shards !== undefined) {
+    clientOptions.shards = shards;
+}
+
+if (shardCount !== undefined) {
+    clientOptions.shardCount = shardCount;
+}
+
+const client = new Client(clientOptions);
 
 client.commands = new Collection();
 
