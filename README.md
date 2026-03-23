@@ -88,6 +88,9 @@ Create a .env file in the root directory and add the following:
    OWNER_ID=your_id_in_discord
    # Dashboard URL (optional, for development)
    NEXT_PUBLIC_APP_URL=http://localhost:3000
+   # Optional sharding overrides (for advanced deployments)
+   # SHARD_COUNT=4
+   # SHARD_IDS=0,1,2,3
 ```
 Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord_client_id with your actual credentials.
 
