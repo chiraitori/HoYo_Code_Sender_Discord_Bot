@@ -613,13 +613,28 @@ Object.entries(optionalEnvVars).forEach(([varName, warning]) => {
 
 console.log('✅ Environment validation completed');
 
+const shardCountFromEnv = Number.parseInt(process.env.SHARD_COUNT || '', 10);
+const shardCount = Number.isInteger(shardCountFromEnv) && shardCountFromEnv > 0
+    ? shardCountFromEnv
+    : 'auto';
+
+const shardIdsFromEnv = (process.env.SHARD_IDS || '')
+    .split(',')
+    .map(id => Number.parseInt(id.trim(), 10))
+    .filter(Number.isInteger)
+    .filter(id => id >= 0);
+
+const shards = shardIdsFromEnv.length > 0 ? shardIdsFromEnv : 'auto';
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         //GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
-    ]
+    ],
+    shards,
+    shardCount
 });
 
 client.commands = new Collection();
