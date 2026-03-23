@@ -87,6 +87,16 @@ app.use('/api/server', authMiddleware);
 // Simple cache for API responses
 const apiCache = new Map();
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
+
+function getValidatedGuildId(rawId) {
+    if (typeof rawId !== 'string') {
+        return null;
+    }
+
+    const normalizedId = rawId.trim();
+    return DISCORD_SNOWFLAKE_REGEX.test(normalizedId) ? normalizedId : null;
+}
 
 // Helper function to get cached or fresh API data
 async function getCachedApiData(game, apiUrl) {
@@ -234,7 +244,10 @@ app.get('/api/bot/commands', async (req, res) => {
 // Individual guild info endpoint
 app.get('/api/bot/guild/:guildId', async (req, res) => {
     try {
-        const { guildId } = req.params;
+        const guildId = getValidatedGuildId(req.params.guildId);
+        if (!guildId) {
+            return res.status(400).json({ error: 'Invalid guild ID format' });
+        }
 
         if (!client || !client.isReady()) {
             return res.status(503).json({ error: 'Bot is not ready' });
@@ -286,7 +299,10 @@ app.get('/api/bot/guild/:guildId', async (req, res) => {
 // Server configuration endpoint
 app.get('/api/server/:serverId/config', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
 
         const Config = require('./models/Config');
         const config = await Config.findOne({ guildId: serverId });
@@ -319,7 +335,10 @@ app.get('/api/server/:serverId/config', async (req, res) => {
 // Update server config endpoint
 app.put('/api/server/:serverId/config', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
         const updateData = req.body;
 
         const Config = require('./models/Config');
@@ -374,7 +393,10 @@ app.put('/api/server/:serverId/config', async (req, res) => {
 // Language API Endpoints
 app.get('/api/server/:serverId/language', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
         const Language = require('./models/Language');
         const langConfig = await Language.findOne({ guildId: serverId });
 
@@ -390,7 +412,10 @@ app.get('/api/server/:serverId/language', async (req, res) => {
 
 app.put('/api/server/:serverId/language', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
         const { language } = req.body;
 
         if (!['en', 'jp', 'vi'].includes(language)) {
@@ -414,7 +439,10 @@ app.put('/api/server/:serverId/language', async (req, res) => {
 // Server settings endpoint
 app.get('/api/server/:serverId/settings', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
 
         const Settings = require('./models/Settings');
         const settings = await Settings.findOne({ guildId: serverId });
@@ -448,7 +476,10 @@ app.get('/api/server/:serverId/settings', async (req, res) => {
 // Update server settings endpoint
 app.put('/api/server/:serverId/settings', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
         const updateData = req.body;
 
         const Settings = require('./models/Settings');
@@ -501,7 +532,10 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
 // Test notification endpoint
 app.post('/api/server/:serverId/test', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
 
         const Config = require('./models/Config');
         const config = await Config.findOne({ guildId: serverId });
@@ -544,7 +578,10 @@ app.post('/api/server/:serverId/test', async (req, res) => {
 // Reset configuration endpoint
 app.post('/api/server/:serverId/reset', async (req, res) => {
     try {
-        const { serverId } = req.params;
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
 
         const Config = require('./models/Config');
         const Settings = require('./models/Settings');
@@ -627,6 +664,7 @@ const shardIdsFromEnv = (process.env.SHARD_IDS || '')
 const shards = shardIdsFromEnv.length > 0 ? shardIdsFromEnv : 'auto';
 
 const client = new Client({
+    shards: 'auto',
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
@@ -681,7 +719,8 @@ mongoose.connect(process.env.MONGODB_URI)
     .catch(err => console.error('MongoDB connection error:', err));
 
 client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}`);
+    const shardIds = Array.from(client.ws.shards.keys());
+    console.log(`Logged in as ${client.user.tag} | Shards: [${shardIds.join(', ')}]`);
     try {
         await registerCommands();
         console.log('Commands registered successfully');
