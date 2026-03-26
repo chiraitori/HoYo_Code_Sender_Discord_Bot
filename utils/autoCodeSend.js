@@ -44,8 +44,20 @@ const supportLinks = {
     banking: 'Use /about command for Vietnamese banking details'
 };
 
+// Concurrency limiter - processes promises in batches
+async function processInBatches(tasks, batchSize) {
+    const results = [];
+    for (let i = 0; i < tasks.length; i += batchSize) {
+        const batch = tasks.slice(i, i + batchSize);
+        const batchResults = await Promise.allSettled(batch.map(fn => fn()));
+        results.push(...batchResults);
+    }
+    return results;
+}
+
 async function checkAndSendNewCodes(client) {
     console.log('Starting code check process...');
+    const startTime = Date.now();
     const games = ['genshin', 'hkrpg', 'nap'];
     
     try {
@@ -65,9 +77,21 @@ async function checkAndSendNewCodes(client) {
         const languageMap = languages.reduce((map, lang) => {
             map[lang.guildId] = lang;
             return map;
-        }, {});        // Batch fetch all existing codes
+        }, {});
+
+        // Pre-populate language cache from batch-fetched data to avoid per-guild DB queries
+        for (const lang of languages) {
+            languageManager.languageCache.set(lang.guildId, {
+                language: lang.language,
+                timestamp: Date.now()
+            });
+        }
+
+        // Batch fetch all existing codes
         const allExistingCodes = await Code.find({}).lean();
-        const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));        // Fetch all games' codes in parallel
+        const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));
+
+        // Fetch all games' codes in parallel
         const gameCodeRequests = games.map(game => 
             axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`, {
                 timeout: 15000, // 15 second timeout
@@ -115,7 +139,7 @@ async function checkAndSendNewCodes(client) {
 
                 if (newCodes.length) {
                     newCodesForGames[game] = newCodes;
-                      // Prepare codes for batch save
+                    // Prepare codes for batch save
                     newCodes.forEach(codeData => {
                         codesToSave.push({
                             game: codeData.game,
@@ -125,7 +149,9 @@ async function checkAndSendNewCodes(client) {
                     });
                 }
             }
-        });        // Find codes that are no longer in API (expired)
+        });
+
+        // Find codes that are no longer in API (expired)
         // Only check expiration for games where API request was successful
         const expiredCodes = allExistingCodes.filter(code => 
             !code.isExpired && // Only check codes that aren't already marked as expired
@@ -134,7 +160,6 @@ async function checkAndSendNewCodes(client) {
         );
 
         // Find codes that were marked as expired but are now active again in API
-        // This handles cases where codes get reactivated or were falsely marked as expired
         const reactivatedCodes = allExistingCodes.filter(code => 
             code.isExpired && // Only check codes that are currently marked as expired
             !failedGames.has(code.game) && // Skip games with failed API requests
@@ -147,7 +172,9 @@ async function checkAndSendNewCodes(client) {
         // Add new codes
         if (codesToSave.length > 0) {
             operations.push(Code.insertMany(codesToSave));
-        }        // Mark expired codes
+        }
+
+        // Mark expired codes
         if (expiredCodes.length > 0) {
             const expiredCodeIds = expiredCodes.map(code => code._id);
             operations.push(
@@ -176,7 +203,8 @@ async function checkAndSendNewCodes(client) {
         } else {
             console.log('No codes to reactivate');
         }
-          // Log API status for transparency
+
+        // Log API status for transparency
         if (failedGames.size > 0) {
             console.log(`API request failed for games: ${Array.from(failedGames).join(', ')}`);
             console.log('Skipped expiration check for failed games to prevent false positives');
@@ -185,7 +213,40 @@ async function checkAndSendNewCodes(client) {
         // Execute all database operations
         if (operations.length > 0) {
             await Promise.all(operations);
-        }        // Prepare message sending for guilds with new codes
+        }
+
+        // ===== OPTIMIZED MESSAGE SENDING =====
+        // If no new codes, skip all message sending logic
+        if (Object.keys(newCodesForGames).length === 0) {
+            console.log(`Code check completed in ${Date.now() - startTime}ms. No new codes found.`);
+            return;
+        }
+
+        // Pre-build embeds per (game, language) to avoid rebuilding identical embeds for 2500+ guilds
+        const uniqueLanguages = new Set(['en']); // Always include English as default
+        for (const lang of languages) {
+            if (lang.language) uniqueLanguages.add(lang.language);
+        }
+
+        // Build embed cache: key = `${game}:${lang}` → { embed, supportMsg }
+        const embedCache = new Map();
+        
+        const embedBuildPromises = [];
+        for (const game of Object.keys(newCodesForGames)) {
+            for (const lang of uniqueLanguages) {
+                embedBuildPromises.push(
+                    buildEmbedForGameAndLang(game, lang, newCodesForGames[game])
+                        .then(result => {
+                            embedCache.set(`${game}:${lang}`, result);
+                        })
+                );
+            }
+        }
+        await Promise.all(embedBuildPromises);
+
+        console.log(`Pre-built ${embedCache.size} embed(s) for ${Object.keys(newCodesForGames).length} game(s) × ${uniqueLanguages.size} language(s)`);
+
+        // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = [];
         const guildsToCleanup = [];
 
@@ -197,7 +258,6 @@ async function checkAndSendNewCodes(client) {
             // Check if bot is still in the guild
             const guild = client.guilds.cache.get(guildId);
             if (!guild) {
-                // Bot was kicked/removed from guild, mark for cleanup
                 guildsToCleanup.push(guildId);
                 continue;
             }
@@ -216,7 +276,12 @@ async function checkAndSendNewCodes(client) {
 
                 const codes = newCodesForGames[game];
                 if (codes.length > 0) {
-                    messageTasks.push(sendCodeNotification(client, config, settings, game, codes, guildId, languageMap[guildId]));
+                    // Determine guild language for embed lookup
+                    const guildLangCode = languageMap[guildId]?.language || 'en';
+                    const cachedEmbed = embedCache.get(`${game}:${guildLangCode}`) || embedCache.get(`${game}:en`);
+
+                    // Push as a lazy function (not yet invoked) for batched execution
+                    messageTasks.push(() => sendCodeNotification(client, config, settings, game, codes, guildId, cachedEmbed));
                 }
             }
         }
@@ -227,18 +292,73 @@ async function checkAndSendNewCodes(client) {
             await Promise.allSettled(cleanupTasks);
         }
 
-        // Execute all message sending tasks 
+        // Execute message sends in batches of 50 for rate-limit safety at 2500+ guilds
+        // Discord global rate limit is 50 requests/second, so batches of 50 with natural async gaps work well
         if (messageTasks.length > 0) {
-            await Promise.allSettled(messageTasks);
+            console.log(`Sending notifications to ${messageTasks.length} guild-game combination(s) in batches of 50...`);
+            await processInBatches(messageTasks, 50);
         }
         
-        console.log(`Code check process completed. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes.`);
+        const elapsed = Date.now() - startTime;
+        console.log(`Code check process completed in ${elapsed}ms. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Sent to ${messageTasks.length} targets.`);
     } catch (error) {
         console.error('Error in checkAndSendNewCodes:', error);
     }
 }
 
-async function sendCodeNotification(client, config, settings, game, codes, guildId, guildLang) {
+// Pre-build embed content for a specific game + language combination
+async function buildEmbedForGameAndLang(game, lang, codes) {
+    // Temporarily set a fake guildId in language cache so getString uses this language
+    const fakeGuildId = `__embed_build_${lang}`;
+    languageManager.languageCache.set(fakeGuildId, {
+        language: lang,
+        timestamp: Date.now()
+    });
+
+    try {
+        const baseTitle = await languageManager.getString(
+            'commands.listcodes.newCodes',
+            fakeGuildId,
+            { game: gameNames[game] }
+        );
+        const title = `${gameEmojis[game]} ${baseTitle}`;
+
+        const redeemText = await languageManager.getString(
+            'commands.listcodes.redeemButton',
+            fakeGuildId
+        );
+
+        const descriptionPromises = codes.map(async code => {
+            const rewardString = code.rewards ? 
+                await languageManager.getRewardString(code.rewards, fakeGuildId) : 
+                await languageManager.getString('commands.listcodes.noReward', fakeGuildId);
+            
+            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
+        });
+
+        const descriptions = await Promise.all(descriptionPromises);
+        const finalDescription = descriptions.join('\n\n');
+
+        const supportMsg = await languageManager.getString(
+            'common.supportMsg', 
+            fakeGuildId
+        ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori | github.com/sponsors/chiraitori';
+
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle(title)
+            .setDescription(finalDescription)
+            .setFooter({ text: supportMsg })
+            .setTimestamp();
+
+        return { embed, supportMsg };
+    } finally {
+        // Clean up fake guild from cache
+        languageManager.languageCache.delete(fakeGuildId);
+    }
+}
+
+async function sendCodeNotification(client, config, settings, game, codes, guildId, cachedEmbed) {
     // Validate inputs silently
     if (!guildId || !codes?.length) {
         return;
@@ -309,41 +429,8 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
             return;
         }
 
-        // Generate notification content
-        const baseTitle = await languageManager.getString(
-            'commands.listcodes.newCodes',
-            guildId,
-            { game: gameNames[game] }
-        );
-        const title = `${gameEmojis[game]} ${baseTitle}`;
-
-        const redeemText = await languageManager.getString(
-            'commands.listcodes.redeemButton',
-            guildId
-        );
-
-        const descriptionPromises = codes.map(async code => {
-            const rewardString = code.rewards ? 
-                await languageManager.getRewardString(code.rewards, guildId) : 
-                await languageManager.getString('commands.listcodes.noReward', guildId);
-            
-            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
-        });
-
-        const descriptions = await Promise.all(descriptionPromises);
-        const finalDescription = descriptions.join('\n\n');
-
-        const supportMsg = await languageManager.getString(
-            'common.supportMsg', 
-            guildId
-        ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori | github.com/sponsors/chiraitori';
-
-        const embed = new EmbedBuilder()
-            .setColor('#00ff00')
-            .setTitle(title)
-            .setDescription(finalDescription)
-            .setFooter({ text: supportMsg })
-            .setTimestamp();
+        // Use the pre-built embed from cache instead of rebuilding
+        const embed = cachedEmbed.embed;
 
         // Prepare message content with proper role mentions
         const roleField = roleMapping[game];
@@ -403,25 +490,25 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                         const { ChannelType } = require('discord.js');
                         // Verify it's actually a thread
                         if ([ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread].includes(forumThread.type)) {
-                            const botMember = await guild.members.fetch(client.user.id);
+                            // Use already-resolved botMember from cache instead of fetching from API
                             const threadPermissions = forumThread.permissionsFor(botMember);
                             
                             if (threadPermissions && threadPermissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
                                 // Get the role for this game to mention in thread
-                                const roleMapping = {
+                                const threadRoleMapping = {
                                     'genshin': config.genshinRole,
                                     'hkrpg': config.hsrRole,
                                     'nap': config.zzzRole
                                 };
                                 
-                                const roleId = roleMapping[game];
+                                const threadRoleId = threadRoleMapping[game];
                                 let threadContent = '';
                                 let threadAllowedMentions = { roles: [] };
                                 
                                 // Add role mention if role is configured and bot has permission
-                                if (roleId && threadPermissions.has(PermissionFlagsBits.MentionEveryone)) {
-                                    threadContent = `<@&${roleId}>`;
-                                    threadAllowedMentions = { roles: [roleId] };
+                                if (threadRoleId && threadPermissions.has(PermissionFlagsBits.MentionEveryone)) {
+                                    threadContent = `<@&${threadRoleId}>`;
+                                    threadAllowedMentions = { roles: [threadRoleId] };
                                 }
                                 
                                 // Send to the dedicated thread with role mention
@@ -440,7 +527,8 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
             }
         }
 
-    } catch (error) {        // Handle specific Discord API errors silently
+    } catch (error) {
+        // Handle specific Discord API errors silently
         if (error.code === 50001 || error.code === 50013) {
             // Missing Access (50001) or Missing Permissions (50013)
             const guild = client.guilds.cache.get(guildId);
