@@ -730,14 +730,21 @@ client.once('clientReady', async () => {
     } catch (error) {
         console.error('Error during startup:', error);
     }
-    client.user.setPresence({
-        activities: [{
-            name: `for redemption codes | ${process.env.VERSION}`,
-            type: ActivityType.Watching
-        }],
-        status: 'online'
-    });
+    const updatePresence = () => {
+        client.user.setPresence({
+            activities: [{
+                name: `for redemption codes | ${process.env.VERSION || '1.0.0'}`,
+                type: ActivityType.Watching
+            }],
+            status: 'online'
+        });
+    };
 
+    // Set immediately on startup
+    updatePresence();
+    
+    // Refresh presence every 30 minutes so it doesn't disappear
+    setInterval(updatePresence, 30 * 60 * 1000);
 
     // Start regular code checking (every 5 minutes)
     setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
