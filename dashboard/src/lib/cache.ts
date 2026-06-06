@@ -6,7 +6,7 @@ interface CacheEntry<T> {
 }
 
 class SimpleCache {
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
 
   set<T>(key: string, data: T, ttlMinutes: number = 5): void {
     const ttl = ttlMinutes * 60 * 1000; // convert to milliseconds
@@ -17,14 +17,14 @@ class SimpleCache {
     });
   }
 
-  get<T>(key: string): T | null {
+  get<T>(key: string): T | undefined {
     const entry = this.cache.get(key);
-    if (!entry) return null;
+    if (!entry) return undefined;
 
     const now = Date.now();
     if (now - entry.timestamp > entry.ttl) {
       this.cache.delete(key);
-      return null;
+      return undefined;
     }
 
     return entry.data as T;
@@ -50,6 +50,7 @@ class SimpleCache {
 }
 
 export const apiCache = new SimpleCache();
+const pendingRequests = new Map<string, Promise<unknown>>();
 
 // Cached fetch function
 export async function cachedFetch<T>(
@@ -61,27 +62,31 @@ export async function cachedFetch<T>(
   
   // Try to get from cache first
   const cached = apiCache.get<T>(cacheKey);
-  if (cached) {
+  if (cached !== undefined) {
     return cached;
   }
 
-  // Fetch from API
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+  const pending = pendingRequests.get(cacheKey);
+  if (pending) {
+    return pending as Promise<T>;
   }
 
-  const data = await response.json();
-  
-  // Cache the result
-  apiCache.set(cacheKey, data, cacheMinutes);
-  
-  return data;
-}
+  const request = (async () => {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
 
-// Clean up expired cache entries every 10 minutes
-if (typeof window !== 'undefined') {
-  setInterval(() => {
-    apiCache.cleanup();
-  }, 10 * 60 * 1000);
+    const data = await response.json() as T;
+    apiCache.set(cacheKey, data, cacheMinutes);
+    return data;
+  })();
+
+  pendingRequests.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
 }

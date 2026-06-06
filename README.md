@@ -84,6 +84,9 @@ Create a .env file in the root directory and add the following:
 ```env
    DISCORD_TOKEN=your_discord_bot_token
    MONGODB_URI=your_mongodb_connection_string
+   LIVESTREAM_TRACKING_ENABLED=true
+   # Optional: improves YouTube live/upcoming status and exact schedule detection
+   YOUTUBE_API_KEY=your_youtube_data_api_key
    CLIENT_ID=your_discord_client_id
    OWNER_ID=your_id_in_discord
    # Dashboard URL (optional, for development)

@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 const axios = require('axios');
 const Code = require('../models/Code');
 const languageManager = require('../utils/language');
+const { enrichCodesWithHoyolabRewards } = require('../utils/codeRewardEnricher');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -32,6 +33,11 @@ module.exports = {
                     'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
                 }
             });
+
+            response.data.codes = await enrichCodesWithHoyolabRewards(
+                game,
+                response.data?.codes || []
+            );
             
             // Get game choice
             const gameNames = {

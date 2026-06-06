@@ -40,9 +40,60 @@ const livestreamTrackingSchema = new mongoose.Schema({
     },
     codes: [{
         code: String,
+        title: String,
         expireAt: Number, // Unix timestamp
         discoveredAt: Number // Unix timestamp
     }],
+    source: {
+        type: String,
+        enum: ['hoyolab', 'youtube', 'hoyolab+youtube'],
+        default: 'hoyolab'
+    },
+    postId: {
+        type: String,
+        default: null
+    },
+    bannerUrl: {
+        type: String,
+        default: null
+    },
+    youtubeVideoId: {
+        type: String,
+        default: null
+    },
+    youtubeUrl: {
+        type: String,
+        default: null
+    },
+    youtubeStatus: {
+        type: String,
+        enum: ['live', 'upcoming', 'completed', 'unknown'],
+        default: 'unknown'
+    },
+    youtubeStreams: [{
+        locale: {
+            type: String,
+            enum: ['en', 'ja']
+        },
+        channelId: String,
+        videoId: String,
+        url: String,
+        title: String,
+        status: {
+            type: String,
+            enum: ['live', 'upcoming', 'completed', 'unknown'],
+            default: 'unknown'
+        },
+        scheduledStartTime: String
+    }],
+    streamTimeEstimated: {
+        type: Boolean,
+        default: false
+    },
+    announcementSent: {
+        type: Boolean,
+        default: false
+    },
     trackingChannel: {
         type: String, // Channel ID where tracking message is posted
         default: null
@@ -61,5 +112,6 @@ const livestreamTrackingSchema = new mongoose.Schema({
 
 // Compound index for game + version lookup
 livestreamTrackingSchema.index({ game: 1, version: 1 }, { unique: true });
+livestreamTrackingSchema.index({ game: 1, streamTime: -1 });
 
 module.exports = mongoose.model('LivestreamTracking', livestreamTrackingSchema);

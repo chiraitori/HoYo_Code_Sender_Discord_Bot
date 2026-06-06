@@ -21,18 +21,19 @@ const gameMapping: Record<string, string> = {
   'zzz': 'nap'
 };
 
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
+};
+
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<{ game: string }> }
 ) {
   const { game } = await context.params;
   
   try {
-    console.log(`[API] Fetching codes for game: ${game}`);
-    
     // Validate game parameter
     if (!gameMapping[game]) {
-      console.log(`[API] Invalid game: ${game}`);
       return NextResponse.json(
         { error: 'Invalid game. Supported games: genshin, hsr, zzz' },
         { status: 400 }
@@ -42,8 +43,6 @@ export async function GET(
     const apiGame = gameMapping[game];
     const apiUrl = `https://hoyo-codes.seria.moe/codes?game=${apiGame}`;
     
-    console.log(`[API] Fetching from external API: ${apiUrl}`);
-    
     // Fetch from external API
     const response = await fetch(apiUrl, {
       next: { revalidate: 300 }, // Cache for 5 minutes
@@ -52,30 +51,31 @@ export async function GET(
       }
     });
 
-    console.log(`[API] External API response status: ${response.status}`);
-
     if (!response.ok) {
       throw new Error(`External API responded with status: ${response.status}`);
     }
 
-    const data = await response.json();
-    console.log(`[API] Received ${data.codes?.length || 0} codes for ${game}`);
+    const data = await response.json() as { codes?: ExternalCode[] };
+    const generatedAt = new Date().toISOString();
     
     // Transform the response to match our interface
     const codes = (data.codes || []).map((code: ExternalCode): GameCode => ({
       code: code.code,
-      isExpired: code.isExpired || false,
-      timestamp: code.timestamp || new Date().toISOString()
+      isExpired: code.isExpired ?? false,
+      timestamp: code.timestamp || generatedAt
     }));
 
-    return NextResponse.json({
-      game: game,
-      codes: codes,
-      lastUpdated: new Date().toISOString(),
-      total: codes.length,
-      active: codes.filter((c: GameCode) => !c.isExpired).length,
-      expired: codes.filter((c: GameCode) => c.isExpired).length
-    });
+    return NextResponse.json(
+      {
+        game,
+        codes,
+        lastUpdated: generatedAt,
+        total: codes.length,
+        active: codes.filter((code: GameCode) => !code.isExpired).length,
+        expired: codes.filter((code: GameCode) => code.isExpired).length
+      },
+      { headers: CACHE_HEADERS }
+    );
 
   } catch (error) {
     console.error(`Error fetching codes for ${game}:`, error);

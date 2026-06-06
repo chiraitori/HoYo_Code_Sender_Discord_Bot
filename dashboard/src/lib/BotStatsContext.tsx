@@ -1,6 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode
+} from 'react';
 import { cachedFetch } from './cache';
 
 interface BotStats {
@@ -48,9 +56,8 @@ export function BotStatsProvider({ children }: BotStatsProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
       
       // Use cached fetch with 2-minute cache to reduce API calls
@@ -63,22 +70,31 @@ export function BotStatsProvider({ children }: BotStatsProviderProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchStats();
-    
-    // Refresh every 3 minutes (longer than cache TTL to ensure fresh data periodically)
-    const interval = setInterval(fetchStats, 180000);
-    return () => clearInterval(interval);
   }, []);
 
-  const value: BotStatsContextType = {
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchStats();
+      }
+    };
+
+    void fetchStats();
+    const interval = window.setInterval(refreshWhenVisible, 180000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [fetchStats]);
+
+  const value = useMemo<BotStatsContextType>(() => ({
     stats,
     loading,
     error,
     refetch: fetchStats
-  };
+  }), [error, fetchStats, loading, stats]);
 
   return (
     <BotStatsContext.Provider value={value}>

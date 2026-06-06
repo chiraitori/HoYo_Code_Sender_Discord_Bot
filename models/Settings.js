@@ -26,5 +26,6 @@ const settingsSchema = new mongoose.Schema({
 
 // Add index for faster lookups
 settingsSchema.index({ guildId: 1 });
+settingsSchema.index({ autoSendEnabled: 1, guildId: 1 });
 
 module.exports = mongoose.model('Settings', settingsSchema);

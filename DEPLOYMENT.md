@@ -9,6 +9,9 @@ Create a `.env` file with the following required variables:
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 MONGODB_URI=your_mongodb_connection_string
+LIVESTREAM_TRACKING_ENABLED=true
+# Optional: YouTube Data API v3 key for exact live/upcoming metadata
+YOUTUBE_API_KEY=your_youtube_data_api_key
 CLIENT_ID=your_discord_client_id
 OWNER_ID=your_discord_user_id
 PORT=3000

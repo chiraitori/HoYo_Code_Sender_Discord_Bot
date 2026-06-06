@@ -13,9 +13,8 @@ const { checkAndSendYearChangeMessage } = require('./utils/yearChangeCheck');
 const { setupTopggWebhook } = require('./utils/topggWebhook');
 const { sendWelcomeMessage } = require('./utils/welcome');
 const authMiddleware = require('./utils/authMiddleware');
-// DISABLED: Livestream system
-// const { startLivestreamChecker } = require('./utils/livestreamChecker');
-// const { checkAndDistribute } = require('./utils/livestreamDistribution');
+const { startLivestreamChecker } = require('./utils/livestreamChecker');
+const { startPostTracker } = require('./utils/hoyolabPostTracker');
 
 // Express setup
 const app = express();
@@ -723,17 +722,20 @@ mongoose.connect(process.env.MONGODB_URI)
 
 client.once('clientReady', async () => {
     const shardIds = Array.from(client.ws.shards.keys());
+    const isPrimaryScheduler = shardIds.includes(0);
     console.log(`Logged in as ${client.user.tag} | Shards: [${shardIds.join(', ')}]`);
-    try {
-        await registerCommands();
-        console.log('Commands registered successfully');
-    } catch (error) {
-        console.error('Error during startup:', error);
+    if (isPrimaryScheduler) {
+        try {
+            await registerCommands();
+            console.log('Commands registered successfully');
+        } catch (error) {
+            console.error('Error during startup:', error);
+        }
     }
     const updatePresence = () => {
         client.user.setPresence({
             activities: [{
-                name: `for redemption codes | ${process.env.VERSION || '1.0.0'}`,
+                name: `for redemption codes | ${process.env.VERSION || '1.15.0'}`,
                 type: ActivityType.Watching
             }],
             status: 'online'
@@ -746,19 +748,33 @@ client.once('clientReady', async () => {
     // Refresh presence every 30 minutes so it doesn't disappear
     setInterval(updatePresence, 30 * 60 * 1000);
 
-    // Start regular code checking (every 5 minutes)
-    setInterval(() => checkAndSendNewCodes(client), 5 * 60 * 1000);
+    if (isPrimaryScheduler) {
+        // Start regular code checking (every 5 minutes)
+        setInterval(() => {
+            checkAndSendNewCodes(client).catch(error => {
+                console.error('Scheduled code check failed:', error);
+            });
+        }, 5 * 60 * 1000);
 
-    // Check for year change messages (every 30 minutes)
-    setInterval(() => checkAndSendYearChangeMessage(client), 30 * 60 * 1000);
-    // Also run an initial check on startup
-    checkAndSendYearChangeMessage(client);
+        // Check for year change messages (every 30 minutes)
+        setInterval(() => {
+            checkAndSendYearChangeMessage(client).catch(error => {
+                console.error('Scheduled year change check failed:', error);
+            });
+        }, 30 * 60 * 1000);
+        checkAndSendYearChangeMessage(client).catch(error => {
+            console.error('Initial year change check failed:', error);
+        });
 
-    // DISABLED: Livestream code checker (every 3 minutes)
-    // startLivestreamChecker(client);
-
-    // DISABLED: Check for distribution every 3 minutes (runs alongside checker)
-    // setInterval(() => checkAndDistribute(client), 3 * 60 * 1000);
+        if (process.env.LIVESTREAM_TRACKING_ENABLED !== 'false') {
+            await startPostTracker(client);
+            startLivestreamChecker(client);
+        } else {
+            console.log('[Livestream] Tracking disabled by LIVESTREAM_TRACKING_ENABLED=false');
+        }
+    } else {
+        console.log('[Scheduler] Background jobs are handled by shard 0');
+    }
 });
 
 // Memory monitoring (optional)

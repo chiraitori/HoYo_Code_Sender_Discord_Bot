@@ -24,7 +24,11 @@ export async function GET() {
       guildCount: data.guildCount || data.servers || 0
     };
     
-    return NextResponse.json(normalizedData);
+    return NextResponse.json(normalizedData, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60'
+      }
+    });
   } catch (error) {
     console.error('Error fetching bot stats:', error);
     return NextResponse.json(

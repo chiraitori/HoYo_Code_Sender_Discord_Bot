@@ -13,6 +13,7 @@ const GAMES = ['genshin', 'hkrpg', 'nap'];
 const CHECK_INTERVAL = 3 * 60 * 1000; // 3 minutes in milliseconds
 
 let checkerInterval = null;
+let checkerRunning = false;
 
 /**
  * Start the livestream checker
@@ -27,11 +28,15 @@ function startLivestreamChecker(client) {
     console.log('[Livestream Checker] Starting...');
 
     // Run immediately on start
-    checkAllGames(client);
+    checkAllGames(client).catch(error => {
+        console.error('[Livestream Checker] Initial check failed:', error);
+    });
 
     // Then run every 3 minutes
     checkerInterval = setInterval(() => {
-        checkAllGames(client);
+        checkAllGames(client).catch(error => {
+            console.error('[Livestream Checker] Scheduled check failed:', error);
+        });
     }, CHECK_INTERVAL);
 }
 
@@ -51,15 +56,24 @@ function stopLivestreamChecker() {
  * @param {Client} client - Discord client
  */
 async function checkAllGames(client) {
+    if (checkerRunning) {
+        console.log('[Livestream Checker] Skipping because the previous check is still active');
+        return;
+    }
+
+    checkerRunning = true;
     console.log('[Livestream Checker] Running check...');
 
-    for (const game of GAMES) {
-        try {
-            await checkGame(client, game);
-        } catch (error) {
-            console.error(`[Livestream Checker] Error checking ${game}:`, error);
-            // Don't crash - continue to next game
-        }
+    try {
+        await Promise.all(GAMES.map(async game => {
+            try {
+                await checkGame(client, game);
+            } catch (error) {
+                console.error(`[Livestream Checker] Error checking ${game}:`, error);
+            }
+        }));
+    } finally {
+        checkerRunning = false;
     }
 }
 
@@ -70,10 +84,19 @@ async function checkAllGames(client) {
  */
 async function checkGame(client, game) {
     // Get tracking data
-    const tracking = await LivestreamTracking.findOne({ game });
+    const tracking = await LivestreamTracking.findOne({ game }).sort({ streamTime: -1, updatedAt: -1 });
 
     if (!tracking) {
         return; // No tracking setup for this game
+    }
+
+    const currentTime = Math.floor(Date.now() / 1000);
+    const maxSearchAge = 48 * 60 * 60;
+    if (!tracking.found && tracking.streamTime < currentTime - maxSearchAge) {
+        console.log(`[Livestream Checker] ${game} tracking is older than 48 hours; closing it`);
+        tracking.distributed = true;
+        await tracking.save();
+        return;
     }
 
     const version = tracking.version || '1.0';
@@ -95,29 +118,54 @@ async function checkGame(client, game) {
                 // Save codes to database for distribution
                 const updatedTracking = await LivestreamTracking.findOne({ game, version });
                 if (updatedTracking && updatedTracking.codes) {
-                    for (const codeData of updatedTracking.codes) {
-                        await Code.findOneAndUpdate(
-                            { game, code: codeData.code },
-                            {
-                                game,
-                                code: codeData.code,
-                                isExpired: false,
-                                timestamp: new Date()
-                            },
-                            { upsert: true }
-                        );
+                    const codeValues = updatedTracking.codes.map(codeData => codeData.code);
+                    const existingCodes = await Code.find({
+                        game,
+                        code: { $in: codeValues },
+                        isExpired: false
+                    }).select({ code: 1 }).lean();
+                    const existingCodeSet = new Set(existingCodes.map(code => code.code));
+                    const newCodeData = updatedTracking.codes.filter(
+                        codeData => !existingCodeSet.has(codeData.code)
+                    );
+
+                    if (newCodeData.length === 0) {
+                        console.log(`[Livestream Checker] Codes for ${game} were already handled; skipping duplicate distribution`);
+                        updatedTracking.distributed = true;
+                        await updatedTracking.save();
+                        return;
                     }
+
+                    const timestamp = new Date();
+                    await Code.bulkWrite(newCodeData.map(codeData => ({
+                        updateOne: {
+                            filter: { game, code: codeData.code },
+                            update: {
+                                $set: {
+                                    isExpired: false,
+                                    timestamp
+                                },
+                                $setOnInsert: {
+                                    game,
+                                    code: codeData.code
+                                }
+                            },
+                            upsert: true
+                        }
+                    })));
 
                     // AUTO-DISTRIBUTE: Pop codes immediately when all 3 found
                     console.log(`[Livestream Checker] 🚀 Triggering auto-distribution for ${game}...`);
-                    await distributeIfReady(client, game);
+                    await distributeIfReady(client, game, version, newCodeData);
                 }
             }
         }
     }
 
     // Update tracking message
-    await updateTrackingMessage(client, game, state, tracking);
+    const latestState = await getState(game, version);
+    const latestTracking = await LivestreamTracking.findOne({ game, version });
+    await updateTrackingMessage(client, game, latestState, latestTracking || tracking);
 }
 
 /**

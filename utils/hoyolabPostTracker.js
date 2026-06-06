@@ -1,6 +1,10 @@
 const axios = require('axios');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { sendAnnouncement } = require('./livestreamAnnouncement');
+const {
+    fetchYoutubeLivestreams,
+    getOfficialChannelLinks
+} = require('./youtubeLivestreamTracker');
 
 /**
  * Hoyolab Post Tracker
@@ -14,15 +18,16 @@ const OFFICIAL_ACCOUNTS = {
     nap: '219270333'      // Zenless Zone Zero
 };
 
-// Check interval: 30 minutes
-const CHECK_INTERVAL = 30 * 60 * 1000;
+// Check interval: 10 minutes
+const CHECK_INTERVAL = 10 * 60 * 1000;
 
 let trackerInterval = null;
+let trackerRunning = false;
 
 /**
  * Start the post tracker
  */
-function startPostTracker(client) {
+async function startPostTracker(client) {
     if (trackerInterval) {
         console.log('[Post Tracker] Already running');
         return;
@@ -31,11 +36,13 @@ function startPostTracker(client) {
     console.log('[Post Tracker] Starting...');
 
     // Run immediately
-    checkAllAccounts(client);
+    await checkAllAccounts(client);
 
     // Then run every 30 minutes
     trackerInterval = setInterval(() => {
-        checkAllAccounts(client);
+        checkAllAccounts(client).catch(error => {
+            console.error('[Post Tracker] Scheduled check failed:', error.message);
+        });
     }, CHECK_INTERVAL);
 }
 
@@ -54,16 +61,28 @@ function stopPostTracker() {
  * Check all official accounts for new posts
  */
 async function checkAllAccounts(client) {
+    if (trackerRunning) {
+        console.log('[Post Tracker] Skipping because the previous check is still active');
+        return;
+    }
+
+    trackerRunning = true;
     console.log('[Post Tracker] Checking for new livestream announcements...');
 
-    for (const [game, accountId] of Object.entries(OFFICIAL_ACCOUNTS)) {
-        if (accountId === 'TBD') continue;
+    try {
+        const tasks = Object.entries(OFFICIAL_ACCOUNTS)
+            .filter(([, accountId]) => accountId !== 'TBD')
+            .map(async ([game, accountId]) => {
+                try {
+                    await checkAccount(game, accountId, client);
+                } catch (error) {
+                    console.error(`[Post Tracker] Error checking ${game}:`, error.message);
+                }
+            });
 
-        try {
-            await checkAccount(game, accountId, client);
-        } catch (error) {
-            console.error(`[Post Tracker] Error checking ${game}:`, error.message);
-        }
+        await Promise.all(tasks);
+    } finally {
+        trackerRunning = false;
     }
 }
 
@@ -71,14 +90,19 @@ async function checkAllAccounts(client) {
  * Check a single account for Special Program posts
  */
 async function checkAccount(game, accountId, client) {
-    const posts = await fetchLatestPosts(accountId);
+    const [posts, youtubeStreams, officialYoutubeChannels] = await Promise.all([
+        fetchLatestPosts(accountId),
+        fetchYoutubeLivestreams(game),
+        getOfficialChannelLinks(game)
+    ]);
 
-    if (!posts || posts.length === 0) {
+    if ((!posts || posts.length === 0) && youtubeStreams.length === 0) {
         return;
     }
 
     // Look for Special Program announcement in recent posts
-    for (const postData of posts.slice(0, 5)) { // Check last 5 posts
+    let streamInfo = null;
+    for (const postData of (posts || []).slice(0, 20)) {
         const post = postData.post;
 
         if (isSpecialProgramPost(post)) {
@@ -90,14 +114,81 @@ async function checkAccount(game, accountId, client) {
             const fullPost = await fetchPostDetail(post.post_id);
 
             // Parse stream info
-            const streamInfo = parseStreamInfo(fullPost, game);
-
-            if (streamInfo) {
-                await updateTracking(streamInfo, client);
-            }
+            streamInfo = parseStreamInfo(fullPost, game);
 
             break; // Only process the most recent Special Program post
         }
+    }
+
+    if (youtubeStreams.length > 0) {
+        const versionGroups = new Map();
+        for (const youtubeStream of youtubeStreams) {
+            const version = extractVersion(youtubeStream.title);
+            if (!version) continue;
+            if (!versionGroups.has(version)) versionGroups.set(version, []);
+            versionGroups.get(version).push(youtubeStream);
+        }
+
+        let youtubeVersion = streamInfo?.version;
+        let matchingStreams = youtubeVersion ? versionGroups.get(youtubeVersion) || [] : [];
+
+        if (matchingStreams.length === 0 && versionGroups.size > 0) {
+            [youtubeVersion, matchingStreams] = versionGroups.entries().next().value;
+        }
+
+        const primaryStream = matchingStreams.find(stream => stream.locale === 'en')
+            || matchingStreams[0];
+        const youtubeTime = primaryStream?.scheduledStartTime
+            || primaryStream?.actualStartTime
+            || primaryStream?.publishedAt;
+
+        if (youtubeVersion && primaryStream && (!streamInfo || youtubeVersion !== streamInfo.version)) {
+            streamInfo = {
+                game,
+                version: youtubeVersion,
+                streamTime: youtubeTime
+                    ? Math.floor(new Date(youtubeTime).getTime() / 1000)
+                    : Math.floor(Date.now() / 1000),
+                streamTimeEstimated: !primaryStream.scheduledStartTime,
+                bannerUrl: primaryStream.thumbnailUrl || null,
+                postId: null,
+                source: 'youtube'
+            };
+        }
+
+        if (streamInfo && primaryStream && youtubeVersion === streamInfo.version) {
+            streamInfo.youtubeStreams = officialYoutubeChannels.map(channel => {
+                const stream = matchingStreams.find(item => item.locale === channel.locale);
+                return {
+                    locale: channel.locale,
+                    channelId: channel.channelId,
+                    videoId: stream?.videoId || null,
+                    url: stream?.url || channel.url,
+                    title: stream?.title || null,
+                    status: stream?.status || 'unknown',
+                    scheduledStartTime: stream?.scheduledStartTime || null
+                };
+            });
+            streamInfo.youtubeVideoId = primaryStream.videoId;
+            streamInfo.youtubeUrl = primaryStream.url;
+            streamInfo.youtubeStatus = primaryStream.status || 'unknown';
+            streamInfo.source = streamInfo.source === 'youtube' ? 'youtube' : 'hoyolab+youtube';
+
+            if (primaryStream.scheduledStartTime || primaryStream.actualStartTime) {
+                streamInfo.streamTime = Math.floor(new Date(
+                    primaryStream.scheduledStartTime || primaryStream.actualStartTime
+                ).getTime() / 1000);
+                streamInfo.streamTimeEstimated = false;
+            }
+        }
+    }
+
+    if (streamInfo && !streamInfo.youtubeStreams?.length) {
+        streamInfo.youtubeStreams = officialYoutubeChannels;
+    }
+
+    if (streamInfo) {
+        await updateTracking(streamInfo, client);
     }
 }
 
@@ -189,6 +280,26 @@ function isSpecialProgramPost(post) {
     return hasVersion && hasKeywords;
 }
 
+function extractVersion(subject = '') {
+    const numericMatch = subject.match(/version\s+(\d+\.\d+)/i);
+    if (numericMatch) {
+        return numericMatch[1];
+    }
+
+    const quotedMatch = subject.match(/version\s+["']([^"']+)["']/i);
+    if (quotedMatch) {
+        return quotedMatch[1];
+    }
+
+    const shortMatch = subject.match(/\bver\.?\s*(\d+\.\d+)/i);
+    if (shortMatch) {
+        return shortMatch[1];
+    }
+
+    const japaneseMatch = subject.match(/バージョン\s*(\d+\.\d+)/i);
+    return japaneseMatch ? japaneseMatch[1] : null;
+}
+
 /**
  * Parse stream information from post
  */
@@ -199,19 +310,7 @@ function parseStreamInfo(post, game) {
         // Extract version from title
         // Genshin format: Version "Luna IV"
         // ZZZ/HSR format: Version 2.5 "Subtitle" or just Version 2.5
-        let version = null;
-
-        // Try numeric version first (e.g., "2.5", "1.4")
-        const numericMatch = post.subject.match(/version\s+(\d+\.\d+)/i);
-        if (numericMatch) {
-            version = numericMatch[1];
-        } else {
-            // Try quoted version (e.g., "Luna IV")
-            const quotedMatch = post.subject.match(/[\"\"']([^\"\"']+)[\"\"']/);
-            if (quotedMatch) {
-                version = quotedMatch[1];
-            }
-        }
+        const version = extractVersion(post.subject);
 
         // Extract timestamp from desc field
         // Genshin format: "01/02/2026 at 00:00 (UTC-5)"
@@ -230,7 +329,19 @@ function parseStreamInfo(post, game) {
             streamTime = Math.floor((utc - offset) / 1000); // Unix timestamp
         }
 
-        // Fallback: Use post's created_at for ZZZ/HSR (they post "Intel Report" after live)
+        // Countdown posts are commonly published shortly before the stream.
+        const countdownMatch = post.subject.match(
+            /countdown:\s*(\d+)\s*(hour|hours|minute|minutes)\s+left/i
+        );
+        if (!streamTime && countdownMatch && post.created_at) {
+            const amount = Number(countdownMatch[1]);
+            const seconds = countdownMatch[2].toLowerCase().startsWith('hour')
+                ? amount * 60 * 60
+                : amount * 60;
+            streamTime = post.created_at + seconds;
+        }
+
+        // Fallback: use the post time when no explicit schedule is available.
         if (!streamTime && post.created_at) {
             streamTime = post.created_at;
             console.log(`[Post Tracker] Using created_at as stream time for ${game}`);
@@ -259,8 +370,10 @@ function parseStreamInfo(post, game) {
             game,
             version,
             streamTime,
+            streamTimeEstimated: !timestampMatch && !countdownMatch,
             bannerUrl,
-            postId: post.post_id
+            postId: post.post_id,
+            source: 'hoyolab'
         };
 
     } catch (error) {
@@ -307,45 +420,72 @@ async function fetchEventsBanner(accountId, game) {
  * Update LivestreamTracking database
  */
 async function updateTracking(streamInfo, client) {
-    const { game, version, streamTime, bannerUrl, postId } = streamInfo;
+    const {
+        game,
+        version,
+        streamTime,
+        streamTimeEstimated = false,
+        bannerUrl,
+        postId,
+        source = 'hoyolab',
+        youtubeVideoId = null,
+        youtubeUrl = null,
+        youtubeStatus = 'unknown',
+        youtubeStreams = []
+    } = streamInfo;
 
     try {
-        // Check if already exists
         const existing = await LivestreamTracking.findOne({ game, version });
+        const shouldPreserveExistingTime = existing
+            && existing.streamTime
+            && existing.streamTimeEstimated === false
+            && streamTimeEstimated === true;
+        const finalStreamTime = shouldPreserveExistingTime
+            ? existing.streamTime
+            : streamTime;
+        const finalStreamTimeEstimated = shouldPreserveExistingTime
+            ? false
+            : streamTimeEstimated;
+        const tracking = await LivestreamTracking.findOneAndUpdate(
+            { game, version },
+            {
+                $set: {
+                    streamTime: finalStreamTime,
+                    streamTimeEstimated: finalStreamTimeEstimated,
+                    source,
+                    ...(postId ? { postId } : {}),
+                    ...(bannerUrl ? { bannerUrl } : {}),
+                    ...(youtubeVideoId ? { youtubeVideoId } : {}),
+                    ...(youtubeUrl ? { youtubeUrl } : {}),
+                    youtubeStatus,
+                    youtubeStreams
+                },
+                $setOnInsert: {
+                    found: false,
+                    distributed: false,
+                    codes: [],
+                    announcementSent: false
+                }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
 
-        if (existing) {
-            console.log(`[Post Tracker] Tracking already exists for ${game} ${version}`);
-            return;
-        }
+        console.log(`[Post Tracker] ✅ Tracking ready for ${game} ${version}`);
+        console.log(`   Stream time: ${new Date(finalStreamTime * 1000).toISOString()}`);
+        console.log(`   Sources: ${source}`);
 
-        // Create new tracking entry with Special Program banner
-        // (Events Overview banner will be fetched later during distribution)
-        await LivestreamTracking.create({
-            game,
-            version,
-            streamTime,
-            state: 2, // Not yet live
-            found: false,
-            distributed: false,
-            codes: [],
-            postId,
-            bannerUrl, // Special Program banner
-            autoSetup: true
-        });
+        const currentTime = Math.floor(Date.now() / 1000);
+        const shouldAnnounce = client
+            && !tracking.announcementSent
+            && finalStreamTime > currentTime + 5 * 60;
 
-        console.log(`[Post Tracker] ✅ Created tracking for ${game} ${version}`);
-        console.log(`   Stream time: ${new Date(streamTime * 1000).toISOString()}`);
-        console.log(`   Banner: ${bannerUrl ? 'Special Program' : 'No'}`);
-
-        // Send announcement to all guilds with Special Program banner
-        if (client && bannerUrl) {
+        if (shouldAnnounce) {
             console.log(`[Post Tracker] 📢 Sending announcement...`);
-            await sendAnnouncement(client, {
-                game,
-                version,
-                streamTime,
-                bannerUrl
-            });
+            await sendAnnouncement(client, streamInfo);
+            tracking.announcementSent = true;
+            await tracking.save();
+        } else if (!existing) {
+            console.log('[Post Tracker] Announcement skipped because the stream already started');
         }
 
     } catch (error) {
@@ -358,5 +498,7 @@ module.exports = {
     stopPostTracker,
     checkAllAccounts,
     isSpecialProgramPost,
-    parseStreamInfo
+    parseStreamInfo,
+    extractVersion,
+    updateTracking
 };

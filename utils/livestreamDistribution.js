@@ -3,6 +3,7 @@ const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { getState } = require('./hoyolabAPI');
+const { sendChannelMessage } = require('./discordMessageSender');
 
 /**
  * Auto-distribution system for livestream codes
@@ -27,6 +28,16 @@ const ROLE_MAPPING = {
     'nap': 'zzzRole'
 };
 
+async function processInBatches(tasks, batchSize = 25) {
+    const results = [];
+    for (let index = 0; index < tasks.length; index += batchSize) {
+        results.push(...await Promise.allSettled(
+            tasks.slice(index, index + batchSize).map(task => task())
+        ));
+    }
+    return results;
+}
+
 /**
  * Check and distribute codes for all games
  * @param {Client} client - Discord client
@@ -48,15 +59,17 @@ async function checkAndDistribute(client) {
  * @param {Client} client - Discord client
  * @param {string} game - Game identifier
  */
-async function distributeIfReady(client, game) {
-    const tracking = await LivestreamTracking.findOne({ game });
+async function distributeIfReady(client, game, version = null, codes = null) {
+    const tracking = version
+        ? await LivestreamTracking.findOne({ game, version })
+        : await LivestreamTracking.findOne({ game }).sort({ streamTime: -1, updatedAt: -1 });
 
     if (!tracking) {
         return; // No tracking setup
     }
 
-    const version = tracking.version || '1.0';
-    const state = await getState(game, version);
+    const trackingVersion = tracking.version || '1.0';
+    const state = await getState(game, trackingVersion);
 
     // Only distribute if STATE = 5 (Found) and not already distributed
     if (state !== 5) {
@@ -64,56 +77,52 @@ async function distributeIfReady(client, game) {
     }
 
     console.log(`[Auto-Distribution] 🚀 Distributing codes for ${game}...`);
+    const distributionTracking = codes
+        ? { ...tracking.toObject(), codes }
+        : tracking;
+    const embed = await buildCodesEmbed(game, distributionTracking);
 
     // Get all guilds with auto-send enabled
-    const allConfigs = await Config.find({});
-    let successCount = 0;
-    let failCount = 0;
+    const [allConfigs, allSettings] = await Promise.all([
+        Config.find({}).lean(),
+        Settings.find({ autoSendEnabled: true }).lean()
+    ]);
+    const settingsMap = new Map(allSettings.map(settings => [settings.guildId, settings]));
+    const tasks = [];
 
     for (const config of allConfigs) {
-        try {
-            const settings = await Settings.findOne({ guildId: config.guildId });
+        const settings = settingsMap.get(config.guildId);
+        if (!settings) {
+            continue;
+        }
 
-            // Check if auto-send is enabled for this guild
-            if (!settings || !settings.autoSendEnabled) {
-                continue;
-            }
+        if (
+            settings.favoriteGames?.enabled
+            && settings.favoriteGames.games?.[game] === false
+        ) {
+            continue;
+        }
 
-            // Check if this game is enabled via favoriteGames filter
-            if (settings.favoriteGames?.enabled &&
-                settings.favoriteGames.games &&
-                settings.favoriteGames.games[game] === false) {
-                // This guild doesn't want this game's codes
-                continue;
-            }
+        if (settings.autoSendOptions?.channel !== false && config.channel) {
+            tasks.push(() => sendToChannel(client, config, game, embed));
+        }
 
-            const guild = await client.guilds.fetch(config.guildId).catch(() => null);
-            if (!guild) {
-                continue;
-            }
-
-            // Send to main channel
-            if (settings.autoSendOptions?.channel !== false && config.channel) {
-                await sendToChannel(client, config, game, tracking);
-                successCount++;
-            }
-
-            // Send to forum threads
-            if (settings.autoSendOptions?.threads !== false && config.forumThreads) {
-                await sendToThread(client, config, game, tracking);
-            }
-
-        } catch (error) {
-            console.error(`[Auto-Distribution] Error for guild ${config.guildId}:`, error);
-            failCount++;
+        if (settings.autoSendOptions?.threads !== false && config.forumThreads) {
+            tasks.push(() => sendToThread(client, config, game, embed));
         }
     }
 
+    const results = await processInBatches(tasks);
+    const successCount = results.filter(
+        result => result.status === 'fulfilled' && result.value === true
+    ).length;
+    const failCount = results.length - successCount;
+
     // Mark as distributed
     await LivestreamTracking.findOneAndUpdate(
-        { game },
+        { game, version: trackingVersion },
         { distributed: true },
-        { upsert: true }
+        { upsert: false }
     );
 
     console.log(`[Auto-Distribution] ✅ Distributed ${game} codes to ${successCount} guilds (${failCount} failed)`);
@@ -172,21 +181,20 @@ async function fetchEventsBanner(accountId, game) {
  * @param {Client} client - Discord client
  * @param {Object} config - Guild config
  * @param {string} game - Game identifier
- * @param {Object} tracking - Tracking data
+ * @param {EmbedBuilder} embed - Pre-built livestream code embed
  */
-async function sendToChannel(client, config, game, tracking) {
+async function sendToChannel(client, config, game, embed) {
     // Use livestreamChannel if configured, otherwise fall back to regular channel
     const channelId = config.livestreamChannel || config.channel;
 
     if (!channelId) return;
 
-    const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (!channel) return;
+    const channel = client.channels.cache.get(channelId);
 
     // Check permissions
-    const permissions = channel.permissionsFor(client.user);
-    if (!permissions || !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
-        return;
+    const permissions = channel?.permissionsFor(client.user);
+    if (permissions && !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+        return false;
     }
 
     // Get role to mention
@@ -194,17 +202,16 @@ async function sendToChannel(client, config, game, tracking) {
     const roleId = config[roleField];
     let roleMention = '';
 
-    if (roleId && permissions.has('MentionEveryone')) {
+    if (roleId && (!permissions || permissions.has('MentionEveryone'))) {
         roleMention = `<@&${roleId}> `;
     }
 
-    // Build embed (will fetch Events banner inside)
-    const embed = await buildCodesEmbed(game, tracking);
-
-    await channel.send({
+    await sendChannelMessage(client, channelId, {
         content: `${roleMention}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
-        embeds: [embed]
+        embeds: [embed],
+        allowedMentions: { roles: roleId ? [roleId] : [] }
     });
+    return true;
 }
 
 /**
@@ -212,9 +219,9 @@ async function sendToChannel(client, config, game, tracking) {
  * @param {Client} client - Discord client
  * @param {Object} config - Guild config
  * @param {string} game - Game identifier
- * @param {Object} tracking - Tracking data
+ * @param {EmbedBuilder} embed - Pre-built livestream code embed
  */
-async function sendToThread(client, config, game, tracking) {
+async function sendToThread(client, config, game, embed) {
     const threadMapping = {
         'genshin': config.forumThreads?.genshin,
         'hkrpg': config.forumThreads?.hsr,
@@ -222,15 +229,14 @@ async function sendToThread(client, config, game, tracking) {
     };
 
     const threadId = threadMapping[game];
-    if (!threadId) return;
+    if (!threadId) return false;
 
-    const thread = await client.channels.fetch(threadId).catch(() => null);
-    if (!thread) return;
+    const thread = client.channels.cache.get(threadId);
 
     // Check permissions
-    const permissions = thread.permissionsFor(client.user);
-    if (!permissions || !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
-        return;
+    const permissions = thread?.permissionsFor(client.user);
+    if (permissions && !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+        return false;
     }
 
     // Get role to mention
@@ -238,17 +244,16 @@ async function sendToThread(client, config, game, tracking) {
     const roleId = config[roleField];
     let roleMention = '';
 
-    if (roleId && permissions.has('MentionEveryone')) {
+    if (roleId && (!permissions || permissions.has('MentionEveryone'))) {
         roleMention = `<@&${roleId}> `;
     }
 
-    // Build embed (will fetch Events banner inside)
-    const embed = await buildCodesEmbed(game, tracking);
-
-    await thread.send({
+    await sendChannelMessage(client, threadId, {
         content: `${roleMention}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
-        embeds: [embed]
+        embeds: [embed],
+        allowedMentions: { roles: roleId ? [roleId] : [] }
     });
+    return true;
 }
 
 /**
@@ -312,6 +317,27 @@ async function buildCodesEmbed(game, tracking) {
         value: `[Click to Redeem](${REDEEM_URLS[game]})`,
         inline: false
     });
+
+    const youtubeStreams = tracking.youtubeStreams?.length
+        ? tracking.youtubeStreams
+        : tracking.youtubeUrl
+            ? [{ locale: 'en', url: tracking.youtubeUrl, status: tracking.youtubeStatus }]
+            : [];
+    const streamLinks = [
+        { locale: 'en', label: '🇬🇧 English' },
+        { locale: 'ja', label: '🇯🇵 日本語' }
+    ].map(({ locale, label }) => {
+        const stream = youtubeStreams.find(item => item.locale === locale);
+        return stream?.url ? `${label}: [Watch](${stream.url})` : null;
+    }).filter(Boolean);
+
+    if (streamLinks.length > 0) {
+        embed.addFields({
+            name: '▶️ Official Livestream',
+            value: streamLinks.join('\n'),
+            inline: false
+        });
+    }
 
     // Add banner as large image at bottom
     if (finalBanner) {

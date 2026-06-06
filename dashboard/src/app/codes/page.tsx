@@ -14,6 +14,49 @@ interface GameCode {
   game?: string; // Added to track source game in combined view
 }
 
+type GameSlug = 'genshin-impact' | 'honkai-star-rail' | 'zenless-zone-zero';
+type ApiGameId = 'genshin' | 'hsr' | 'zzz';
+
+const GAME_INFO = {
+  'genshin-impact': {
+    name: 'Genshin Impact',
+    endpoint: '/api/codes/genshin',
+    iconUrl: HOYO_GAME_ICONS.genshin,
+    color: 'text-violet-300',
+    heroColor: 'from-violet-600 to-purple-600',
+    redeemUrl: 'https://genshin.hoyoverse.com/en/gift'
+  },
+  'honkai-star-rail': {
+    name: 'Honkai: Star Rail',
+    endpoint: '/api/codes/hsr',
+    iconUrl: HOYO_GAME_ICONS.hsr,
+    color: 'text-accent-cyan',
+    heroColor: 'from-blue-600 to-cyan-500',
+    redeemUrl: 'https://hsr.hoyoverse.com/gift'
+  },
+  'zenless-zone-zero': {
+    name: 'Zenless Zone Zero',
+    endpoint: '/api/codes/zzz',
+    iconUrl: HOYO_GAME_ICONS.zzz,
+    color: 'text-accent-pink',
+    heroColor: 'from-pink-600 to-rose-500',
+    redeemUrl: 'https://zenless.hoyoverse.com/redemption'
+  }
+} as const;
+
+const API_GAME_SLUGS: Record<ApiGameId, GameSlug> = {
+  genshin: 'genshin-impact',
+  hsr: 'honkai-star-rail',
+  zzz: 'zenless-zone-zero'
+};
+
+interface AllCodesApiResponse {
+  games: Array<{
+    game: ApiGameId;
+    codes: GameCode[];
+  }>;
+}
+
 // Fallback Generic Icon
 const GenericIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" stroke="currentColor" strokeWidth={1.5}>
@@ -33,36 +76,9 @@ function CodesContent() {
   const [error, setError] = useState<string | null>(null);
   const { toasts, addToast, removeToast } = useToast();
 
-  const gameInfo = {
-    'genshin-impact': {
-      name: 'Genshin Impact',
-      endpoint: '/api/codes/genshin',
-      iconUrl: HOYO_GAME_ICONS.genshin,
-      color: 'text-violet-300',
-      heroColor: 'from-violet-600 to-purple-600',
-      redeemUrl: 'https://genshin.hoyoverse.com/en/gift'
-    },
-    'honkai-star-rail': {
-      name: 'Honkai: Star Rail',
-      endpoint: '/api/codes/hsr',
-      iconUrl: HOYO_GAME_ICONS.hsr,
-      color: 'text-accent-cyan',
-      heroColor: 'from-blue-600 to-cyan-500',
-      redeemUrl: 'https://hsr.hoyoverse.com/gift'
-    },
-    'zenless-zone-zero': {
-      name: 'Zenless Zone Zero',
-      endpoint: '/api/codes/zzz',
-      iconUrl: HOYO_GAME_ICONS.zzz,
-      color: 'text-accent-pink',
-      heroColor: 'from-pink-600 to-rose-500',
-      redeemUrl: 'https://zenless.hoyoverse.com/redemption'
-    }
-  };
-
   // Determine current view mode
   const isAllGames = !gameParam;
-  const currentGame = gameParam ? gameInfo[gameParam as keyof typeof gameInfo] : null;
+  const currentGame = gameParam ? GAME_INFO[gameParam as GameSlug] : null;
 
   useEffect(() => {
     // If specific game is requested but not found
@@ -72,6 +88,8 @@ function CodesContent() {
       return;
     }
 
+    const controller = new AbortController();
+
     const fetchCodes = async () => {
       setLoading(true);
       setError(null);
@@ -79,43 +97,39 @@ function CodesContent() {
         let allCodes: GameCode[] = [];
 
         if (isAllGames) {
-          // Fetch all games in parallel
-          const promises = Object.entries(gameInfo).map(async ([key, info]) => {
-            try {
-              const res = await fetch(info.endpoint);
-              if (!res.ok) return [];
-              const data = await res.json();
-              return (data.codes || []).map((c: any) => ({ ...c, game: key }));
-            } catch (e) {
-              console.error(`Error fetching ${key}:`, e);
-              return [];
-            }
-          });
+          const response = await fetch('/api/codes', { signal: controller.signal });
+          if (!response.ok) throw new Error('Failed to fetch codes');
 
-          const results = await Promise.all(promises);
-          allCodes = results.flat().sort((a, b) =>
+          const data = await response.json() as AllCodesApiResponse;
+          allCodes = data.games.flatMap(group =>
+            group.codes.map(code => ({ ...code, game: API_GAME_SLUGS[group.game] }))
+          ).sort((a, b) =>
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
-
         } else if (currentGame) {
           // Fetch single game
-          const response = await fetch(currentGame.endpoint);
+          const response = await fetch(currentGame.endpoint, { signal: controller.signal });
           if (!response.ok) throw new Error('Failed to fetch codes');
-          const data = await response.json();
-          allCodes = (data.codes || []).map((c: any) => ({ ...c, game: gameParam }));
+          const data = await response.json() as { codes?: GameCode[] };
+          allCodes = (data.codes || []).map(code => ({ ...code, game: gameParam || undefined }));
         }
 
         setCodes(allCodes);
       } catch (err) {
-        console.error('Error fetching codes:', err);
-        setError('Failed to load codes');
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error('Error fetching codes:', err);
+          setError('Failed to load codes');
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchCodes();
-  }, [gameParam]); // Re-run when param changes
+    void fetchCodes();
+    return () => controller.abort();
+  }, [currentGame, gameParam, isAllGames]);
 
   const copyToClipboard = async (code: string) => {
     try {
@@ -249,7 +263,7 @@ function CodesContent() {
                   : 'bg-white/5 hover:bg-white/10 text-violet-200'
                   }`}
               >
-                {gameInfo[g as keyof typeof gameInfo].name}
+                {GAME_INFO[g as GameSlug].name}
               </Link>
             ))}
 
@@ -287,7 +301,7 @@ function CodesContent() {
         ) : codes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
             {codes.map((codeItem, index) => {
-              const itemGameInfo = codeItem.game ? gameInfo[codeItem.game as keyof typeof gameInfo] : currentGame;
+              const itemGameInfo = codeItem.game ? GAME_INFO[codeItem.game as GameSlug] : currentGame;
               const borderClass = codeItem.isExpired
                 ? 'border-red-500/10'
                 : itemGameInfo?.color === 'text-accent-pink' ? 'hover:border-accent-pink/50'

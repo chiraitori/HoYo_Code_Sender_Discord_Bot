@@ -4,6 +4,8 @@ const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const Language = require('../models/Language');
 const languageManager = require('./language');
+const { enrichCodesWithHoyolabRewards } = require('./codeRewardEnricher');
+const { sendChannelMessage } = require('./discordMessageSender');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
@@ -44,6 +46,8 @@ const supportLinks = {
     banking: 'Use /about command for Vietnamese banking details'
 };
 
+let codeCheckRunning = false;
+
 // Concurrency limiter - processes promises in batches
 async function processInBatches(tasks, batchSize) {
     const results = [];
@@ -56,6 +60,12 @@ async function processInBatches(tasks, batchSize) {
 }
 
 async function checkAndSendNewCodes(client) {
+    if (codeCheckRunning) {
+        console.log('Skipping code check because the previous run is still active');
+        return;
+    }
+
+    codeCheckRunning = true;
     console.log('Starting code check process...');
     const startTime = Date.now();
     const games = ['genshin', 'hkrpg', 'nap'];
@@ -106,6 +116,18 @@ async function checkAndSendNewCodes(client) {
         );
 
         const gameResponses = await Promise.all(gameCodeRequests);
+
+        await Promise.all(gameResponses.map(async (response, index) => {
+            if (response.error) {
+                return;
+            }
+
+            const game = games[index];
+            response.data.codes = await enrichCodesWithHoyolabRewards(
+                game,
+                response.data?.codes || []
+            );
+        }));
         const newCodesForGames = {};
         const codesToSave = [];
         const activeCodesFromAPI = new Set();
@@ -249,15 +271,15 @@ async function checkAndSendNewCodes(client) {
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = [];
         const guildsToCleanup = [];
+        const hasPartialShardSet = Boolean(process.env.SHARD_IDS?.trim());
 
         // Filter configs that have autoSend enabled
         for (const config of configs) {
             const guildId = config.guildId;
             const settings = settingsMap[guildId];
             
-            // Check if bot is still in the guild
-            const guild = client.guilds.cache.get(guildId);
-            if (!guild) {
+            // A process that owns only some shards cannot validate every guild from cache.
+            if (!hasPartialShardSet && !client.guilds.cache.has(guildId)) {
                 guildsToCleanup.push(guildId);
                 continue;
             }
@@ -303,6 +325,8 @@ async function checkAndSendNewCodes(client) {
         console.log(`Code check process completed in ${elapsed}ms. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Sent to ${messageTasks.length} targets.`);
     } catch (error) {
         console.error('Error in checkAndSendNewCodes:', error);
+    } finally {
+        codeCheckRunning = false;
     }
 }
 
@@ -365,14 +389,6 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
     }
 
     try {
-        // Get guild with silent validation
-        const guild = client.guilds.cache.get(guildId);
-        if (!guild) {
-            // Guild not found, clean up configuration
-            await cleanupGuildConfiguration(guildId);
-            return;
-        }
-        
         // Check auto-send options (default to true if not set)
         const sendToChannel = settings?.autoSendOptions?.channel !== false;
         const sendToThreads = settings?.autoSendOptions?.threads !== false;
@@ -385,40 +401,29 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         // Validate channel if sending to it
         const channel = sendToChannel ? client.channels.cache.get(config.channel) : null;
         if (sendToChannel) {
-            if (!channel) {
-                // Channel not found, notify owner once and return silently
-                await notifyGuildOwnerMissingChannel(client, guild, config);
-                return;
-            }
-
             // Check if channel is text-based
-            if (!channel.isTextBased()) {
+            if (channel && !channel.isTextBased()) {
                 return;
             }
 
             // Check if channel.send is a function
-            if (typeof channel.send !== 'function') {
+            if (channel && typeof channel.send !== 'function') {
                 return;
             }
         }
 
-        // Check bot permissions only if sending to channel
-        const botMember = guild.members.cache.get(client.user.id);
-        if (!botMember) {
-            return;
-        }
+        const guild = client.guilds.cache.get(guildId) || channel?.guild || null;
+        const botMember = guild?.members?.me
+            || guild?.members?.cache?.get(client.user.id)
+            || null;
         
-        // Validate channel permissions only if we're sending to channel
-        let canSendToChannel = sendToChannel && channel; // Start with true if both conditions met
-        if (sendToChannel && channel) {
+        // Validate cached permissions when available. Discord still validates every send.
+        let canSendToChannel = sendToChannel && Boolean(config.channel);
+        if (sendToChannel && channel && botMember) {
             const channelPermissions = channel.permissionsFor(botMember);
             if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
-                // Missing send messages permission, notify owner once
-                await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
                 canSendToChannel = false;
             } else if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
-                // Missing embed links permission, notify owner once
-                await notifyGuildOwnerMissingPermissions(client, guild, config, 'EmbedLinks');
                 canSendToChannel = false;
             }
             // If we reach here without setting to false, canSendToChannel remains true
@@ -441,7 +446,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         if (roleId) {
             content = `<@&${roleId}>`;
             // Check role mention permissions (only if we have a channel to check)
-            if (channel) {
+            if (channel && botMember) {
                 const channelPermissions = channel.permissionsFor(botMember);
                 if (channelPermissions && channelPermissions.has(PermissionFlagsBits.MentionEveryone)) {
                     allowedMentions = {
@@ -463,8 +468,8 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         }
 
         // Send the message to main channel (if enabled and has permissions)
-        if (canSendToChannel && channel) {
-            await channel.send({ 
+        if (canSendToChannel && config.channel) {
+            await sendChannelMessage(client, config.channel, {
                 content: content, 
                 embeds: [embed],
                 allowedMentions: allowedMentions
@@ -485,15 +490,29 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                 const threadId = config.forumThreads[threadKey];
                 
                 if (threadId) {
-                    const forumThread = guild.channels.cache.get(threadId);
-                    if (forumThread) {
+                    const forumThread = client.channels.cache.get(threadId);
+                    if (!forumThread) {
+                        await sendChannelMessage(client, threadId, {
+                            content: config[roleMapping[game]]
+                                ? `<@&${config[roleMapping[game]]}>`
+                                : '',
+                            embeds: [embed],
+                            allowedMentions: {
+                                roles: config[roleMapping[game]]
+                                    ? [config[roleMapping[game]]]
+                                    : []
+                            }
+                        });
+                    } else {
                         const { ChannelType } = require('discord.js');
                         // Verify it's actually a thread
                         if ([ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread].includes(forumThread.type)) {
                             // Use already-resolved botMember from cache instead of fetching from API
-                            const threadPermissions = forumThread.permissionsFor(botMember);
+                            const threadPermissions = botMember
+                                ? forumThread.permissionsFor(botMember)
+                                : null;
                             
-                            if (threadPermissions && threadPermissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+                            if (!threadPermissions || threadPermissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
                                 // Get the role for this game to mention in thread
                                 const threadRoleMapping = {
                                     'genshin': config.genshinRole,
@@ -506,7 +525,10 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                                 let threadAllowedMentions = { roles: [] };
                                 
                                 // Add role mention if role is configured and bot has permission
-                                if (threadRoleId && threadPermissions.has(PermissionFlagsBits.MentionEveryone)) {
+                                if (
+                                    threadRoleId
+                                    && (!threadPermissions || threadPermissions.has(PermissionFlagsBits.MentionEveryone))
+                                ) {
                                     threadContent = `<@&${threadRoleId}>`;
                                     threadAllowedMentions = { roles: [threadRoleId] };
                                 }

@@ -1,10 +1,28 @@
 import { NextResponse } from 'next/server';
 
-const games = ['genshin', 'hsr', 'zzz'];
-const gameMapping: Record<string, string> = {
-  'genshin': 'genshin',
-  'hsr': 'hkrpg',
-  'zzz': 'nap'
+type GameId = 'genshin' | 'hsr' | 'zzz';
+
+interface ExternalCode {
+  code: string;
+  isExpired?: boolean;
+  timestamp?: string;
+}
+
+interface GameCode {
+  code: string;
+  isExpired: boolean;
+  timestamp: string;
+}
+
+const games: GameId[] = ['genshin', 'hsr', 'zzz'];
+const gameMapping: Record<GameId, string> = {
+  genshin: 'genshin',
+  hsr: 'hkrpg',
+  zzz: 'nap'
+};
+
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
 };
 
 export async function GET() {
@@ -24,19 +42,20 @@ export async function GET() {
           throw new Error(`Failed to fetch ${game} codes`);
         }
 
-        const data = await response.json();
-        const codes = (data.codes || []).map((code: any) => ({
+        const data = await response.json() as { codes?: ExternalCode[] };
+        const generatedAt = new Date().toISOString();
+        const codes: GameCode[] = (data.codes || []).map(code => ({
           code: code.code,
-          isExpired: code.isExpired || false,
-          timestamp: code.timestamp || new Date().toISOString()
+          isExpired: code.isExpired ?? false,
+          timestamp: code.timestamp || generatedAt
         }));
 
         return {
           game,
           codes,
           total: codes.length,
-          active: codes.filter((c: any) => !c.isExpired).length,
-          expired: codes.filter((c: any) => c.isExpired).length
+          active: codes.filter(code => !code.isExpired).length,
+          expired: codes.filter(code => code.isExpired).length
         };
       } catch (error) {
         console.error(`Error fetching ${game} codes:`, error);
@@ -60,11 +79,14 @@ export async function GET() {
       totalExpired: acc.totalExpired + game.expired
     }), { totalCodes: 0, totalActive: 0, totalExpired: 0 });
 
-    return NextResponse.json({
-      games: results,
-      summary,
-      lastUpdated: new Date().toISOString()
-    });
+    return NextResponse.json(
+      {
+        games: results,
+        summary,
+        lastUpdated: new Date().toISOString()
+      },
+      { headers: CACHE_HEADERS }
+    );
 
   } catch (error) {
     console.error('Error fetching all game codes:', error);
