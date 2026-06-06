@@ -271,7 +271,10 @@ async function checkAndSendNewCodes(client) {
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = [];
         const guildsToCleanup = [];
-        const hasPartialShardSet = Boolean(process.env.SHARD_IDS?.trim());
+        const hasPartialShardSet = Boolean(
+            process.env.SHARDING_MANAGER === 'true'
+            || process.env.SHARD_IDS?.trim()
+        );
 
         // Filter configs that have autoSend enabled
         for (const config of configs) {

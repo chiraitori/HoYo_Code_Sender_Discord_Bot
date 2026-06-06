@@ -31,6 +31,7 @@ COPY --from=builder /app/utils ./utils
 COPY --from=builder /app/lang ./lang
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/index.js ./
+COPY --from=builder /app/shard-manager.js ./
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -45,4 +46,4 @@ USER botuser
 EXPOSE 3000
 
 # Start the bot
-CMD ["node", "index.js"]
+CMD ["node", "shard-manager.js"]

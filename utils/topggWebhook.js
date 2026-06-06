@@ -32,9 +32,28 @@ setInterval(() => {
 }, 60 * 60 * 1000); // Run cleanup every hour
 
 // Function to track which channel a user used the vote command in
-function trackVoteCommand(userId, channelId, guildId) {
+function trackVoteCommandLocal(userId, channelId, guildId) {
     voteChannelTracker.set(userId, { channelId, guildId, timestamp: Date.now() });
-    // Note: Cleanup is now handled by the periodic interval above
+}
+
+async function trackVoteCommand(userId, channelId, guildId, client = null) {
+    if (!client?.shard) {
+        trackVoteCommandLocal(userId, channelId, guildId);
+        return;
+    }
+
+    await client.shard.broadcastEval((shardClient, context) => {
+        if (!shardClient.shard?.ids.includes(0)) {
+            return;
+        }
+
+        const { trackVoteCommandLocal: trackLocal } = require(
+            `${process.cwd()}/utils/topggWebhook`
+        );
+        trackLocal(context.userId, context.channelId, context.guildId);
+    }, {
+        context: { userId, channelId, guildId }
+    });
 }
 
 function setupTopggWebhook(app, client) {
@@ -193,4 +212,8 @@ function setupTopggWebhook(app, client) {
     }));
 }
 
-module.exports = { setupTopggWebhook, trackVoteCommand };
+module.exports = {
+    setupTopggWebhook,
+    trackVoteCommand,
+    trackVoteCommandLocal
+};

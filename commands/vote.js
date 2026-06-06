@@ -20,7 +20,14 @@ module.exports = {
     async execute(interaction) {
         try {
             // Track that this user initiated a vote command in this channel
-            trackVoteCommand(interaction.user.id, interaction.channelId, interaction.guildId);
+            void trackVoteCommand(
+                interaction.user.id,
+                interaction.channelId,
+                interaction.guildId,
+                interaction.client
+            ).catch(error => {
+                console.error('Failed to sync vote tracking across shards:', error);
+            });
             
             // Defer reply to give us time to check with Top.gg
             await interaction.deferReply({ ephemeral: true });

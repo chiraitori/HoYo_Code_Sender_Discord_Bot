@@ -2,7 +2,8 @@ const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const YearMessage = require('../models/YearMessage');
 const Language = require('../models/Language');
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
+const { sendChannelMessage } = require('./discordMessageSender');
 
 async function checkAndSendYearChangeMessage(client) {
     try {
@@ -68,12 +69,6 @@ async function checkAndSendYearChangeMessage(client) {
             const settings = settingsMap[guildId];
             const yearMessage = yearMessageMap[guildId];
 
-            // Check if bot is still in the guild
-            const guild = client.guilds.cache.get(guildId);
-            if (!guild) {
-                continue;
-            }
-
             // Skip if autoSend is disabled
             if (!settings?.autoSendEnabled) {
                 continue;
@@ -104,37 +99,8 @@ async function checkAndSendYearChangeMessage(client) {
 
 async function sendYearChangeMessage(client, config, guildId, currentYear, language) {
     try {
-        const guild = client.guilds.cache.get(guildId);
-        if (!guild) {
-            return;
-        }
-
-        // Get the notification channel
-        const channel = client.channels.cache.get(config.channel);
-        if (!channel) {
+        if (!config.channel) {
             console.log(`No channel found for guild ${guildId}, skipping year message`);
-            return;
-        }
-
-        // Check if channel is text-based
-        if (!channel.isTextBased()) {
-            return;
-        }
-
-        // Check bot permissions
-        const botMember = guild.members.cache.get(client.user.id);
-        if (!botMember) {
-            return;
-        }
-
-        const channelPermissions = channel.permissionsFor(botMember);
-        if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
-            console.log(`Missing SendMessages permission in guild ${guildId}, skipping year message`);
-            return;
-        }
-
-        if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
-            console.log(`Missing EmbedLinks permission in guild ${guildId}, skipping year message`);
             return;
         }
 
@@ -168,7 +134,7 @@ async function sendYearChangeMessage(client, config, guildId, currentYear, langu
             .setTimestamp();
 
         // Send the message (no role mentions)
-        await channel.send({ embeds: [embed] });
+        await sendChannelMessage(client, config.channel, { embeds: [embed] });
 
         // Update the database to mark this year as sent
         await YearMessage.findOneAndUpdate(

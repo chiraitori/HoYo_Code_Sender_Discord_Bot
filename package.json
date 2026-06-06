@@ -4,7 +4,8 @@
   "description": "Discord bot for fetching and sending HoYoverse game redemption codes",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node shard-manager.js",
+    "start:single": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo \"No test specified\" && exit 1",
     "pm2": "pm2 start npm --name 'Hoyo Code Sender' -- start"

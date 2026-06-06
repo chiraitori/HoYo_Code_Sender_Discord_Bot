@@ -91,7 +91,11 @@ Create a .env file in the root directory and add the following:
    OWNER_ID=your_id_in_discord
    # Dashboard URL (optional, for development)
    NEXT_PUBLIC_APP_URL=http://localhost:3000
-   # Optional sharding overrides (for advanced deployments)
+   # Sharding is automatic by default. Optional tuning:
+   # SHARD_GUILDS_PER_SHARD=1000
+   # SHARD_RESCALE_INTERVAL_MS=1800000
+   # SHARD_REBALANCE_DELAY_MS=2000
+   # Manual overrides for advanced multi-host deployments:
    # SHARD_COUNT=4
    # SHARD_IDS=0,1,2,3
 ```
@@ -99,8 +103,13 @@ Replace your_discord_bot_token, your_mongodb_connection_string, and your_discord
 
 5. **Run the bot:**
  ```bash
- node index.js
+ npm start
  ```
+
+`npm start` launches the multi-process shard manager. It automatically uses
+Discord's recommended shard count, respawns crashed shard workers, and
+periodically rebalances when the recommended count changes. Use
+`npm run start:single` only for local debugging without the shard manager.
 
 6. **Run the Dashboard (optional):**
 Open a new terminal, navigate to the dashboard folder, and start the development server:
