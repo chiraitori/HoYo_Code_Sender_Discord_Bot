@@ -101,26 +101,7 @@ npm install -g pm2
 npm run pm2
 ```
 
-The default `npm start` command runs `shard-manager.js`. It fetches Discord's
-recommended shard count, starts one worker process per shard, respawns failed
-workers, and checks every 30 minutes whether a shard rebalance is needed.
-
-Optional tuning:
-
-```env
-# Lower this to provision shards before reaching Discord's 1,000 guild limit.
-SHARD_GUILDS_PER_SHARD=1000
-
-# Refresh Discord's recommended count every 30 minutes.
-SHARD_RESCALE_INTERVAL_MS=1800000
-
-# Allow the old shard-0 HTTP server to release its port before respawning.
-SHARD_REBALANCE_DELAY_MS=2000
-
-# Manual override. Setting this disables automatic shard-count rebalancing.
-# SHARD_COUNT=4
-# SHARD_IDS=0,1,2,3
-```
+The default `npm start` command runs the bot directly with `index.js`.
 
 Or create a custom ecosystem file `ecosystem.config.js`:
 
@@ -128,7 +109,7 @@ Or create a custom ecosystem file `ecosystem.config.js`:
 module.exports = {
   apps: [{
     name: 'hoyo-code-sender',
-    script: 'shard-manager.js',
+    script: 'index.js',
     instances: 1,
     autorestart: true,
     watch: false,

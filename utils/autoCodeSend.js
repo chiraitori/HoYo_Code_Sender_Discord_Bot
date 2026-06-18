@@ -271,18 +271,13 @@ async function checkAndSendNewCodes(client) {
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = [];
         const guildsToCleanup = [];
-        const hasPartialShardSet = Boolean(
-            process.env.SHARDING_MANAGER === 'true'
-            || process.env.SHARD_IDS?.trim()
-        );
 
         // Filter configs that have autoSend enabled
         for (const config of configs) {
             const guildId = config.guildId;
             const settings = settingsMap[guildId];
             
-            // A process that owns only some shards cannot validate every guild from cache.
-            if (!hasPartialShardSet && !client.guilds.cache.has(guildId)) {
+            if (!client.guilds.cache.has(guildId)) {
                 guildsToCleanup.push(guildId);
                 continue;
             }

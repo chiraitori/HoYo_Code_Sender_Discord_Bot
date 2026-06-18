@@ -1,0 +1,238 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner:
+      - generic [ref=e4]:
+        - img
+        - navigation [ref=e6]:
+          - generic [ref=e7]:
+            - generic [ref=e8] [cursor=pointer]:
+              - generic [ref=e9]: 🎮
+              - generic [ref=e10]:
+                - generic [ref=e11]: HoYo Code
+                - generic [ref=e12]: Sender
+            - generic [ref=e13]:
+              - link "Features" [ref=e14] [cursor=pointer]:
+                - /url: "#features"
+              - button "View Codes" [ref=e15]
+            - button "LOGIN TO MANAGE" [ref=e18]
+    - main [ref=e19]:
+      - generic [ref=e23]:
+        - heading "HoYo Code Sender" [level=1] [ref=e25]:
+          - generic [ref=e26]: HoYo Code
+          - generic [ref=e27]: Sender
+        - paragraph [ref=e28]:
+          - generic [ref=e29]: "|"
+        - paragraph [ref=e30]: "Automatically fetch and distribute HoYoverse game redemption codes to your Discord server. Support for Genshin Impact,Honkai: Star Rail, andZenless Zone Zero."
+        - generic [ref=e31]:
+          - link "🚀 Add to Discord" [ref=e32] [cursor=pointer]:
+            - /url: https://discord.com/api/oauth2/authorize?client_id=1124167011585511516&permissions=8&scope=bot%20applications.commands
+            - generic [ref=e33]:
+              - generic [ref=e34]: 🚀 Add to Discord
+              - img [ref=e35]
+          - link "📋 View Live Codes" [ref=e37] [cursor=pointer]:
+            - /url: /codes
+            - generic [ref=e38]:
+              - generic [ref=e39]: 📋 View Live Codes
+              - img [ref=e40]
+        - generic [ref=e42]:
+          - img "Genshin Impact icon" [ref=e45]
+          - 'img "Honkai: Star Rail icon" [ref=e48]'
+          - img "Zenless Zone Zero icon" [ref=e51]
+      - heading "Bot Statistics" [level=2] [ref=e55]
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - heading "Supported Games" [level=2] [ref=e61]
+          - paragraph [ref=e62]: Get the latest redemption codes for all your favorite HoYoverse games, delivered instantly to your Discord server
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - generic:
+              - generic:
+                - generic:
+                  - img "Genshin Impact icon"
+            - generic [ref=e66]:
+              - generic [ref=e68]:
+                - img "Genshin Impact icon" [ref=e71]
+                - generic [ref=e72]:
+                  - heading "Genshin Impact" [level=3] [ref=e73]
+                  - generic [ref=e75]: 0 active codes
+              - paragraph [ref=e77]: Explore the magical world of Teyvat and collect Primogems with exclusive codes
+              - generic [ref=e79]: 🔄 Loading codes...
+              - generic [ref=e80]:
+                - link "REDEEM" [ref=e81] [cursor=pointer]:
+                  - /url: https://genshin.hoyoverse.com/en/gift
+                - link "VIEW ALL" [ref=e82] [cursor=pointer]:
+                  - /url: /codes?game=genshin-impact
+          - generic [ref=e83]:
+            - generic:
+              - generic:
+                - generic:
+                  - 'img "Honkai: Star Rail icon"'
+            - generic [ref=e85]:
+              - generic [ref=e87]:
+                - 'img "Honkai: Star Rail icon" [ref=e90]'
+                - generic [ref=e91]:
+                  - 'heading "Honkai: Star Rail" [level=3] [ref=e92]'
+                  - generic [ref=e94]: 0 active codes
+              - paragraph [ref=e96]: Journey across the galaxy and earn Stellar Jade with special redemption codes
+              - generic [ref=e98]: 🔄 Loading codes...
+              - generic [ref=e99]:
+                - link "REDEEM" [ref=e100] [cursor=pointer]:
+                  - /url: https://hsr.hoyoverse.com/gift
+                - link "VIEW ALL" [ref=e101] [cursor=pointer]:
+                  - /url: /codes?game=honkai-star-rail
+          - generic [ref=e102]:
+            - generic:
+              - generic:
+                - generic:
+                  - img "Zenless Zone Zero icon"
+            - generic [ref=e104]:
+              - generic [ref=e106]:
+                - img "Zenless Zone Zero icon" [ref=e109]
+                - generic [ref=e110]:
+                  - heading "Zenless Zone Zero" [level=3] [ref=e111]
+                  - generic [ref=e113]: 0 active codes
+              - paragraph [ref=e115]: Dive into New Eridu and earn Polychrome with exclusive redemption codes
+              - generic [ref=e117]: 🔄 Loading codes...
+              - generic [ref=e118]:
+                - link "REDEEM" [ref=e119] [cursor=pointer]:
+                  - /url: https://zenless.hoyoverse.com/redemption
+                - link "VIEW ALL" [ref=e120] [cursor=pointer]:
+                  - /url: /codes?game=zenless-zone-zero
+        - generic [ref=e122]:
+          - heading "Ready to never miss a code again?" [level=3] [ref=e124]
+          - paragraph [ref=e125]: Add HoYoverse Code Sender to your Discord server and let your members know about new codes automatically
+          - link "🚀 Add to Discord" [ref=e126] [cursor=pointer]:
+            - /url: https://discord.com/api/oauth2/authorize?client_id=1124167011585511516&permissions=8&scope=bot%20applications.commands
+            - text: 🚀 Add to Discord
+            - img [ref=e127]
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - heading "Powerful Features" [level=2] [ref=e132]
+          - paragraph [ref=e133]: Everything you need to keep your Discord community up-to-date with the latest HoYoverse redemption codes
+        - generic [ref=e134]:
+          - generic [ref=e135]:
+            - img [ref=e137]
+            - heading "Instant Notifications" [level=3] [ref=e139]
+            - paragraph [ref=e140]: Get notified the moment new redemption codes are released by HoYoverse
+          - generic [ref=e141]:
+            - img [ref=e143]
+            - heading "Auto Distribution" [level=3] [ref=e148]
+            - paragraph [ref=e149]: Codes are automatically sent to your configured Discord channels without any manual work
+          - generic [ref=e150]:
+            - img [ref=e152]
+            - heading "Multi-Game Support" [level=3] [ref=e154]
+            - paragraph [ref=e155]: "Support for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero all in one bot"
+          - generic [ref=e156]:
+            - img [ref=e158]
+            - heading "Multiple Languages" [level=3] [ref=e161]
+            - paragraph [ref=e162]: Bot responses available in English, Japanese, and Vietnamese for global communities
+          - generic [ref=e163]:
+            - img [ref=e165]
+            - heading "Role-Based Notifications" [level=3] [ref=e167]
+            - paragraph [ref=e168]: Configure specific roles to be pinged for different games and manage who gets notified
+          - generic [ref=e169]:
+            - img [ref=e171]
+            - heading "Smart Analytics" [level=3] [ref=e173]
+            - paragraph [ref=e174]: Track code distribution, server activity, and user engagement with detailed analytics
+          - generic [ref=e175]:
+            - img [ref=e177]
+            - heading "Easy Configuration" [level=3] [ref=e180]
+            - paragraph [ref=e181]: Simple slash commands to set up channels, roles, and preferences in minutes
+          - generic [ref=e182]:
+            - img [ref=e184]
+            - heading "Secure & Reliable" [level=3] [ref=e187]
+            - paragraph [ref=e188]: Built with security in mind, 99.9% uptime, and regularly updated with new features
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - heading "Why Choose HoYo Code Sender?" [level=3] [ref=e193]
+            - paragraph [ref=e194]: "We've built the most reliable and feature-rich HoYoverse code distribution bot for Discord. Our bot ensures your community never misses out on free rewards and exclusive content from Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero."
+            - generic [ref=e195]:
+              - generic [ref=e196]:
+                - img [ref=e198]
+                - generic [ref=e200]: Growing community of Discord servers
+              - generic [ref=e201]:
+                - img [ref=e203]
+                - generic [ref=e205]: Automatic code detection and distribution
+              - generic [ref=e206]:
+                - img [ref=e208]
+                - generic [ref=e210]: 24/7 monitoring and instant updates
+              - generic [ref=e211]:
+                - img [ref=e213]
+                - generic [ref=e215]: Open source and community driven
+          - generic [ref=e217]:
+            - generic [ref=e218]: 🎮
+            - generic [ref=e219]: Ready to get started?
+            - generic [ref=e220]: Join our growing community of server owners
+            - link "Add to Discord" [ref=e221] [cursor=pointer]:
+              - /url: https://discord.com/api/oauth2/authorize?client_id=1124167011585511516&permissions=2048&scope=bot%20applications.commands
+              - generic [ref=e222]: Add to Discord
+              - img [ref=e223]
+    - button "Scroll to statistics" [ref=e225]:
+      - img [ref=e227]
+    - contentinfo [ref=e229]:
+      - generic [ref=e232]:
+        - generic [ref=e233]:
+          - generic [ref=e234]:
+            - generic [ref=e235]:
+              - generic [ref=e236]: 🎮
+              - generic [ref=e237]: HoYo Code Sender
+            - paragraph [ref=e238]: The most reliable Discord bot for HoYoverse game redemption codes. Never miss free Primogems, Stellar Jade, Polychrome or exclusive rewards again.
+            - generic [ref=e239]:
+              - link "View on GitHub" [ref=e240] [cursor=pointer]:
+                - /url: https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot
+                - img [ref=e241]
+              - link "Join our Discord" [ref=e243] [cursor=pointer]:
+                - /url: https://discord.gg/DtuKCEkXzY
+                - img [ref=e244]
+              - link "Vote on top.gg" [ref=e246] [cursor=pointer]:
+                - /url: https://top.gg/bot/1124167011585511516/vote
+                - img [ref=e247]
+          - generic [ref=e250]:
+            - heading "Quick Links" [level=3] [ref=e251]
+            - list [ref=e252]:
+              - listitem [ref=e253]:
+                - button "Live Codes" [ref=e254]
+              - listitem [ref=e255]:
+                - button "Commands" [ref=e256]
+              - listitem [ref=e257]:
+                - button "Manage Servers" [ref=e258]
+              - listitem [ref=e259]:
+                - button "Dashboard" [ref=e260]
+              - listitem [ref=e261]:
+                - link "Support Server" [ref=e262] [cursor=pointer]:
+                  - /url: https://discord.gg/DtuKCEkXzY
+          - generic [ref=e263]:
+            - heading "Features" [level=3] [ref=e264]
+            - list [ref=e265]:
+              - listitem [ref=e266]:
+                - generic [ref=e267]: ⚡
+                - generic [ref=e268]: Real-time Updates
+              - listitem [ref=e269]:
+                - generic [ref=e270]: 🔧
+                - generic [ref=e271]: Easy Setup
+              - listitem [ref=e272]:
+                - generic [ref=e273]: 📱
+                - generic [ref=e274]: Mobile Friendly
+            - heading "Supported Games" [level=4] [ref=e275]
+            - list [ref=e276]:
+              - listitem [ref=e277]:
+                - img "Genshin Impact icon" [ref=e280]
+                - link "Genshin Impact" [ref=e281] [cursor=pointer]:
+                  - /url: https://genshin.hoyoverse.com
+              - listitem [ref=e282]:
+                - 'img "Honkai: Star Rail icon" [ref=e285]'
+                - 'link "Honkai: Star Rail" [ref=e286] [cursor=pointer]':
+                  - /url: https://hsr.hoyoverse.com
+              - listitem [ref=e287]:
+                - img "Zenless Zone Zero icon" [ref=e290]
+                - link "Zenless Zone Zero" [ref=e291] [cursor=pointer]:
+                  - /url: https://zenless.hoyoverse.com
+        - generic [ref=e292]:
+          - generic [ref=e293]: © 2026 Chiraitori. Not affiliated with HoYoverse.
+          - generic [ref=e294]:
+            - button "Privacy Policy" [ref=e295]
+            - button "Terms of Service" [ref=e296]
+            - link "System Status" [ref=e297] [cursor=pointer]:
+              - /url: https://uptime-chika-alpine.fly.dev/status/hoyo
+              - generic [ref=e299]: System Status
+  - alert [ref=e300]

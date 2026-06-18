@@ -1,1055 +1,128 @@
 // TODO: refactor this mess before Ganyu gets disappointed
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType, MessageFlags } = require('discord.js');
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const fs = require('fs');
+const { ShardingManager } = require('discord.js');
 const path = require('path');
-const mongoose = require('mongoose');
-const rateLimit = require('express-rate-limit');
-const { checkAndSendNewCodes } = require('./utils/autoCodeSend');
-const { checkAndSendYearChangeMessage } = require('./utils/yearChangeCheck');
-const { setupTopggWebhook } = require('./utils/topggWebhook');
-const { sendWelcomeMessage } = require('./utils/welcome');
-const authMiddleware = require('./utils/authMiddleware');
-const { startLivestreamChecker } = require('./utils/livestreamChecker');
-const { startPostTracker } = require('./utils/hoyolabPostTracker');
-const { sendChannelMessage } = require('./utils/discordMessageSender');
 
-const isManagedShard = process.env.SHARDING_MANAGER === 'true';
-let managedShardIds = [];
-if (isManagedShard) {
-    try {
-        managedShardIds = [JSON.parse(process.env.SHARDS || '0')].flat();
-    } catch {
-        console.error('Invalid SHARDS value supplied by the shard manager.');
-        process.exit(1);
-    }
-}
-const runsPrimaryServices = !isManagedShard || managedShardIds.includes(0);
-
-// Express setup
-const app = express();
-const PORT = process.env.PORT || 3000;
-let httpServer = null;
-
-// Trust proxy configuration for proper rate limiting behind reverse proxies
-// This allows express-rate-limit to correctly identify users via X-Forwarded-For headers
-// Required when deployed behind nginx, CloudFlare, load balancers, or other reverse proxies
-// Setting this to 'true' tells Express to trust the first hop proxy
-app.set('trust proxy', true);
-
-// Rate limiting middleware
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // increased from 100
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes',
-    keyGenerator: (req) => req.ip,
-    skip: (req) => true // Bypass rate limiting for now (as requested)
-});
-
-// Apply rate limiting to all routes
-app.use(limiter);
-
-// API-specific stricter rate limiter
-const apiLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 1000,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: 'Too many API requests from this IP, please try again after 5 minutes',
-    keyGenerator: (req) => req.ip,
-    skip: (req) => true // Bypass rate limiting for now (as requested)
-});
-
-// Apply the API-specific limiter to API routes
-app.use('/api/', apiLimiter);
-
-// Security middleware
-app.use((req, res, next) => {
-    // Content Security Policy
-    res.setHeader('Content-Security-Policy', [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
-        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
-        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
-        "img-src 'self' data: https: pic.re",
-        "connect-src 'self'"
-    ].join('; '));
-
-    // Other security headers
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-    next();
-});
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public')); // Create a 'public' folder for static files
-
-// Authentication middleware for protected bot API routes
-app.use('/api/bot', authMiddleware);
-app.use('/api/server', authMiddleware);
-
-// Simple cache for API responses
-const apiCache = new Map();
-const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
-const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
-
-function getValidatedGuildId(rawId) {
-    if (typeof rawId !== 'string') {
-        return null;
-    }
-
-    const normalizedId = rawId.trim();
-    return DISCORD_SNOWFLAKE_REGEX.test(normalizedId) ? normalizedId : null;
-}
-
-function serializeGuild(guild, includeDetails = false) {
-    const guildInfo = {
-        id: guild.id,
-        name: guild.name,
-        memberCount: guild.memberCount,
-        icon: guild.iconURL({ extension: 'png', size: 128 }),
-        ownerId: guild.ownerId,
-        joinedAt: guild.joinedAt?.toISOString() || null
-    };
-
-    if (!includeDetails) {
-        return guildInfo;
-    }
-
-    return {
-        ...guildInfo,
-        description: guild.description,
-        features: guild.features,
-        roles: guild.roles.cache
-            .filter(role => role.name !== '@everyone' && !role.managed)
-            .map(role => ({
-                id: role.id,
-                name: role.name,
-                color: role.hexColor,
-                position: role.position,
-                mentionable: role.mentionable,
-                managed: role.managed
-            }))
-            .sort((a, b) => b.position - a.position),
-        channels: guild.channels.cache
-            .filter(channel =>
-                channel.type === 0
-                && guild.members.me
-                && channel.permissionsFor(guild.members.me)?.has('SendMessages')
-            )
-            .map(channel => ({
-                id: channel.id,
-                name: channel.name,
-                type: channel.type,
-                position: channel.position
-            }))
-            .sort((a, b) => a.position - b.position)
-    };
-}
-
-async function getClusterStats() {
-    if (!client.shard) {
-        return [{
-            guildCount: client.guilds.cache.size,
-            userCount: client.guilds.cache.reduce((sum, guild) => sum + guild.memberCount, 0),
-            channelCount: client.channels.cache.size,
-            uptime: process.uptime(),
-            memoryUsage: process.memoryUsage(),
-            ping: client.ws.ping,
-            status: client.ws.status
-        }];
-    }
-
-    return client.shard.broadcastEval(shardClient => ({
-        guildCount: shardClient.guilds.cache.size,
-        userCount: shardClient.guilds.cache.reduce((sum, guild) => sum + guild.memberCount, 0),
-        channelCount: shardClient.channels.cache.size,
-        uptime: process.uptime(),
-        memoryUsage: process.memoryUsage(),
-        ping: shardClient.ws.ping,
-        status: shardClient.ws.status
-    }));
-}
-
-async function getClusterGuilds() {
-    if (!client.shard) {
-        return client.guilds.cache.map(guild => serializeGuild(guild));
-    }
-
-    const guildsByShard = await client.shard.broadcastEval(shardClient =>
-        shardClient.guilds.cache.map(guild => ({
-            id: guild.id,
-            name: guild.name,
-            memberCount: guild.memberCount,
-            icon: guild.iconURL({ extension: 'png', size: 128 }),
-            ownerId: guild.ownerId,
-            joinedAt: guild.joinedAt?.toISOString() || null
-        }))
-    );
-
-    return guildsByShard.flat();
-}
-
-async function getGuildAcrossShards(guildId) {
-    if (!client.shard) {
-        const guild = client.guilds.cache.get(guildId);
-        return guild ? serializeGuild(guild, true) : null;
-    }
-
-    const results = await client.shard.broadcastEval((shardClient, context) => {
-        const guild = shardClient.guilds.cache.get(context.guildId);
-        if (!guild) {
-            return null;
-        }
-
-        return {
-            id: guild.id,
-            name: guild.name,
-            memberCount: guild.memberCount,
-            icon: guild.iconURL({ extension: 'png', size: 128 }),
-            ownerId: guild.ownerId,
-            joinedAt: guild.joinedAt?.toISOString() || null,
-            description: guild.description,
-            features: guild.features,
-            roles: guild.roles.cache
-                .filter(role => role.name !== '@everyone' && !role.managed)
-                .map(role => ({
-                    id: role.id,
-                    name: role.name,
-                    color: role.hexColor,
-                    position: role.position,
-                    mentionable: role.mentionable,
-                    managed: role.managed
-                }))
-                .sort((a, b) => b.position - a.position),
-            channels: guild.channels.cache
-                .filter(channel =>
-                    channel.type === 0
-                    && guild.members.me
-                    && channel.permissionsFor(guild.members.me)?.has('SendMessages')
-                )
-                .map(channel => ({
-                    id: channel.id,
-                    name: channel.name,
-                    type: channel.type,
-                    position: channel.position
-                }))
-                .sort((a, b) => a.position - b.position)
-        };
-    }, { context: { guildId } });
-
-    return results.find(Boolean) || null;
-}
-
-// Helper function to get cached or fresh API data
-async function getCachedApiData(game, apiUrl) {
-    const cacheKey = `codes_${game}`;
-    const cached = apiCache.get(cacheKey);
-
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        return cached.data;
-    }
-
-    try {
-        const startTime = Date.now();
-        const response = await axios.get(apiUrl, {
-            timeout: 10000, // 10 second timeout
-            headers: {
-                'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
-            }
-        });
-        const responseTime = Date.now() - startTime;
-
-        // Log slow API responses
-        if (responseTime > 5000) {
-            console.warn(`⚠️  Slow API response for ${game}: ${responseTime}ms`);
-        }
-
-        const data = response.data;
-        apiCache.set(cacheKey, {
-            data: data,
-            timestamp: Date.now(),
-            responseTime
-        });
-
-        return data;
-    } catch (error) {
-        // If we have cached data, return it even if expired during error
-        if (cached) {
-            console.warn(`API error for ${game}, using cached data:`, error.message);
-            console.log(`Using stale cached data for ${game} (age: ${Math.round((Date.now() - cached.timestamp) / 1000)}s)`);
-            return cached.data;
-        }
-        throw error;
-    }
-}
-
-app.get('/api/codes/genshin', async (req, res) => {
-    try {
-        const data = await getCachedApiData('genshin', 'https://hoyo-codes.seria.moe/codes?game=genshin');
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching Genshin codes:', error);
-        res.status(500).json({ error: 'Failed to fetch codes' });
-    }
-});
-
-app.get('/api/codes/hsr', async (req, res) => {
-    try {
-        const data = await getCachedApiData('hkrpg', 'https://hoyo-codes.seria.moe/codes?game=hkrpg');
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching HSR codes:', error);
-        res.status(500).json({ error: 'Failed to fetch codes' });
-    }
-});
-
-// API Routes
-app.get('/api/codes/zzz', async (req, res) => {
-    try {
-        const data = await getCachedApiData('nap', 'https://hoyo-codes.seria.moe/codes?game=nap');
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching ZZZ codes:', error);
-        res.status(500).json({ error: 'Failed to fetch codes' });
-    }
-});
-
-// Discord Bot Stats API Endpoints
-app.get('/api/bot/stats', async (req, res) => {
-    try {
-        if (!client || !client.isReady()) {
-            return res.status(503).json({ error: 'Bot is not ready' });
-        }
-
-        const shardStats = await getClusterStats();
-        const memoryUsage = shardStats.reduce((total, shard) => ({
-            rss: total.rss + shard.memoryUsage.rss,
-            heapTotal: total.heapTotal + shard.memoryUsage.heapTotal,
-            heapUsed: total.heapUsed + shard.memoryUsage.heapUsed,
-            external: total.external + shard.memoryUsage.external,
-            arrayBuffers: total.arrayBuffers + (shard.memoryUsage.arrayBuffers || 0)
-        }), {
-            rss: 0,
-            heapTotal: 0,
-            heapUsed: 0,
-            external: 0,
-            arrayBuffers: 0
-        });
-        const responsivePings = shardStats
-            .map(shard => shard.ping)
-            .filter(ping => Number.isFinite(ping) && ping >= 0);
-
-        const stats = {
-            guildCount: shardStats.reduce((sum, shard) => sum + shard.guildCount, 0),
-            userCount: shardStats.reduce((sum, shard) => sum + shard.userCount, 0),
-            channelCount: shardStats.reduce((sum, shard) => sum + shard.channelCount, 0),
-            shardCount: shardStats.length,
-            uptime: Math.min(...shardStats.map(shard => shard.uptime)),
-            memoryUsage,
-            botUser: {
-                username: client.user.username,
-                discriminator: client.user.discriminator,
-                id: client.user.id,
-                avatar: client.user.displayAvatarURL({ extension: 'png', size: 256 })
-            },
-            status: shardStats.every(shard => shard.status === 0) ? 0 : 1,
-            ping: responsivePings.length > 0
-                ? Math.round(responsivePings.reduce((sum, ping) => sum + ping, 0) / responsivePings.length)
-                : -1,
-            version: process.env.VERSION || '1.0.0',
-            nodeVersion: process.version
-        };
-
-        res.json(stats);
-    } catch (error) {
-        console.error('Error fetching bot stats:', error);
-        res.status(500).json({ error: 'Failed to fetch bot stats' });
-    }
-});
-
-app.get('/api/bot/guilds', async (req, res) => {
-    try {
-        if (!client || !client.isReady()) {
-            return res.status(503).json({ error: 'Bot is not ready' });
-        }
-
-        const guilds = await getClusterGuilds();
-
-        res.json({ guilds, total: guilds.length });
-    } catch (error) {
-        console.error('Error fetching guild info:', error);
-        res.status(500).json({ error: 'Failed to fetch guild info' });
-    }
-});
-
-app.get('/api/bot/commands', async (req, res) => {
-    try {
-        const commands = client.commands.map(command => ({
-            name: command.data.name,
-            description: command.data.description,
-            options: command.data.options || []
-        }));
-
-        res.json({ commands, total: commands.length });
-    } catch (error) {
-        console.error('Error fetching commands:', error);
-        res.status(500).json({ error: 'Failed to fetch commands' });
-    }
-});
-
-// Individual guild info endpoint
-app.get('/api/bot/guild/:guildId', async (req, res) => {
-    try {
-        const guildId = getValidatedGuildId(req.params.guildId);
-        if (!guildId) {
-            return res.status(400).json({ error: 'Invalid guild ID format' });
-        }
-
-        if (!client || !client.isReady()) {
-            return res.status(503).json({ error: 'Bot is not ready' });
-        }
-
-        const guildInfo = await getGuildAcrossShards(guildId);
-        if (!guildInfo) {
-            return res.status(404).json({ error: 'Guild not found' });
-        }
-
-        res.json(guildInfo);
-    } catch (error) {
-        console.error('Error fetching guild info:', error);
-        res.status(500).json({ error: 'Failed to fetch guild info' });
-    }
-});
-
-// Server configuration endpoint
-app.get('/api/server/:serverId/config', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-
-        const Config = require('./models/Config');
-        const config = await Config.findOne({ guildId: serverId });
-
-        if (!config) {
-            return res.json({
-                guildId: serverId,
-                genshinRole: null,
-                hsrRole: null,
-                zzzRole: null,
-                channel: null,
-                livestreamChannel: null
-            });
-        }
-
-        res.json({
-            guildId: config.guildId,
-            genshinRole: config.genshinRole,
-            hsrRole: config.hsrRole,
-            zzzRole: config.zzzRole,
-            channel: config.channel,
-            livestreamChannel: config.livestreamChannel || null
-        });
-    } catch (error) {
-        console.error('Error fetching server config:', error);
-        res.status(500).json({ error: 'Failed to fetch server config' });
-    }
-});
-
-// Update server config endpoint
-app.put('/api/server/:serverId/config', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-        const updateData = req.body;
-
-        const Config = require('./models/Config');
-
-        // Find existing config or create new one
-        let config = await Config.findOne({ guildId: serverId });
-
-        if (!config) {
-            config = new Config({
-                guildId: serverId,
-                genshinRole: null,
-                hsrRole: null,
-                zzzRole: null,
-                channel: null,
-                livestreamChannel: null
-            });
-        }
-
-        // Update fields that are provided
-        if (updateData.hasOwnProperty('genshinRole')) {
-            config.genshinRole = updateData.genshinRole;
-        }
-        if (updateData.hasOwnProperty('hsrRole')) {
-            config.hsrRole = updateData.hsrRole;
-        }
-        if (updateData.hasOwnProperty('zzzRole')) {
-            config.zzzRole = updateData.zzzRole;
-        }
-        if (updateData.hasOwnProperty('channel')) {
-            config.channel = updateData.channel;
-        }
-        if (updateData.hasOwnProperty('livestreamChannel')) {
-            config.livestreamChannel = updateData.livestreamChannel;
-        }
-
-        await config.save();
-
-        res.json({
-            guildId: config.guildId,
-            genshinRole: config.genshinRole,
-            hsrRole: config.hsrRole,
-            zzzRole: config.zzzRole,
-            channel: config.channel,
-            livestreamChannel: config.livestreamChannel
-        });
-    } catch (error) {
-        console.error('Error updating server config:', error);
-        res.status(500).json({ error: 'Failed to update server config' });
-    }
-});
-
-// Language API Endpoints
-app.get('/api/server/:serverId/language', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-        const Language = require('./models/Language');
-        const langConfig = await Language.findOne({ guildId: serverId });
-
-        res.json({
-            guildId: serverId,
-            language: langConfig ? langConfig.language : 'en'
-        });
-    } catch (error) {
-        console.error('Error fetching server language:', error);
-        res.status(500).json({ error: 'Failed to fetch server language' });
-    }
-});
-
-app.put('/api/server/:serverId/language', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-        const { language } = req.body;
-
-        if (!['en', 'jp', 'vi'].includes(language)) {
-            return res.status(400).json({ error: 'Invalid language code' });
-        }
-
-        const Language = require('./models/Language');
-        await Language.findOneAndUpdate(
-            { guildId: serverId },
-            { language },
-            { upsert: true }
-        );
-
-        res.json({ success: true, language });
-    } catch (error) {
-        console.error('Error updating server language:', error);
-        res.status(500).json({ error: 'Failed to update server language' });
-    }
-});
-
-// Server settings endpoint
-app.get('/api/server/:serverId/settings', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-
-        const Settings = require('./models/Settings');
-        const settings = await Settings.findOne({ guildId: serverId });
-
-        if (!settings) {
-            return res.json({
-                guildId: serverId,
-                autoSendEnabled: false,
-                favoriteGames: {
-                    enabled: false,
-                    games: {
-                        genshin: false,
-                        hkrpg: false,
-                        nap: false
-                    }
-                }
-            });
-        }
-
-        res.json({
-            guildId: settings.guildId,
-            autoSendEnabled: settings.autoSendEnabled,
-            favoriteGames: settings.favoriteGames
-        });
-    } catch (error) {
-        console.error('Error fetching server settings:', error);
-        res.status(500).json({ error: 'Failed to fetch server settings' });
-    }
-});
-
-// Update server settings endpoint
-app.put('/api/server/:serverId/settings', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-        const updateData = req.body;
-
-        const Settings = require('./models/Settings');
-
-        // Find existing settings or create new one
-        let settings = await Settings.findOne({ guildId: serverId });
-
-        if (!settings) {
-            settings = new Settings({
-                guildId: serverId,
-                autoSendEnabled: false,
-                favoriteGames: {
-                    enabled: false,
-                    games: {
-                        genshin: false,
-                        hkrpg: false,
-                        nap: false
-                    }
-                }
-            });
-        }
-
-        // Update fields that are provided
-        if (updateData.hasOwnProperty('autoSendEnabled')) {
-            settings.autoSendEnabled = updateData.autoSendEnabled;
-        }
-
-        if (updateData.favoriteGames) {
-            if (updateData.favoriteGames.hasOwnProperty('enabled')) {
-                settings.favoriteGames.enabled = updateData.favoriteGames.enabled;
-            }
-            if (updateData.favoriteGames.games) {
-                Object.assign(settings.favoriteGames.games, updateData.favoriteGames.games);
-            }
-        }
-
-        await settings.save();
-
-        res.json({
-            guildId: settings.guildId,
-            autoSendEnabled: settings.autoSendEnabled,
-            favoriteGames: settings.favoriteGames
-        });
-    } catch (error) {
-        console.error('Error updating server settings:', error);
-        res.status(500).json({ error: 'Failed to update server settings' });
-    }
-});
-
-// Test notification endpoint
-app.post('/api/server/:serverId/test', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-
-        const Config = require('./models/Config');
-        const config = await Config.findOne({ guildId: serverId });
-
-        if (!config || !config.channel) {
-            return res.status(400).json({ error: 'No notification channel configured' });
-        }
-
-        const guild = await getGuildAcrossShards(serverId);
-        if (!guild) {
-            return res.status(404).json({ error: 'Server not found' });
-        }
-
-        const channel = guild.channels.find(item => item.id === config.channel);
-        if (!channel) {
-            return res.status(400).json({ error: 'Notification channel not found' });
-        }
-
-        const { EmbedBuilder } = require('discord.js');
-        const embed = new EmbedBuilder()
-            .setColor('#FFD700')
-            .setTitle('🧪 Test Notification')
-            .setDescription('This is a test notification from HoYo Code Sender!')
-            .addFields(
-                { name: '✅ Channel', value: `<#${config.channel}>`, inline: true },
-                { name: '🤖 Bot', value: 'Working correctly!', inline: true }
-            )
-            .setFooter({ text: 'Test completed successfully' })
-            .setTimestamp();
-
-        await sendChannelMessage(client, config.channel, { embeds: [embed] });
-
-        res.json({ success: true, message: 'Test notification sent successfully!' });
-    } catch (error) {
-        console.error('Error sending test notification:', error);
-        res.status(500).json({ error: 'Failed to send test notification' });
-    }
-});
-
-// Reset configuration endpoint
-app.post('/api/server/:serverId/reset', async (req, res) => {
-    try {
-        const serverId = getValidatedGuildId(req.params.serverId);
-        if (!serverId) {
-            return res.status(400).json({ error: 'Invalid server ID format' });
-        }
-
-        const Config = require('./models/Config');
-        const Settings = require('./models/Settings');
-        const Language = require('./models/Language');
-
-        // Delete all configuration data for this server
-        await Promise.all([
-            Config.deleteOne({ guildId: serverId }),
-            Settings.deleteOne({ guildId: serverId }),
-            Language.deleteOne({ guildId: serverId })
-        ]);
-
-        res.json({ success: true, message: 'Configuration reset successfully!' });
-    } catch (error) {
-        console.error('Error resetting configuration:', error);
-        res.status(500).json({ error: 'Failed to reset configuration' });
-    }
-});
-
-// Clear old cache entries every hour
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, value] of apiCache.entries()) {
-        if (now - value.timestamp > CACHE_DURATION * 2) { // Clear if 2x older than cache duration
-            apiCache.delete(key);
-        }
-    }
-}, 60 * 60 * 1000); // Every hour
-
-// Serve HTML
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Only shard 0 owns HTTP, webhooks, and other singleton services.
-if (runsPrimaryServices) {
-    httpServer = app.listen(PORT, () => {
-        console.log(`Web server running on port ${PORT}`);
-    });
-}
-
-// Discord bot setup - Enhanced environment validation
-const requiredEnvVars = [
-    'DISCORD_TOKEN',
-    'CLIENT_ID',
-    'MONGODB_URI'
-];
-
-const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-if (missingEnvVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
-    console.error('Please check your .env file and ensure all required variables are set.');
+const TOKEN = process.env.DISCORD_TOKEN;
+if (!TOKEN) {
+    console.error('❌ DISCORD_TOKEN is required');
     process.exit(1);
 }
 
-// Optional environment variables with warnings
-const optionalEnvVars = {
-    'WEBHOOK_PASSWORD': 'Top.gg webhook functionality will be disabled',
-    'TOPGG_TOKEN': 'Vote checking functionality will be limited',
-    'VERSION': 'Version display will show as undefined'
-};
-
-Object.entries(optionalEnvVars).forEach(([varName, warning]) => {
-    if (!process.env[varName]) {
-        console.warn(`⚠️  Optional environment variable missing: ${varName} - ${warning}`);
-    }
+// ── Shard Manager ──────────────────────────────────────────────────────
+const manager = new ShardingManager(path.join(__dirname, 'utils', 'bot.js'), {
+    token: TOKEN,
+    totalShards: 'auto',        // Discord API decides shard count (~1 per 2500 guilds)
+    respawn: true               // Auto-restart crashed shards
 });
 
-console.log('✅ Environment validation completed');
+// ── Logging ────────────────────────────────────────────────────────────
+manager.on('shardCreate', shard => {
+    console.log(`[ShardManager] Shard ${shard.id} launched (PID will follow)`);
 
-const clientOptions = {
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        //GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-    ]
-};
+    shard.on('ready', () => {
+        console.log(`[ShardManager] Shard ${shard.id} ready`);
+    });
 
-// ShardingManager injects SHARDS and SHARD_COUNT. Leave these options untouched
-// so discord.js can consume the manager-provided values.
-if (!isManagedShard) {
-    const shardCountFromEnv = Number.parseInt(process.env.SHARD_COUNT || '', 10);
-    const shardCount = Number.isInteger(shardCountFromEnv) && shardCountFromEnv > 0
-        ? shardCountFromEnv
-        : null;
-    const shardIdsFromEnv = (process.env.SHARD_IDS || '')
-        .split(',')
-        .map(id => Number.parseInt(id.trim(), 10))
-        .filter(Number.isInteger)
-        .filter(id => id >= 0);
+    shard.on('disconnect', () => {
+        console.warn(`[ShardManager] ⚠️  Shard ${shard.id} disconnected`);
+    });
 
-    clientOptions.shards = shardIdsFromEnv.length > 0 ? shardIdsFromEnv : 'auto';
-    if (shardCount !== null) {
-        clientOptions.shardCount = shardCount;
-    }
-}
+    shard.on('reconnecting', () => {
+        console.log(`[ShardManager] Shard ${shard.id} reconnecting...`);
+    });
 
-const client = new Client(clientOptions);
+    shard.on('death', process => {
+        console.error(`[ShardManager] ❌ Shard ${shard.id} died (exit ${process.exitCode})`);
+    });
 
-client.commands = new Collection();
+    shard.on('error', error => {
+        console.error(`[ShardManager] Shard ${shard.id} error:`, error);
+    });
+});
 
-function loadCommands() {
-    const commands = [];
-    const commandsPath = path.join(__dirname, 'commands');
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+// ── Auto-Reshard ───────────────────────────────────────────────────────
+// Discord recommends ~2500 guilds per shard. When the bot grows past the
+// current capacity we perform a full restart so `totalShards: 'auto'`
+// re-queries the gateway and spawns the right number of shards.
+const RESHARD_CHECK_INTERVAL = 60 * 60 * 1000; // every hour
+const GUILDS_PER_SHARD = 2500;
+const RESHARD_THRESHOLD = 0.8; // trigger when 80% full
 
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        delete require.cache[require.resolve(filePath)];
-        const command = require(filePath);
-
-        if ('data' in command && 'execute' in command) {
-            commands.push(command.data.toJSON());
-            client.commands.set(command.data.name, command);
-        }
-    }
-
-    console.log(`Loaded ${commands.length} command handler(s)`);
-    return commands;
-}
-
-const registeredCommandPayload = loadCommands();
-
-// Register commands with Discord once from shard 0.
-async function registerCommands() {
+async function checkReshardNeeded() {
     try {
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        const guildCounts = await manager.fetchClientValues('guilds.cache.size');
+        const totalGuilds = guildCounts.reduce((sum, count) => sum + count, 0);
+        const currentShards = manager.totalShards;
+        const capacity = currentShards * GUILDS_PER_SHARD;
+        const usage = totalGuilds / capacity;
 
-        console.log('Started refreshing application (/) commands.');
-        await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
-            { body: registeredCommandPayload }
+        console.log(
+            `[AutoScale] ${totalGuilds} guilds across ${currentShards} shard(s) ` +
+            `(${Math.round(usage * 100)}% capacity)`
         );
-        console.log('Successfully registered application commands.');
-    } catch (error) {
-        console.error('Error registering commands:', error);
-    }
-}
 
-// Connect to MongoDB and start bot
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-        console.log('Connected to MongoDB');
-        client.login(process.env.DISCORD_TOKEN);
-    })
-    .catch(err => console.error('MongoDB connection error:', err));
-
-client.once('clientReady', async () => {
-    const shardIds = Array.from(client.ws.shards.keys());
-    const isPrimaryScheduler = shardIds.includes(0);
-    console.log(`Logged in as ${client.user.tag} | Shards: [${shardIds.join(', ')}]`);
-    if (isPrimaryScheduler) {
-        try {
-            await registerCommands();
-            console.log('Commands registered successfully');
-        } catch (error) {
-            console.error('Error during startup:', error);
-        }
-    }
-    const updatePresence = () => {
-        client.user.setPresence({
-            activities: [{
-                name: `for redemption codes | ${process.env.VERSION || '1.15.0'}`,
-                type: ActivityType.Watching
-            }],
-            status: 'online'
-        });
-    };
-
-    // Set immediately on startup
-    updatePresence();
-    
-    // Refresh presence every 30 minutes so it doesn't disappear
-    setInterval(updatePresence, 30 * 60 * 1000);
-
-    if (isPrimaryScheduler) {
-        // Start regular code checking (every 5 minutes)
-        setInterval(() => {
-            checkAndSendNewCodes(client).catch(error => {
-                console.error('Scheduled code check failed:', error);
-            });
-        }, 5 * 60 * 1000);
-
-        // Check for year change messages (every 30 minutes)
-        setInterval(() => {
-            checkAndSendYearChangeMessage(client).catch(error => {
-                console.error('Scheduled year change check failed:', error);
-            });
-        }, 30 * 60 * 1000);
-        checkAndSendYearChangeMessage(client).catch(error => {
-            console.error('Initial year change check failed:', error);
-        });
-
-        if (process.env.LIVESTREAM_TRACKING_ENABLED !== 'false') {
-            await startPostTracker(client);
-            startLivestreamChecker(client);
-        } else {
-            console.log('[Livestream] Tracking disabled by LIVESTREAM_TRACKING_ENABLED=false');
-        }
-    } else {
-        console.log('[Scheduler] Background jobs are handled by shard 0');
-    }
-});
-
-// Memory monitoring (optional)
-if (process.env.NODE_ENV === 'production') {
-    setInterval(() => {
-        const memUsage = process.memoryUsage();
-        const memUsageMB = {
-            rss: Math.round(memUsage.rss / 1024 / 1024 * 100) / 100,
-            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024 * 100) / 100,
-            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100
-        };
-
-        // Log memory usage every 30 minutes
-        console.log(`Memory usage: RSS: ${memUsageMB.rss}MB, Heap: ${memUsageMB.heapUsed}/${memUsageMB.heapTotal}MB`);
-
-        // Warn if memory usage is high
-        if (memUsageMB.heapUsed > 200) {
-            console.warn('High memory usage detected');
-        }
-    }, 30 * 60 * 1000); // Every 30 minutes
-}
-
-
-// Add event listeners for guild join/leave
-client.on('guildCreate', async (guild) => {
-    console.log(`Joined new guild: ${guild.name} (${guild.id})`);
-
-    // Send welcome message with setup instructions
-    await sendWelcomeMessage(guild, client);
-});
-
-client.on('guildDelete', async (guild) => {
-    console.log(`Removed from guild: ${guild.name} (${guild.id})`);
-
-    // Clean up database entries for this guild
-    try {
-        const Config = require('./models/Config');
-        const Settings = require('./models/Settings');
-        const Language = require('./models/Language');
-
-        await Promise.all([
-            Config.deleteOne({ guildId: guild.id }),
-            Settings.deleteOne({ guildId: guild.id }),
-            Language.deleteOne({ guildId: guild.id })
-        ]);
-
-        console.log(`Cleaned up configuration for guild: ${guild.name} (${guild.id})`);
-    } catch (error) {
-        console.error(`Error cleaning up guild ${guild.id}:`, error);
-    }
-});
-
-// After Express and client setup
-if (runsPrimaryServices) {
-    setupTopggWebhook(app, client);
-}
-
-// Handle interactions
-client.on('interactionCreate', async interaction => {
-    try {
-        // Command interactions
-        if (interaction.isCommand()) {
-            const command = client.commands.get(interaction.commandName);
-            if (!command) return;
-
-            try {
-                await command.execute(interaction);
-            } catch (error) {
-                console.error('Command execution error:', error);
-                const content = {
-                    content: 'An error occurred while executing this command.',
-                    flags: MessageFlags.Ephemeral
-                };
-
-                try {
-                    if (interaction.deferred || interaction.replied) {
-                        await interaction.editReply(content);
-                    } else {
-                        await interaction.reply(content);
-                    }
-                } catch (responseError) {
-                    if (responseError?.code !== 40060) {
-                        throw responseError;
-                    }
+        if (usage >= RESHARD_THRESHOLD) {
+            const recommended = Math.ceil(totalGuilds / GUILDS_PER_SHARD);
+            if (recommended > currentShards) {
+                // By default, only warn — resharding requires restarting all shards.
+                // Set AUTO_RESHARD=true to allow automatic rolling restarts.
+                if (process.env.AUTO_RESHARD === 'true') {
+                    console.log(
+                        `[AutoScale] 🔄 Resharding: ${currentShards} → ${recommended} shard(s) ` +
+                        `(${totalGuilds} guilds exceed ${Math.round(RESHARD_THRESHOLD * 100)}% threshold)`
+                    );
+                    await manager.respawnAll({
+                        shardDelay: 5500,   // stagger restarts so bot stays partially online
+                        respawnDelay: 500,
+                        timeout: 30000
+                    });
+                    console.log('[AutoScale] ✅ Reshard complete');
+                } else {
+                    console.warn(
+                        `[AutoScale] ⚠️  Reshard recommended: ${currentShards} → ${recommended} shard(s) ` +
+                        `(${totalGuilds} guilds, ${Math.round(usage * 100)}% capacity). ` +
+                        `Restart the bot to apply, or set AUTO_RESHARD=true to auto-reshard.`
+                    );
                 }
             }
         }
-
-        // Modal submit interactions
-        if (interaction.isModalSubmit() && interaction.customId === 'redeemModal') {
-            const command = client.commands.get('redeem');
-            if (command?.modalSubmit) {
-                await command.modalSubmit(interaction);
-            }
-        }
     } catch (error) {
-        console.error('Interaction error:', error);
+        console.error('[AutoScale] Error during reshard check:', error.message);
     }
-});
+}
 
-// Error handling for uncaught exceptions
-process.on('uncaughtException', error => {
-    console.error('Uncaught Exception:', error);
-});
+// ── Start ──────────────────────────────────────────────────────────────
+(async () => {
+    try {
+        console.log('[ShardManager] Spawning shards (totalShards: auto)...');
+        await manager.spawn({ timeout: 60000 });
+        console.log(`[ShardManager] ✅ All ${manager.totalShards} shard(s) launched`);
 
-process.on('unhandledRejection', error => {
-    console.error('Unhandled Rejection:', error);
-});
+        // Start periodic reshard check
+        setInterval(checkReshardNeeded, RESHARD_CHECK_INTERVAL);
+    } catch (error) {
+        console.error('[ShardManager] Failed to spawn shards:', error);
+        process.exit(1);
+    }
+})();
 
+// ── Graceful Shutdown ──────────────────────────────────────────────────
 let shuttingDown = false;
 async function shutdown(signal) {
-    if (shuttingDown) {
-        return;
-    }
-
+    if (shuttingDown) return;
     shuttingDown = true;
-    console.log(`Received ${signal}; shutting down shard worker...`);
 
-    if (httpServer) {
-        await new Promise(resolve => httpServer.close(resolve));
+    console.log(`[ShardManager] Received ${signal}; shutting down all shards...`);
+    try {
+        for (const [, shard] of manager.shards) {
+            shard.kill();
+        }
+    } catch (error) {
+        console.error('[ShardManager] Error during shutdown:', error.message);
     }
-
-    client.destroy();
-    await mongoose.disconnect().catch(() => {});
     process.exit(0);
 }
 
-process.once('SIGTERM', () => {
-    void shutdown('SIGTERM');
-});
-process.once('SIGINT', () => {
-    void shutdown('SIGINT');
-});
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
