@@ -260,6 +260,59 @@ module.exports = {
                 noSetup: 'Vui lòng chạy `/setup` trước để cấu hình kênh thông báo chính.',
                 general: 'Đã xảy ra lỗi khi thiết lập các thread forum.'
             }
+        },
+        livestreamcodesetup: {
+            setupRequiredTitle: '⚠️ Cần thiết lập trước',
+            setupRequired: 'Vui lòng chạy `/setup` trước để cấu hình máy chủ trước khi thiết lập kênh livestream.',
+            title: '📺 Cấu hình kênh code livestream',
+            currentSetting: 'Cài đặt hiện tại',
+            usingMainChannel: 'Đang dùng kênh chính: {channel}',
+            notConfigured: 'Chưa cấu hình',
+            behavior: 'Cách hoạt động',
+            dedicatedBehavior: '✅ Code livestream sẽ được gửi vào kênh riêng',
+            mainBehavior: 'ℹ️ Code livestream sẽ được gửi cùng kênh với code thường',
+            announcementStatus: 'Announcement',
+            announcementEnabled: '✅ Thông báo Special Program đang bật',
+            announcementDisabled: '❌ Thông báo Special Program đang tắt',
+            removedTitle: '✅ Đã gỡ kênh livestream',
+            removedDescription: 'Code livestream giờ sẽ được gửi vào kênh chính cùng code thường.',
+            mainChannel: 'Kênh chính',
+            channelRequiredTitle: '❌ Cần chọn kênh',
+            channelRequired: 'Vui lòng chọn kênh khi dùng hành động "Set Channel".',
+            insufficientPermissionsTitle: '⚠️ Thiếu quyền',
+            insufficientPermissions: 'Bot không có đủ quyền cần thiết trong {channel}',
+            requiredPermissions: 'Quyền cần thiết',
+            requiredPermissionsValue: '• Xem kênh\n• Gửi tin nhắn\n• Nhúng liên kết',
+            configuredTitle: '✅ Đã cấu hình kênh livestream',
+            configuredDescription: 'Code livestream sẽ được gửi vào kênh riêng!',
+            livestreamCodes: '📺 Code livestream',
+            regularCodes: '📋 Code thường',
+            whatHappensNow: '💡 Sau đó thì sao?',
+            whatHappensNowValue: '• Code thường -> Kênh chính\n• Code livestream từ Special Program -> Kênh riêng\n• Thông báo Special Program cũng dùng cài đặt này',
+            announcementEnabledTitle: '✅ Đã bật livestream announcement',
+            announcementEnabledDescription: 'Thông báo Special Program sẽ được gửi trước các livestream sắp diễn ra.',
+            announcementDisabledTitle: '❌ Đã tắt livestream announcement',
+            announcementDisabledDescription: 'Thông báo Special Program đã tắt. Code livestream vẫn có thể được gửi khi có code.',
+            errorTitle: '❌ Lỗi',
+            errorDescription: 'Đã xảy ra lỗi khi cấu hình kênh livestream.',
+            errorFooter: 'Vui lòng thử lại hoặc liên hệ hỗ trợ nếu lỗi vẫn tiếp diễn.'
+        }
+    },
+    livestream: {
+        announcement: {
+            content: '📢 **Thông báo livestream {game}**',
+            title: '📺 {game} đã công bố Special Program!',
+            description: 'Livestream **Phiên bản {version}** đã được lên lịch!',
+            streamTime: '📅 Thời gian stream',
+            estimatedStreamTime: '📅 Thời gian stream dự kiến',
+            whatToExpect: '🎁 Nội dung dự kiến',
+            whatToExpectValue: '• Xem trước phiên bản mới\n• Code đổi thưởng (sẽ có 3 code)\n• Hé lộ nhân vật/vũ khí',
+            watchOnYoutube: '▶️ Xem trên YouTube',
+            status: {
+                live: 'ĐANG LIVE',
+                upcoming: 'Sắp diễn ra',
+                officialChannel: 'Kênh chính thức'
+            }
         }
     },
     errors: {

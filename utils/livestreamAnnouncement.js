@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const { sendChannelMessage } = require('./discordMessageSender');
+const languageManager = require('./language');
 
 /**
  * Announcement system for Special Program detection
@@ -47,6 +48,10 @@ async function sendAnnouncement(client, streamInfo) {
             continue;
         }
 
+        if (settings.livestreamAnnouncementsEnabled === false) {
+            continue;
+        }
+
         if (
             settings.favoriteGames?.enabled
             && settings.favoriteGames.games?.[game] === false
@@ -58,6 +63,7 @@ async function sendAnnouncement(client, streamInfo) {
             tasks.push(() => sendAnnouncementToChannel(
                     client,
                     config.livestreamChannel || config.channel,
+                    config.guildId,
                     game,
                     version,
                     streamTime,
@@ -87,6 +93,7 @@ async function sendAnnouncement(client, streamInfo) {
 async function sendAnnouncementToChannel(
     client,
     channelId,
+    guildId,
     game,
     version,
     streamTime,
@@ -101,7 +108,8 @@ async function sendAnnouncementToChannel(
         return false;
     }
 
-    const embed = buildLivestreamAnnouncementEmbed({
+    const embed = await buildLivestreamAnnouncementEmbed({
+        guildId,
         game,
         version,
         streamTime,
@@ -111,13 +119,18 @@ async function sendAnnouncementToChannel(
     });
 
     await sendChannelMessage(client, channelId, {
-        content: `📢 **${GAME_NAMES[game]} Livestream Announcement**`,
+        content: await languageManager.getString(
+            'livestream.announcement.content',
+            guildId,
+            { game: GAME_NAMES[game] }
+        ),
         embeds: [embed]
     });
     return true;
 }
 
 function buildLivestreamAnnouncementEmbed({
+    guildId,
     game,
     version,
     streamTime,
@@ -125,23 +138,69 @@ function buildLivestreamAnnouncementEmbed({
     youtubeStreams = [],
     streamTimeEstimated = false
 }) {
+    return buildLivestreamAnnouncementEmbedLocalized({
+        guildId,
+        game,
+        version,
+        streamTime,
+        bannerUrl,
+        youtubeStreams,
+        streamTimeEstimated
+    });
+}
+
+async function buildLivestreamAnnouncementEmbedLocalized({
+    guildId,
+    game,
+    version,
+    streamTime,
+    bannerUrl,
+    youtubeStreams = [],
+    streamTimeEstimated = false
+}) {
+    const [
+        title,
+        description,
+        streamTimeName,
+        estimatedStreamTimeName,
+        whatToExpectName,
+        whatToExpectValue,
+        watchOnYoutubeName,
+        liveStatus,
+        upcomingStatus,
+        officialChannelStatus,
+        supportMsg
+    ] = await Promise.all([
+        languageManager.getString('livestream.announcement.title', guildId, { game: GAME_NAMES[game] }),
+        languageManager.getString('livestream.announcement.description', guildId, { version }),
+        languageManager.getString('livestream.announcement.streamTime', guildId),
+        languageManager.getString('livestream.announcement.estimatedStreamTime', guildId),
+        languageManager.getString('livestream.announcement.whatToExpect', guildId),
+        languageManager.getString('livestream.announcement.whatToExpectValue', guildId),
+        languageManager.getString('livestream.announcement.watchOnYoutube', guildId),
+        languageManager.getString('livestream.announcement.status.live', guildId),
+        languageManager.getString('livestream.announcement.status.upcoming', guildId),
+        languageManager.getString('livestream.announcement.status.officialChannel', guildId),
+        languageManager.getString('common.supportMsg', guildId)
+    ]);
+
     const embed = new EmbedBuilder()
         .setColor('#FFA500') // Orange - upcoming event
-        .setTitle(`📺 ${GAME_NAMES[game]} Special Program Announced!`)
-        .setDescription(`**Version ${version}** livestream has been scheduled!`)
+        .setTitle(title)
+        .setDescription(description)
         .addFields(
             {
-                name: streamTimeEstimated ? '📅 Estimated Stream Time' : '📅 Stream Time',
+                name: streamTimeEstimated ? estimatedStreamTimeName : streamTimeName,
                 value: `<t:${streamTime}:F>\n(<t:${streamTime}:R>)`,
                 inline: false
             },
             {
-                name: '🎁 What to Expect',
-                value: '• New version preview\n• Redemption codes (3 codes will be dropped)\n• Character/weapon reveals',
+                name: whatToExpectName,
+                value: whatToExpectValue,
                 inline: false
             }
         )
-        .setFooter({ text: '🤖 Auto-detected from official HoYo sources • Codes will be sent automatically when available' })
+        .setFooter({ text: supportMsg })
         .setTimestamp();
 
     const streamLinks = [
@@ -154,16 +213,16 @@ function buildLivestreamAnnouncementEmbed({
         }
 
         const status = stream.status === 'live'
-            ? 'LIVE'
+            ? liveStatus
             : stream.status === 'upcoming'
-                ? 'Upcoming'
-                : 'Official channel';
+                ? upcomingStatus
+                : officialChannelStatus;
         return `${label}: [${status}](${stream.url})`;
     }).filter(Boolean);
 
     if (streamLinks.length > 0) {
         embed.addFields({
-            name: '▶️ Watch on YouTube',
+            name: watchOnYoutubeName,
             value: streamLinks.join('\n'),
             inline: false
         });

@@ -11,7 +11,7 @@ module.exports = {
         enabled: '有効',
         disabled: '無効',
         notYourButton: 'このボタンはあなたのものではありません。',
-        supportMsg: '❤️ 開発者を応援: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori'
+        supportMsg: '❤️ 開発者を応援: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori | chiraitori.me'
     },
     welcome: {
         title: 'HoYo Code Senderを追加していただきありがとうございます！',
@@ -260,6 +260,59 @@ module.exports = {
                 noPermission: 'いずれかのスレッドにメッセージを送信する権限がありません。権限を確認してください。',
                 noSetup: '最初に `/setup` を実行してメイン通知チャンネルを設定してください。',
                 general: 'フォーラムスレッドの設定中にエラーが発生しました。'
+            }
+        },
+        livestreamcodesetup: {
+            setupRequiredTitle: '⚠️ セットアップが必要です',
+            setupRequired: 'ライブ配信チャンネルを設定する前に、まず `/setup` を実行してください。',
+            title: '📺 ライブ配信コードチャンネル設定',
+            currentSetting: '現在の設定',
+            usingMainChannel: 'メインチャンネルを使用: {channel}',
+            notConfigured: '未設定',
+            behavior: '動作',
+            dedicatedBehavior: '✅ ライブ配信コードは専用チャンネルに送信されます',
+            mainBehavior: 'ℹ️ ライブ配信コードは通常コードと同じチャンネルに送信されます',
+            announcementStatus: 'Announcement',
+            announcementEnabled: '✅ Special Program 通知は有効です',
+            announcementDisabled: '❌ Special Program 通知は無効です',
+            removedTitle: '✅ ライブ配信チャンネルを削除しました',
+            removedDescription: 'ライブ配信コードは通常コードと同じメインチャンネルに送信されます。',
+            mainChannel: 'メインチャンネル',
+            channelRequiredTitle: '❌ チャンネルが必要です',
+            channelRequired: '"Set Channel" を使う場合はチャンネルを選択してください。',
+            insufficientPermissionsTitle: '⚠️ 権限が不足しています',
+            insufficientPermissions: 'Bot は {channel} で必要な権限を持っていません',
+            requiredPermissions: '必要な権限',
+            requiredPermissionsValue: '• チャンネルを見る\n• メッセージを送信\n• 埋め込みリンク',
+            configuredTitle: '✅ ライブ配信チャンネルを設定しました',
+            configuredDescription: 'ライブ配信コードは専用チャンネルに送信されます！',
+            livestreamCodes: '📺 ライブ配信コード',
+            regularCodes: '📋 通常コード',
+            whatHappensNow: '💡 今後の動作',
+            whatHappensNowValue: '• 通常コード -> メインチャンネル\n• Special Program のライブ配信コード -> 専用チャンネル\n• Special Program 通知もこの設定に従います',
+            announcementEnabledTitle: '✅ ライブ配信通知を有効にしました',
+            announcementEnabledDescription: '今後のライブ配信前に Special Program 通知が送信されます。',
+            announcementDisabledTitle: '❌ ライブ配信通知を無効にしました',
+            announcementDisabledDescription: 'Special Program 通知は無効になりました。ライブ配信コードは利用可能になった時点で引き続き送信できます。',
+            errorTitle: '❌ エラー',
+            errorDescription: 'ライブ配信チャンネルの設定中にエラーが発生しました。',
+            errorFooter: 'もう一度お試しいただくか、問題が続く場合はサポートに連絡してください。'
+        }
+    },
+    livestream: {
+        announcement: {
+            content: '📢 **{game} ライブ配信のお知らせ**',
+            title: '📺 {game} Special Program 発表！',
+            description: '**Version {version}** のライブ配信が予定されています！',
+            streamTime: '📅 配信時間',
+            estimatedStreamTime: '📅 推定配信時間',
+            whatToExpect: '🎁 予定内容',
+            whatToExpectValue: '• 新バージョン情報\n• 引換コード（3つ配布予定）\n• キャラクター/武器情報',
+            watchOnYoutube: '▶️ YouTubeで視聴',
+            status: {
+                live: 'LIVE',
+                upcoming: '予定',
+                officialChannel: '公式チャンネル'
             }
         }
     },

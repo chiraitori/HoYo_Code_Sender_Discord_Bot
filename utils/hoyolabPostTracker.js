@@ -481,7 +481,11 @@ async function updateTracking(streamInfo, client) {
 
         if (shouldAnnounce) {
             console.log(`[Post Tracker] 📢 Sending announcement...`);
-            await sendAnnouncement(client, streamInfo);
+            await sendAnnouncement(client, {
+                ...streamInfo,
+                streamTime: finalStreamTime,
+                streamTimeEstimated: finalStreamTimeEstimated
+            });
             tracking.announcementSent = true;
             await tracking.save();
         } else if (!existing) {

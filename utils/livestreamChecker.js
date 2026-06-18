@@ -3,6 +3,7 @@ const LivestreamTracking = require('../models/LivestreamTracking');
 const Code = require('../models/Code');
 const { getState, fetchLivestreamCodes, parseAndSaveCodes, getStateName } = require('./hoyolabAPI');
 const { distributeIfReady } = require('./livestreamDistribution');
+const { sendAnnouncement } = require('./livestreamAnnouncement');
 
 /**
  * Livestream Code Checker
@@ -11,6 +12,12 @@ const { distributeIfReady } = require('./livestreamDistribution');
 
 const GAMES = ['genshin', 'hkrpg', 'nap'];
 const CHECK_INTERVAL = 3 * 60 * 1000; // 3 minutes in milliseconds
+const ANNOUNCEMENT_MIN_LEAD_SECONDS = 5 * 60;
+const parsedAnnouncementLookaheadDays = Number.parseInt(process.env.LIVESTREAM_ANNOUNCEMENT_LOOKAHEAD_DAYS || '7', 10);
+const ANNOUNCEMENT_LOOKAHEAD_DAYS = Number.isFinite(parsedAnnouncementLookaheadDays)
+    ? parsedAnnouncementLookaheadDays
+    : 7;
+const ANNOUNCEMENT_LOOKAHEAD_SECONDS = Math.max(1, ANNOUNCEMENT_LOOKAHEAD_DAYS) * 24 * 60 * 60;
 
 let checkerInterval = null;
 let checkerRunning = false;
@@ -100,6 +107,8 @@ async function checkGame(client, game) {
     }
 
     const version = tracking.version || '1.0';
+    await announceUpcomingIfNeeded(client, tracking);
+
     const state = await getState(game, version);
 
     console.log(`[Livestream Checker] ${game} - State: ${state} (${getStateName(state)})`);
@@ -166,6 +175,35 @@ async function checkGame(client, game) {
     const latestState = await getState(game, version);
     const latestTracking = await LivestreamTracking.findOne({ game, version });
     await updateTrackingMessage(client, game, latestState, latestTracking || tracking);
+}
+
+async function announceUpcomingIfNeeded(client, tracking) {
+    if (!client || !tracking || tracking.disabled || tracking.announcementSent) {
+        return;
+    }
+
+    const currentTime = Math.floor(Date.now() / 1000);
+    const secondsUntilStream = tracking.streamTime - currentTime;
+    if (
+        !tracking.streamTime
+        || secondsUntilStream <= ANNOUNCEMENT_MIN_LEAD_SECONDS
+        || secondsUntilStream > ANNOUNCEMENT_LOOKAHEAD_SECONDS
+    ) {
+        return;
+    }
+
+    console.log(`[Livestream Checker] 📢 Sending missed upcoming announcement for ${tracking.game} ${tracking.version}`);
+    await sendAnnouncement(client, {
+        game: tracking.game,
+        version: tracking.version,
+        streamTime: tracking.streamTime,
+        bannerUrl: tracking.bannerUrl,
+        streamTimeEstimated: tracking.streamTimeEstimated,
+        youtubeStreams: tracking.youtubeStreams || []
+    });
+
+    tracking.announcementSent = true;
+    await tracking.save();
 }
 
 /**

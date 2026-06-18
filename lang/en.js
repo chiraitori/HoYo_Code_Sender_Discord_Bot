@@ -11,7 +11,7 @@ module.exports = {
         enabled: 'ENABLED',
         disabled: 'DISABLED',
         notYourButton: 'This button is not for you.',
-        supportMsg: '❤️ Help the developer: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori'
+        supportMsg: '❤️ Help the developer: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori | chiraitori.me'
     },
     welcome: {
         title: 'Thanks for Adding HoYo Code Sender!',
@@ -254,6 +254,59 @@ module.exports = {
                 noPermission: 'I don\'t have permission to send messages in one of the threads. Please check my permissions.',
                 noSetup: 'Please run `/setup` first to configure the main notification channel.',
                 general: 'An error occurred while setting up the forum threads.'
+            }
+        },
+        livestreamcodesetup: {
+            setupRequiredTitle: '⚠️ Setup Required',
+            setupRequired: 'Please run `/setup` first to configure your server before setting up livestream channels.',
+            title: '📺 Livestream Code Channel Configuration',
+            currentSetting: 'Current Setting',
+            usingMainChannel: 'Using main channel: {channel}',
+            notConfigured: 'Not configured',
+            behavior: 'Behavior',
+            dedicatedBehavior: '✅ Livestream codes will be sent to the dedicated channel',
+            mainBehavior: 'ℹ️ Livestream codes will be sent to the same channel as regular codes',
+            announcementStatus: 'Announcement',
+            announcementEnabled: '✅ Special Program announcements are enabled',
+            announcementDisabled: '❌ Special Program announcements are disabled',
+            removedTitle: '✅ Livestream Channel Removed',
+            removedDescription: 'Livestream codes will now be sent to the main channel alongside regular codes.',
+            mainChannel: 'Main Channel',
+            channelRequiredTitle: '❌ Channel Required',
+            channelRequired: 'Please select a channel when using the "Set Channel" action.',
+            insufficientPermissionsTitle: '⚠️ Insufficient Permissions',
+            insufficientPermissions: 'The bot does not have the required permissions in {channel}',
+            requiredPermissions: 'Required Permissions',
+            requiredPermissionsValue: '• View Channel\n• Send Messages\n• Embed Links',
+            configuredTitle: '✅ Livestream Channel Configured',
+            configuredDescription: 'Livestream codes will now be sent to a separate channel!',
+            livestreamCodes: '📺 Livestream Codes',
+            regularCodes: '📋 Regular Codes',
+            whatHappensNow: '💡 What happens now?',
+            whatHappensNowValue: '• Regular codes -> Main channel\n• Livestream codes from Special Programs -> Dedicated channel\n• Special Program announcements follow this setting too',
+            announcementEnabledTitle: '✅ Livestream Announcements Enabled',
+            announcementEnabledDescription: 'Special Program announcements will be sent before upcoming livestreams.',
+            announcementDisabledTitle: '❌ Livestream Announcements Disabled',
+            announcementDisabledDescription: 'Special Program announcements are now disabled. Livestream codes can still be sent when they are available.',
+            errorTitle: '❌ Error',
+            errorDescription: 'There was an error configuring the livestream channel.',
+            errorFooter: 'Please try again or contact support if the problem persists.'
+        }
+    },
+    livestream: {
+        announcement: {
+            content: '📢 **{game} Livestream Announcement**',
+            title: '📺 {game} Special Program Announced!',
+            description: '**Version {version}** livestream has been scheduled!',
+            streamTime: '📅 Stream Time',
+            estimatedStreamTime: '📅 Estimated Stream Time',
+            whatToExpect: '🎁 What to Expect',
+            whatToExpectValue: '• New version preview\n• Redemption codes (3 codes will be dropped)\n• Character/weapon reveals',
+            watchOnYoutube: '▶️ Watch on YouTube',
+            status: {
+                live: 'LIVE',
+                upcoming: 'Upcoming',
+                officialChannel: 'Official channel'
             }
         }
     },

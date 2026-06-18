@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const Config = require('../models/Config');
+const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
-const { validateChannel } = require('../utils/channelValidator');
 const { handleDMRestriction } = require('../utils/dmHandler');
 
 module.exports = {
@@ -15,7 +15,9 @@ module.exports = {
                 .addChoices(
                     { name: 'Set Channel', value: 'set' },
                     { name: 'Remove (use main channel)', value: 'remove' },
-                    { name: 'View Current', value: 'view' }
+                    { name: 'View Current', value: 'view' },
+                    { name: 'Enable Announcement', value: 'announcement_enable' },
+                    { name: 'Disable Announcement', value: 'announcement_disable' }
                 )
                 .setRequired(true))
         .addChannelOption(option =>
@@ -43,35 +45,59 @@ module.exports = {
         try {
             const action = interaction.options.getString('action');
             const channel = interaction.options.getChannel('channel');
+            const t = (key, replacements = {}) => languageManager.getString(
+                `commands.livestreamcodesetup.${key}`,
+                interaction.guildId,
+                replacements
+            );
 
             let config = await Config.findOne({ guildId: interaction.guildId });
+            let settings = await Settings.findOne({ guildId: interaction.guildId });
 
             if (!config) {
                 const errorEmbed = new EmbedBuilder()
                     .setColor('#FF5555')
-                    .setTitle('⚠️ Setup Required')
-                    .setDescription('Please run `/setup` first to configure your server before setting up livestream channels.')
+                    .setTitle(await t('setupRequiredTitle'))
+                    .setDescription(await t('setupRequired'))
                     .setFooter({ text: `Server: ${interaction.guild.name}` })
                     .setTimestamp();
 
                 return interaction.editReply({ embeds: [errorEmbed] });
             }
 
+            if (!settings) {
+                settings = await Settings.findOneAndUpdate(
+                    { guildId: interaction.guildId },
+                    { $setOnInsert: { guildId: interaction.guildId } },
+                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+            }
+
             // VIEW action
             if (action === 'view') {
                 const currentChannel = config.livestreamChannel
                     ? `<#${config.livestreamChannel}>`
-                    : `Using main channel: ${config.channel ? `<#${config.channel}>` : 'Not configured'}`;
+                    : await t('usingMainChannel', {
+                        channel: config.channel ? `<#${config.channel}>` : await t('notConfigured')
+                    });
+                const announcementsEnabled = settings.livestreamAnnouncementsEnabled !== false;
 
                 const viewEmbed = new EmbedBuilder()
                     .setColor('#3498db')
-                    .setTitle('📺 Livestream Code Channel Configuration')
+                    .setTitle(await t('title'))
                     .addFields(
-                        { name: 'Current Setting', value: currentChannel },
+                        { name: await t('currentSetting'), value: currentChannel },
                         {
-                            name: 'Behavior', value: config.livestreamChannel
-                                ? '✅ Livestream codes will be sent to the dedicated channel'
-                                : 'ℹ️ Livestream codes will be sent to the same channel as regular codes'
+                            name: await t('behavior'),
+                            value: config.livestreamChannel
+                                ? await t('dedicatedBehavior')
+                                : await t('mainBehavior')
+                        },
+                        {
+                            name: await t('announcementStatus'),
+                            value: announcementsEnabled
+                                ? await t('announcementEnabled')
+                                : await t('announcementDisabled')
                         }
                     )
                     .setFooter({ text: `Server: ${interaction.guild.name}` })
@@ -89,11 +115,11 @@ module.exports = {
 
                 const removeEmbed = new EmbedBuilder()
                     .setColor('#00FF00')
-                    .setTitle('✅ Livestream Channel Removed')
-                    .setDescription('Livestream codes will now be sent to the main channel alongside regular codes.')
+                    .setTitle(await t('removedTitle'))
+                    .setDescription(await t('removedDescription'))
                     .addFields({
-                        name: 'Main Channel',
-                        value: config.channel ? `<#${config.channel}>` : 'Not configured'
+                        name: await t('mainChannel'),
+                        value: config.channel ? `<#${config.channel}>` : await t('notConfigured')
                     })
                     .setFooter({ text: `Server: ${interaction.guild.name}` })
                     .setTimestamp();
@@ -101,13 +127,34 @@ module.exports = {
                 return interaction.editReply({ embeds: [removeEmbed] });
             }
 
+            if (action === 'announcement_enable' || action === 'announcement_disable') {
+                const enabled = action === 'announcement_enable';
+                await Settings.findOneAndUpdate(
+                    { guildId: interaction.guildId },
+                    {
+                        $set: { livestreamAnnouncementsEnabled: enabled },
+                        $setOnInsert: { guildId: interaction.guildId }
+                    },
+                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+
+                const announcementEmbed = new EmbedBuilder()
+                    .setColor(enabled ? '#00FF00' : '#FF5555')
+                    .setTitle(await t(enabled ? 'announcementEnabledTitle' : 'announcementDisabledTitle'))
+                    .setDescription(await t(enabled ? 'announcementEnabledDescription' : 'announcementDisabledDescription'))
+                    .setFooter({ text: `Server: ${interaction.guild.name}` })
+                    .setTimestamp();
+
+                return interaction.editReply({ embeds: [announcementEmbed] });
+            }
+
             // SET action
             if (action === 'set') {
                 if (!channel) {
                     const errorEmbed = new EmbedBuilder()
                         .setColor('#FF5555')
-                        .setTitle('❌ Channel Required')
-                        .setDescription('Please select a channel when using the "Set Channel" action.')
+                        .setTitle(await t('channelRequiredTitle'))
+                        .setDescription(await t('channelRequired'))
                         .setFooter({ text: `Server: ${interaction.guild.name}` })
                         .setTimestamp();
 
@@ -131,11 +178,11 @@ module.exports = {
 
                     const errorEmbed = new EmbedBuilder()
                         .setColor('#FF5555')
-                        .setTitle('⚠️ Insufficient Permissions')
-                        .setDescription(`The bot doesn't have the required permissions in ${channel}`)
+                        .setTitle(await t('insufficientPermissionsTitle'))
+                        .setDescription(await t('insufficientPermissions', { channel }))
                         .addFields({
-                            name: 'Required Permissions',
-                            value: '• View Channel\n• Send Messages\n• Embed Links'
+                            name: await t('requiredPermissions'),
+                            value: await t('requiredPermissionsValue')
                         })
                         .setFooter({ text: `Server: ${interaction.guild.name}` })
                         .setTimestamp();
@@ -145,22 +192,22 @@ module.exports = {
 
                 const successEmbed = new EmbedBuilder()
                     .setColor('#00FF00')
-                    .setTitle('✅ Livestream Channel Configured')
-                    .setDescription('Livestream codes will now be sent to a separate channel!')
+                    .setTitle(await t('configuredTitle'))
+                    .setDescription(await t('configuredDescription'))
                     .addFields(
                         {
-                            name: '📺 Livestream Codes',
-                            value: `${channel}\n✅ Channel validated successfully!`,
+                            name: await t('livestreamCodes'),
+                            value: `${channel}\n${await languageManager.getString('commands.setup.channelValidation', interaction.guildId)}`,
                             inline: true
                         },
                         {
-                            name: '📋 Regular Codes',
-                            value: config.channel ? `<#${config.channel}>` : 'Not configured',
+                            name: await t('regularCodes'),
+                            value: config.channel ? `<#${config.channel}>` : await t('notConfigured'),
                             inline: true
                         },
                         {
-                            name: '💡 What happens now?',
-                            value: '• Regular codes → Main channel\n• Livestream codes (from Special Programs) → Dedicated channel\n• Both channels can have different notification settings!'
+                            name: await t('whatHappensNow'),
+                            value: await t('whatHappensNowValue')
                         }
                     )
                     .setFooter({ text: `Server: ${interaction.guild.name}` })
@@ -174,10 +221,10 @@ module.exports = {
 
             const errorEmbed = new EmbedBuilder()
                 .setColor('#FF0000')
-                .setTitle('❌ Error')
-                .setDescription('There was an error configuring the livestream channel.')
+                .setTitle(await languageManager.getString('commands.livestreamcodesetup.errorTitle', interaction.guildId))
+                .setDescription(await languageManager.getString('commands.livestreamcodesetup.errorDescription', interaction.guildId))
                 .addFields({ name: 'Error Details', value: `\`\`\`${error.message}\`\`\`` })
-                .setFooter({ text: 'Please try again or contact support if the problem persists.' })
+                .setFooter({ text: await languageManager.getString('commands.livestreamcodesetup.errorFooter', interaction.guildId) })
                 .setTimestamp();
 
             await interaction.editReply({ embeds: [errorEmbed] });

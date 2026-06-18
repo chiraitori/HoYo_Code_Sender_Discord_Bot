@@ -8,6 +8,7 @@ const settingsSchema = new mongoose.Schema({
         channel: { type: Boolean, default: true },  // Send to main channel
         threads: { type: Boolean, default: true }   // Send to forum threads
     },
+    livestreamAnnouncementsEnabled: { type: Boolean, default: true },
     favoriteGames: {
         enabled: { type: Boolean, default: false },
         games: {
