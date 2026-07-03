@@ -1,7 +1,9 @@
 // TODO: refactor this mess before Ganyu gets disappointed
 require('dotenv').config();
-const { ShardingManager } = require('discord.js');
+const { ShardingManager, fetchRecommendedShardCount } = require('discord.js');
 const path = require('path');
+const { setTimeout: sleep } = require('timers/promises');
+const { calculateReshardTarget } = require('./utils/resharding');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 if (!TOKEN) {
@@ -42,12 +44,64 @@ manager.on('shardCreate', shard => {
 });
 
 // ── Auto-Reshard ───────────────────────────────────────────────────────
-// Discord recommends ~2500 guilds per shard. When the bot grows past the
-// current capacity we perform a full restart so `totalShards: 'auto'`
-// re-queries the gateway and spawns the right number of shards.
+// The manager auto-picks the startup shard count. The hourly check can grow
+// the shard set from Discord's recommendation or from the local capacity target.
 const RESHARD_CHECK_INTERVAL = 60 * 60 * 1000; // every hour
 const GUILDS_PER_SHARD = 2500;
 const RESHARD_THRESHOLD = 0.8; // trigger when 80% full
+const RESHARD_DELAY = 5500;
+const RESHARD_TIMEOUT = 60000;
+const MAX_SPAWN_RETRIES = 5;
+
+function getRetryAfterMs(error) {
+    const retryAfter = error?.headers?.get?.('retry-after');
+    const retryAfterSeconds = Number(retryAfter);
+
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+        return Math.ceil(retryAfterSeconds * 1000);
+    }
+
+    return null;
+}
+
+async function spawnWithRetry(options) {
+    for (let attempt = 1; attempt <= MAX_SPAWN_RETRIES; attempt += 1) {
+        try {
+            return await manager.spawn(options);
+        } catch (error) {
+            const retryAfterMs = getRetryAfterMs(error);
+
+            if (error?.status !== 429 || !retryAfterMs || attempt === MAX_SPAWN_RETRIES) {
+                throw error;
+            }
+
+            const delayMs = retryAfterMs + 1000;
+            console.warn(
+                `[ShardManager] Gateway rate limited while spawning; retrying in ${delayMs}ms ` +
+                `(attempt ${attempt}/${MAX_SPAWN_RETRIES})`
+            );
+            await sleep(delayMs);
+        }
+    }
+}
+
+async function reshardTo(targetShards) {
+    console.log(`[AutoScale] Stopping ${manager.shards.size} shard(s) before resharding...`);
+    for (const [, shard] of manager.shards) {
+        shard.kill();
+    }
+
+    manager.shards.clear();
+    manager.totalShards = targetShards;
+    manager.shardList = [...Array(targetShards).keys()];
+
+    console.log(`[AutoScale] Spawning ${targetShards} shard(s)...`);
+    await spawnWithRetry({
+        amount: targetShards,
+        delay: RESHARD_DELAY,
+        timeout: RESHARD_TIMEOUT
+    });
+}
 
 async function checkReshardNeeded() {
     try {
@@ -56,47 +110,51 @@ async function checkReshardNeeded() {
         const currentShards = manager.totalShards;
         const capacity = currentShards * GUILDS_PER_SHARD;
         const usage = totalGuilds / capacity;
+        let discordRecommended = 0;
+        try {
+            discordRecommended = await fetchRecommendedShardCount(TOKEN);
+        } catch (error) {
+            console.warn('[AutoScale] Could not fetch Discord shard recommendation:', error.message || error.status);
+        }
+        const recommended = calculateReshardTarget({
+            totalGuilds,
+            currentShards,
+            guildsPerShard: GUILDS_PER_SHARD,
+            threshold: RESHARD_THRESHOLD,
+            discordRecommended
+        });
 
         console.log(
             `[AutoScale] ${totalGuilds} guilds across ${currentShards} shard(s) ` +
-            `(${Math.round(usage * 100)}% capacity)`
+            `(${Math.round(usage * 100)}% capacity, target ${recommended})`
         );
 
-        if (usage >= RESHARD_THRESHOLD) {
-            const recommended = Math.ceil(totalGuilds / GUILDS_PER_SHARD);
-            if (recommended > currentShards) {
-                // By default, only warn — resharding requires restarting all shards.
-                // Set AUTO_RESHARD=true to allow automatic rolling restarts.
-                if (process.env.AUTO_RESHARD === 'true') {
-                    console.log(
-                        `[AutoScale] 🔄 Resharding: ${currentShards} → ${recommended} shard(s) ` +
-                        `(${totalGuilds} guilds exceed ${Math.round(RESHARD_THRESHOLD * 100)}% threshold)`
-                    );
-                    await manager.respawnAll({
-                        shardDelay: 5500,   // stagger restarts so bot stays partially online
-                        respawnDelay: 500,
-                        timeout: 30000
-                    });
-                    console.log('[AutoScale] ✅ Reshard complete');
-                } else {
-                    console.warn(
-                        `[AutoScale] ⚠️  Reshard recommended: ${currentShards} → ${recommended} shard(s) ` +
-                        `(${totalGuilds} guilds, ${Math.round(usage * 100)}% capacity). ` +
-                        `Restart the bot to apply, or set AUTO_RESHARD=true to auto-reshard.`
-                    );
-                }
+        if (recommended > currentShards) {
+            if (process.env.AUTO_RESHARD === 'true') {
+                console.log(
+                    `[AutoScale] Resharding: ${currentShards} -> ${recommended} shard(s) ` +
+                    `(${totalGuilds} guilds, Discord recommends ${discordRecommended})`
+                );
+                await reshardTo(recommended);
+                console.log('[AutoScale] Reshard complete');
+            } else {
+                console.warn(
+                    `[AutoScale] Reshard recommended: ${currentShards} -> ${recommended} shard(s) ` +
+                    `(${totalGuilds} guilds, ${Math.round(usage * 100)}% capacity, ` +
+                    `Discord recommends ${discordRecommended}). ` +
+                    `Restart the bot to apply, or set AUTO_RESHARD=true to auto-reshard.`
+                );
             }
         }
     } catch (error) {
         console.error('[AutoScale] Error during reshard check:', error.message);
     }
 }
-
 // ── Start ──────────────────────────────────────────────────────────────
 (async () => {
     try {
         console.log('[ShardManager] Spawning shards (totalShards: auto)...');
-        await manager.spawn({ timeout: 60000 });
+        await spawnWithRetry({ timeout: RESHARD_TIMEOUT });
         console.log(`[ShardManager] ✅ All ${manager.totalShards} shard(s) launched`);
 
         // Start periodic reshard check

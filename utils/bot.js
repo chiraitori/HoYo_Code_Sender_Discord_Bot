@@ -16,11 +16,12 @@ const authMiddleware = require('./authMiddleware');
 const { startLivestreamChecker } = require('./livestreamChecker');
 const { startPostTracker } = require('./hoyolabPostTracker');
 const { sendChannelMessage } = require('./discordMessageSender');
+const { getShardIdsFromEnv } = require('./shards');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
 // When running standalone (no ShardingManager), treat as primary.
-const shardIds = process.env.SHARDS ? JSON.parse(process.env.SHARDS) : [0];
+const shardIds = getShardIdsFromEnv();
 const runsPrimaryServices = shardIds.includes(0);
 
 // Express setup
@@ -782,7 +783,8 @@ Object.entries(optionalEnvVars).forEach(([varName, warning]) => {
 console.log('✅ Environment validation completed');
 
 const clientOptions = {
-    shards: 'auto',
+    // ShardingManager injects SHARDS/SHARD_COUNT for child processes.
+    // Leaving shards unset lets discord.js consume those values.
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
