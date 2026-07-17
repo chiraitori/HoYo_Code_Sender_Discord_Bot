@@ -9,6 +9,7 @@ const { sendChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
+const { getRoleMention } = require('./roleMention');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
@@ -85,6 +86,49 @@ function getCodesToNotify(gameCodes, existingCodesMap, botId) {
             // schema → always retry regardless of age.
             return true;
         });
+}
+
+function getCodeNotificationTargetId(botId, guildId) {
+    return `${botId}:guild:${guildId}`;
+}
+
+function getPendingCodesForTarget(codes, existingCodesMap, targetId) {
+    return codes.filter(codeData => {
+        const existing = existingCodesMap.get(`${codeData.game}:${codeData.code}`);
+        return !existing?.notifiedTargets?.includes(targetId);
+    });
+}
+
+async function claimCodeNotifications(game, codes, targetId) {
+    const claimedCodes = [];
+
+    for (const codeData of codes) {
+        const claimed = await Code.findOneAndUpdate(
+            {
+                game,
+                code: codeData.code,
+                notifiedTargets: { $ne: targetId }
+            },
+            { $addToSet: { notifiedTargets: targetId } },
+            { new: true }
+        );
+        if (claimed) {
+            claimedCodes.push(codeData);
+        }
+    }
+
+    return claimedCodes;
+}
+
+async function releaseCodeNotificationClaims(game, codes, targetId) {
+    if (codes.length === 0) {
+        return;
+    }
+
+    await Code.updateMany(
+        { game, code: { $in: codes.map(code => code.code) } },
+        { $pull: { notifiedTargets: targetId } }
+    );
 }
 
 async function checkAndSendNewCodes(client) {
@@ -248,7 +292,8 @@ async function checkAndSendNewCodes(client) {
                         $setOnInsert: {
                             ...codeData,
                             timestamp: new Date(),
-                            notifiedBots: []
+                            notifiedBots: [],
+                            notifiedTargets: []
                         }
                     },
                     upsert: true
@@ -350,24 +395,65 @@ async function checkAndSendNewCodes(client) {
                 }
 
                 const codes = newCodesForGames[game];
-                if (codes.length > 0) {
+                const targetId = getCodeNotificationTargetId(botId, guildId);
+                const pendingCodes = getPendingCodesForTarget(
+                    codes,
+                    existingCodesMap,
+                    targetId
+                );
+                if (pendingCodes.length > 0) {
                     // Determine guild language for embed lookup
                     const guildLangCode = languageMap[guildId]?.language || 'en';
                     const cachedEmbed = embedCache.get(`${game}:${guildLangCode}`) || embedCache.get(`${game}:en`);
 
-                    // Push as a lazy function (not yet invoked) for batched execution
                     messageTasks.push({
                         game,
-                        codes,
-                        run: () => sendCodeNotification(
-                            client,
-                            config,
-                            settings,
-                            game,
-                            codes,
-                            guildId,
-                            cachedEmbed
-                        )
+                        codes: pendingCodes,
+                        targetId,
+                        run: async () => {
+                            const claimedCodes = await claimCodeNotifications(
+                                game,
+                                pendingCodes,
+                                targetId
+                            );
+                            if (claimedCodes.length === 0) {
+                                return false;
+                            }
+
+                            try {
+                                const claimedEmbed = claimedCodes.length === pendingCodes.length
+                                    ? cachedEmbed
+                                    : await buildEmbedForGameAndLang(
+                                        game,
+                                        guildLangCode,
+                                        claimedCodes
+                                    );
+                                const sent = await sendCodeNotification(
+                                    client,
+                                    config,
+                                    settings,
+                                    game,
+                                    claimedCodes,
+                                    guildId,
+                                    claimedEmbed
+                                );
+                                if (!sent) {
+                                    await releaseCodeNotificationClaims(
+                                        game,
+                                        claimedCodes,
+                                        targetId
+                                    );
+                                }
+                                return sent;
+                            } catch (error) {
+                                await releaseCodeNotificationClaims(
+                                    game,
+                                    claimedCodes,
+                                    targetId
+                                );
+                                throw error;
+                            }
+                        }
                     });
                 }
             }
@@ -379,25 +465,10 @@ async function checkAndSendNewCodes(client) {
         if (messageTasks.length > 0) {
             console.log(`Sending notifications to ${messageTasks.length} guild-game combination(s) in batches of 50...`);
             const results = await processInBatches(messageTasks, 50);
-            const successfulCodesByGame = new Map();
-
-            results.forEach((result, index) => {
-                if (result.status !== 'fulfilled' || result.value !== true) {
-                    return;
-                }
-
-                const task = messageTasks[index];
-                const codeSet = successfulCodesByGame.get(task.game) || new Set();
-                task.codes.forEach(code => codeSet.add(code.code));
-                successfulCodesByGame.set(task.game, codeSet);
-            });
-
-            await Promise.all([...successfulCodesByGame].map(([game, codes]) =>
-                Code.updateMany(
-                    { game, code: { $in: [...codes] } },
-                    { $addToSet: { notifiedBots: botId } }
-                )
-            ));
+            const successCount = results.filter(
+                result => result.status === 'fulfilled' && result.value === true
+            ).length;
+            console.log(`Code notifications delivered to ${successCount}/${messageTasks.length} targets`);
         }
         
         const elapsed = Date.now() - startTime;
@@ -522,32 +593,9 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         // Prepare message content with proper role mentions
         const roleField = roleMapping[game];
         const roleId = config[roleField];
-        let content = '';
-        let allowedMentions = {};
-
-        if (roleId) {
-            content = `<@&${roleId}>`;
-            // Check role mention permissions (only if we have a channel to check)
-            if (channel && botMember) {
-                const channelPermissions = channel.permissionsFor(botMember);
-                if (channelPermissions && channelPermissions.has(PermissionFlagsBits.MentionEveryone)) {
-                    allowedMentions = {
-                        roles: [roleId]
-                    };
-                } else {
-                    // Can't mention roles, just send without mentions
-                    content = '';
-                    allowedMentions = {
-                        roles: []
-                    };
-                }
-            } else {
-                // No channel to check permissions, allow mentions for threads
-                allowedMentions = {
-                    roles: [roleId]
-                };
-            }
-        }
+        const roleMention = getRoleMention(roleId);
+        const content = roleMention.content;
+        const allowedMentions = roleMention.allowedMentions;
 
         // Send the message to main channel (if enabled and has permissions)
         if (canSendToChannel && config.channel) {
@@ -576,15 +624,9 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                     const forumThread = client.channels.cache.get(threadId);
                     if (!forumThread) {
                         await sendChannelMessage(client, threadId, {
-                            content: config[roleMapping[game]]
-                                ? `<@&${config[roleMapping[game]]}>`
-                                : '',
+                            content: getRoleMention(config[roleMapping[game]]).content,
                             embeds: [embed],
-                            allowedMentions: {
-                                roles: config[roleMapping[game]]
-                                    ? [config[roleMapping[game]]]
-                                    : []
-                            }
+                            allowedMentions: getRoleMention(config[roleMapping[game]]).allowedMentions
                         });
                         sent = true;
                     } else {
@@ -605,23 +647,13 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                                 };
                                 
                                 const threadRoleId = threadRoleMapping[game];
-                                let threadContent = '';
-                                let threadAllowedMentions = { roles: [] };
-                                
-                                // Add role mention if role is configured and bot has permission
-                                if (
-                                    threadRoleId
-                                    && (!threadPermissions || threadPermissions.has(PermissionFlagsBits.MentionEveryone))
-                                ) {
-                                    threadContent = `<@&${threadRoleId}>`;
-                                    threadAllowedMentions = { roles: [threadRoleId] };
-                                }
+                                const threadRoleMention = getRoleMention(threadRoleId);
                                 
                                 // Send to the dedicated thread with role mention
                                 await forumThread.send({ 
-                                    content: threadContent,
+                                    content: threadRoleMention.content,
                                     embeds: [embed],
-                                    allowedMentions: threadAllowedMentions
+                                    allowedMentions: threadRoleMention.allowedMentions
                                 });
                                 sent = true;
                             }
@@ -746,5 +778,7 @@ async function notifyGuildOwnerMissingPermissions(client, guild, config, permiss
 
 module.exports = {
     checkAndSendNewCodes,
-    getCodesToNotify
+    getCodesToNotify,
+    getCodeNotificationTargetId,
+    getPendingCodesForTarget
 };

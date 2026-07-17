@@ -5,7 +5,8 @@ const codeSchema = new mongoose.Schema({
     code: { type: String, required: true },
     isExpired: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now },
-    notifiedBots: { type: [String], default: [] }
+    notifiedBots: { type: [String], default: [] },
+    notifiedTargets: { type: [String], default: [] }
 });
 
 // Add compound index for faster lookups by game and code

@@ -1,7 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { getCodesToNotify } = require('../utils/autoCodeSend');
+const {
+  getCodesToNotify,
+  getCodeNotificationTargetId,
+  getPendingCodesForTarget
+} = require('../utils/autoCodeSend');
 
 const activeCode = {
   game: 'nap',
@@ -72,5 +76,40 @@ test('expired codes from API are filtered out', () => {
   assert.deepStrictEqual(
     getCodesToNotify([expiredCode], new Map(), 'production-bot'),
     []
+  );
+});
+
+test('notification targets are isolated by bot and guild', () => {
+  assert.notStrictEqual(
+    getCodeNotificationTargetId('bot-a', 'guild-a'),
+    getCodeNotificationTargetId('bot-a', 'guild-b')
+  );
+  assert.notStrictEqual(
+    getCodeNotificationTargetId('bot-a', 'guild-a'),
+    getCodeNotificationTargetId('bot-b', 'guild-a')
+  );
+});
+
+test('already delivered guild targets are not queued again', () => {
+  const targetId = getCodeNotificationTargetId('bot-a', 'guild-a');
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      notifiedBots: [],
+      notifiedTargets: [targetId]
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getPendingCodesForTarget([activeCode], existingCodes, targetId),
+    []
+  );
+  assert.deepStrictEqual(
+    getPendingCodesForTarget(
+      [activeCode],
+      existingCodes,
+      getCodeNotificationTargetId('bot-a', 'guild-b')
+    ),
+    [activeCode]
   );
 });

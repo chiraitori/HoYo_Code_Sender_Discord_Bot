@@ -6,6 +6,7 @@ const { getState } = require('./hoyolabAPI');
 const { sendChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
+const { getRoleMention } = require('./roleMention');
 
 /**
  * Auto-distribution system for livestream codes
@@ -311,16 +312,12 @@ async function sendToChannel(client, config, game, embed) {
     // Get role to mention
     const roleField = ROLE_MAPPING[game];
     const roleId = config[roleField];
-    let roleMention = '';
-
-    if (roleId && (!permissions || permissions.has('MentionEveryone'))) {
-        roleMention = `<@&${roleId}> `;
-    }
+    const roleMention = getRoleMention(roleId);
 
     await sendChannelMessage(client, channelId, {
-        content: `${roleMention}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
+        content: `${roleMention.content}${roleMention.content ? ' ' : ''}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
         embeds: [embed],
-        allowedMentions: { roles: roleId ? [roleId] : [] }
+        allowedMentions: roleMention.allowedMentions
     });
     return true;
 }
@@ -353,16 +350,12 @@ async function sendToThread(client, config, game, embed) {
     // Get role to mention
     const roleField = ROLE_MAPPING[game];
     const roleId = config[roleField];
-    let roleMention = '';
-
-    if (roleId && (!permissions || permissions.has('MentionEveryone'))) {
-        roleMention = `<@&${roleId}> `;
-    }
+    const roleMention = getRoleMention(roleId);
 
     await sendChannelMessage(client, threadId, {
-        content: `${roleMention}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
+        content: `${roleMention.content}${roleMention.content ? ' ' : ''}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
         embeds: [embed],
-        allowedMentions: { roles: roleId ? [roleId] : [] }
+        allowedMentions: roleMention.allowedMentions
     });
     return true;
 }
