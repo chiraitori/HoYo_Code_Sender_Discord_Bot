@@ -1,4 +1,5 @@
 const { Routes } = require('discord.js');
+const { broadcastEvalWhenReady } = require('./clusterGuilds');
 
 function serializeAllowedMentions(allowedMentions = {}) {
     return {
@@ -27,7 +28,8 @@ async function sendChannelMessage(client, channelId, payload) {
     }
 
     if (client.shard?.broadcastEval) {
-        const shardResults = await client.shard.broadcastEval(
+        const shardResults = await broadcastEvalWhenReady(
+            client,
             async (shardClient, context) => {
                 const channel = shardClient.channels.cache.get(context.channelId);
                 if (!channel) {
