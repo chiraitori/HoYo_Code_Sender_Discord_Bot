@@ -81,7 +81,7 @@ module.exports = {
 
         try {
             // Get guild configuration
-            const config = await Config.findOne({ guildId: interaction.guildId });
+            const config = await Config.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
             if (!config || !config.channel) {
                 const noConfigMessage = await languageManager.getString(
                     'commands.demoautosend.noConfig', 
@@ -104,7 +104,7 @@ module.exports = {
             }
 
             // Get settings to check where to send
-            const settings = await Settings.findOne({ guildId: interaction.guildId });
+            const settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
             const sendToChannel = settings?.autoSendOptions?.channel !== false;
             const sendToThreads = settings?.autoSendOptions?.threads !== false;
 

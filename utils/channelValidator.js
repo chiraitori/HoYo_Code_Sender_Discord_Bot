@@ -18,7 +18,7 @@ async function validateChannel(client, guildId) {
         }
 
         // Get config with channel ID
-        const config = await Config.findOne({ guildId });
+        const config = await Config.findOne({ guildId }).sort({ _id: -1 });
         if (!config || !config.channel) {
             await updateChannelStatus(guildId, false, 'No channel configured');
             return { isValid: false, channel: null, error: 'No channel configured' };
@@ -68,7 +68,7 @@ async function updateChannelStatus(guildId, isValid, error = null) {
                 'channelStatus.lastError': error,
                 'channelStatus.lastChecked': new Date()
             },
-            { upsert: true }
+            { upsert: true, sort: { _id: -1 } }
         );
     } catch (dbError) {
         console.error(`Failed to update channel status for guild ${guildId}:`, dbError);

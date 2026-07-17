@@ -60,7 +60,7 @@ module.exports = {
             const zzz = interaction.options.getBoolean('zzz') ?? true;
             
             // Get settings or create if not exists
-            let settings = await Settings.findOne({ guildId: interaction.guildId });
+            let settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
             if (!settings) {
                 settings = new Settings({ guildId: interaction.guildId });
             }

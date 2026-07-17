@@ -70,9 +70,9 @@ module.exports = {
             await interaction.reply({ content: loadingMessage, ephemeral: true });
 
             // Delete all configurations for this guild
-            const configResult = await Config.deleteOne({ guildId: interaction.guildId });
-            const settingsResult = await Settings.deleteOne({ guildId: interaction.guildId });
-            const langResult = await Language.deleteOne({ guildId: interaction.guildId });
+            const configResult = await Config.deleteMany({ guildId: interaction.guildId });
+            const settingsResult = await Settings.deleteMany({ guildId: interaction.guildId });
+            const langResult = await Language.deleteMany({ guildId: interaction.guildId });
 
             // Generate success message
             const deletedItems = [];

@@ -1,6 +1,6 @@
 const axios = require('axios');
 const LivestreamTracking = require('../models/LivestreamTracking');
-const { sendAnnouncement } = require('./livestreamAnnouncement');
+const { sendAnnouncement, wasAnnouncementSentForBot } = require('./livestreamAnnouncement');
 const {
     fetchYoutubeLivestreams,
     getOfficialChannelLinks
@@ -476,7 +476,7 @@ async function updateTracking(streamInfo, client) {
 
         const currentTime = Math.floor(Date.now() / 1000);
         const shouldAnnounce = client
-            && !tracking.announcementSent
+            && !wasAnnouncementSentForBot(tracking, client.user?.id)
             && finalStreamTime > currentTime + 5 * 60;
 
         if (shouldAnnounce) {
@@ -486,8 +486,6 @@ async function updateTracking(streamInfo, client) {
                 streamTime: finalStreamTime,
                 streamTimeEstimated: finalStreamTimeEstimated
             });
-            tracking.announcementSent = true;
-            await tracking.save();
         } else if (!existing) {
             console.log('[Post Tracker] Announcement skipped because the stream already started');
         }

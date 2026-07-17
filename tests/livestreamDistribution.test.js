@@ -52,6 +52,32 @@ test('keeps channel and forum thread deliveries as separate retry targets', () =
   );
 });
 
+test('does not send livestream codes to the main channel when channel delivery is disabled', () => {
+  const targets = getDeliveryTargets([{
+    guildId: 'guild-a',
+    channel: 'normal-channel',
+    forumThreads: { zzz: 'zzz-thread' }
+  }], [{
+    guildId: 'guild-a',
+    autoSendEnabled: true,
+    autoSendOptions: { channel: false, threads: true }
+  }], 'nap', 'bot-a');
+
+  assert.deepStrictEqual(targets.map(target => target.id), ['bot-a:thread:zzz-thread']);
+});
+
+test('uses the newest config and settings row when duplicate guild data exists', () => {
+  const targets = getDeliveryTargets([
+    { guildId: 'guild-a', channel: 'old-channel' },
+    { guildId: 'guild-a', channel: 'new-channel' }
+  ], [
+    { guildId: 'guild-a', autoSendEnabled: false },
+    { guildId: 'guild-a', autoSendEnabled: true }
+  ], 'nap', 'bot-a');
+
+  assert.deepStrictEqual(targets.map(target => target.id), ['bot-a:channel:new-channel']);
+});
+
 test('skips disabled guilds and games excluded by favorites', () => {
   const configs = [
     { guildId: 'disabled', channel: 'channel-a' },

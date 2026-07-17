@@ -1,8 +1,12 @@
 const { EmbedBuilder } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
+const LivestreamTracking = require('../models/LivestreamTracking');
 const { sendChannelMessage } = require('./discordMessageSender');
 const languageManager = require('./language');
+const { getKnownGuildIds } = require('./clusterGuilds');
+const { shouldSendGameNotifications } = require('./notificationPreferences');
+const { getLatestGuildRecords } = require('./guildRecords');
 
 /**
  * Announcement system for Special Program detection
@@ -32,56 +36,74 @@ async function processInBatches(tasks, batchSize = 25) {
  */
 async function sendAnnouncement(client, streamInfo) {
     const { game, version, streamTime, bannerUrl, streamTimeEstimated } = streamInfo;
+    const botId = client.user?.id;
+    if (!botId) {
+        throw new Error('Cannot send livestream announcements before the bot is ready');
+    }
 
     console.log(`[Announcement] 📢 Sending announcement for ${game} ${version}...`);
 
     const [allConfigs, allSettings] = await Promise.all([
-        Config.find({}).lean(),
-        Settings.find({ autoSendEnabled: true }).lean()
+        Config.find({}).sort({ _id: 1 }).lean(),
+        Settings.find({}).sort({ _id: 1 }).lean()
     ]);
-    const settingsMap = new Map(allSettings.map(settings => [settings.guildId, settings]));
+    const knownGuildIds = await getKnownGuildIds(client);
+    const targets = getAnnouncementTargets(
+        allConfigs,
+        allSettings,
+        game,
+        knownGuildIds,
+        botId
+    );
+    const tracking = await LivestreamTracking.findOne({ game, version });
+    const deliveredTargets = new Set(tracking?.announcementTargets || []);
+    const pendingTargets = targets.filter(target => !deliveredTargets.has(target.id));
     const tasks = [];
 
-    for (const config of allConfigs) {
-        const settings = settingsMap.get(config.guildId);
-        if (!settings) {
-            continue;
-        }
-
-        if (settings.livestreamAnnouncementsEnabled === false) {
-            continue;
-        }
-
-        if (
-            settings.favoriteGames?.enabled
-            && settings.favoriteGames.games?.[game] === false
-        ) {
-            continue;
-        }
-
-        if (settings.autoSendOptions?.channel !== false && config.channel) {
-            tasks.push(() => sendAnnouncementToChannel(
-                    client,
-                    config.livestreamChannel || config.channel,
-                    config.guildId,
-                    game,
-                    version,
-                    streamTime,
-                    bannerUrl,
-                    streamInfo.youtubeStreams,
-                    streamTimeEstimated
-                ).catch(error => {
-                    console.error(`[Announcement] Error for guild ${config.guildId}:`, error.message);
-                    return false;
-                })
-            );
-        }
+    for (const { config, channelId } of pendingTargets) {
+        tasks.push(() => sendAnnouncementToChannel(
+            client,
+            channelId,
+            config.guildId,
+            game,
+            version,
+            streamTime,
+            bannerUrl,
+            streamInfo.youtubeStreams,
+            streamTimeEstimated
+        ).catch(error => {
+            console.error(`[Announcement] Error for guild ${config.guildId}:`, error.message);
+            return false;
+        }));
     }
 
     const results = await processInBatches(tasks);
     const sentCount = results.filter(
         result => result.status === 'fulfilled' && result.value === true
     ).length;
+
+    const successfulTargetIds = results.flatMap((result, index) => (
+        result.status === 'fulfilled' && result.value === true
+            ? [pendingTargets[index].id]
+            : []
+    ));
+    successfulTargetIds.forEach(targetId => deliveredTargets.add(targetId));
+    const complete = targets.length > 0
+        && targets.every(target => deliveredTargets.has(target.id));
+
+    if (tracking) {
+        const update = { $set: { announcementSent: complete } };
+        if (successfulTargetIds.length > 0 || complete) {
+            update.$addToSet = {};
+            if (successfulTargetIds.length > 0) {
+                update.$addToSet.announcementTargets = { $each: successfulTargetIds };
+            }
+            if (complete) {
+                update.$addToSet.announcementBots = botId;
+            }
+        }
+        await LivestreamTracking.updateOne({ game, version }, update);
+    }
 
     console.log(`[Announcement] ✅ Sent to ${sentCount} guilds`);
     return sentCount;
@@ -147,6 +169,54 @@ function buildLivestreamAnnouncementEmbed({
         youtubeStreams,
         streamTimeEstimated
     });
+}
+
+function getAnnouncementTargets(
+    configs,
+    settings,
+    game,
+    knownGuildIds = null,
+    botId = 'legacy'
+) {
+    const settingsMap = new Map(
+        getLatestGuildRecords(settings).map(row => [row.guildId, row])
+    );
+    const targets = new Map();
+
+    for (const config of getLatestGuildRecords(configs)) {
+        if (knownGuildIds && !knownGuildIds.has(config.guildId)) {
+            continue;
+        }
+
+        const guildSettings = settingsMap.get(config.guildId);
+        if (
+            !shouldSendGameNotifications(guildSettings, game)
+            || guildSettings?.livestreamAnnouncementsEnabled === false
+            || guildSettings?.autoSendOptions?.channel === false
+        ) {
+            continue;
+        }
+
+        const channelId = config.livestreamChannel || config.channel;
+        if (channelId) {
+            const id = `${botId}:channel:${channelId}`;
+            targets.set(id, { id, config, channelId });
+        }
+    }
+
+    return [...targets.values()];
+}
+
+function wasAnnouncementSentForBot(tracking, botId) {
+    if (!tracking || !botId) {
+        return Boolean(tracking?.announcementSent);
+    }
+
+    if (tracking.announcementBots?.length > 0) {
+        return tracking.announcementBots.includes(botId);
+    }
+
+    return Boolean(tracking.announcementSent);
 }
 
 async function buildLivestreamAnnouncementEmbedLocalized({
@@ -238,5 +308,7 @@ async function buildLivestreamAnnouncementEmbedLocalized({
 
 module.exports = {
     buildLivestreamAnnouncementEmbed,
-    sendAnnouncement
+    sendAnnouncement,
+    getAnnouncementTargets,
+    wasAnnouncementSentForBot
 };

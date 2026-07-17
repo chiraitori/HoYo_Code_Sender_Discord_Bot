@@ -48,7 +48,7 @@ module.exports = {
             });
 
             const status = interaction.options.getString('status');
-            let settings = await Settings.findOne({ guildId: interaction.guildId });
+            let settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
             
             if (!settings) {
                 settings = new Settings({ guildId: interaction.guildId });

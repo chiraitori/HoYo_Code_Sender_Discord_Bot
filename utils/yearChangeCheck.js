@@ -4,6 +4,7 @@ const YearMessage = require('../models/YearMessage');
 const Language = require('../models/Language');
 const { EmbedBuilder } = require('discord.js');
 const { sendChannelMessage } = require('./discordMessageSender');
+const { getLatestGuildRecords } = require('./guildRecords');
 
 async function checkAndSendYearChangeMessage(client) {
     try {
@@ -38,12 +39,14 @@ async function checkAndSendYearChangeMessage(client) {
         }
 
         // Get all guild configurations, settings, and languages
-        const [configs, allSettings, yearMessages, languages] = await Promise.all([
-            Config.find({}).lean(),
-            Settings.find({}).lean(),
+        const [rawConfigs, rawSettings, yearMessages, languages] = await Promise.all([
+            Config.find({}).sort({ _id: 1 }).lean(),
+            Settings.find({}).sort({ _id: 1 }).lean(),
             YearMessage.find({}).lean(),
             Language.find({}).lean()
         ]);
+        const configs = getLatestGuildRecords(rawConfigs);
+        const allSettings = getLatestGuildRecords(rawSettings);
 
         // Create lookup maps
         const settingsMap = allSettings.reduce((map, setting) => {

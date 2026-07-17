@@ -438,7 +438,7 @@ app.get('/api/server/:serverId/config', async (req, res) => {
         }
 
         const Config = require('../models/Config');
-        const config = await Config.findOne({ guildId: serverId });
+        const config = await Config.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!config) {
             return res.json({
@@ -477,7 +477,7 @@ app.put('/api/server/:serverId/config', async (req, res) => {
         const Config = require('../models/Config');
 
         // Find existing config or create new one
-        let config = await Config.findOne({ guildId: serverId });
+        let config = await Config.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!config) {
             config = new Config({
@@ -578,18 +578,18 @@ app.get('/api/server/:serverId/settings', async (req, res) => {
         }
 
         const Settings = require('../models/Settings');
-        const settings = await Settings.findOne({ guildId: serverId });
+        const settings = await Settings.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!settings) {
             return res.json({
                 guildId: serverId,
-                autoSendEnabled: false,
+                autoSendEnabled: true,
                 favoriteGames: {
                     enabled: false,
                     games: {
-                        genshin: false,
-                        hkrpg: false,
-                        nap: false
+                        genshin: true,
+                        hkrpg: true,
+                        nap: true
                     }
                 }
             });
@@ -618,21 +618,10 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
         const Settings = require('../models/Settings');
 
         // Find existing settings or create new one
-        let settings = await Settings.findOne({ guildId: serverId });
+        let settings = await Settings.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!settings) {
-            settings = new Settings({
-                guildId: serverId,
-                autoSendEnabled: false,
-                favoriteGames: {
-                    enabled: false,
-                    games: {
-                        genshin: false,
-                        hkrpg: false,
-                        nap: false
-                    }
-                }
-            });
+            settings = new Settings({ guildId: serverId });
         }
 
         // Update fields that are provided
@@ -671,7 +660,7 @@ app.post('/api/server/:serverId/test', async (req, res) => {
         }
 
         const Config = require('../models/Config');
-        const config = await Config.findOne({ guildId: serverId });
+        const config = await Config.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!config || !config.channel) {
             return res.status(400).json({ error: 'No notification channel configured' });
@@ -722,9 +711,9 @@ app.post('/api/server/:serverId/reset', async (req, res) => {
 
         // Delete all configuration data for this server
         await Promise.all([
-            Config.deleteOne({ guildId: serverId }),
-            Settings.deleteOne({ guildId: serverId }),
-            Language.deleteOne({ guildId: serverId })
+            Config.deleteMany({ guildId: serverId }),
+            Settings.deleteMany({ guildId: serverId }),
+            Language.deleteMany({ guildId: serverId })
         ]);
 
         res.json({ success: true, message: 'Configuration reset successfully!' });

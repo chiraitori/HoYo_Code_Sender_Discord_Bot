@@ -52,11 +52,13 @@ test('sends on the shard that owns the channel', async () => {
   assert.strictEqual(
     await sendChannelMessage(client, 'channel-a', {
       content: 'hello',
-      embeds: [{ toJSON: () => ({ title: 'Code' }) }]
+      embeds: [{ toJSON: () => ({ title: 'Code' }) }],
+      allowedMentions: { roles: ['role-a'] }
     }),
     true
   );
   assert.deepStrictEqual(payloads[0].embeds, [{ title: 'Code' }]);
+  assert.deepStrictEqual(payloads[0].allowedMentions, { roles: ['role-a'] });
   assert.strictEqual(restCalls.length, 0);
 });
 
@@ -64,9 +66,18 @@ test('falls back to REST when no shard has the channel cached', async () => {
   const { client, restCalls } = createClient({});
 
   assert.strictEqual(
-    await sendChannelMessage(client, 'channel-a', { content: 'hello' }),
+    await sendChannelMessage(client, 'channel-a', {
+      content: '<@&role-a>',
+      allowedMentions: { roles: ['role-a'] }
+    }),
     true
   );
   assert.strictEqual(restCalls.length, 1);
-  assert.strictEqual(restCalls[0].options.body.content, 'hello');
+  assert.strictEqual(restCalls[0].options.body.content, '<@&role-a>');
+  assert.deepStrictEqual(restCalls[0].options.body.allowed_mentions, {
+    parse: [],
+    roles: ['role-a'],
+    users: [],
+    replied_user: false
+  });
 });

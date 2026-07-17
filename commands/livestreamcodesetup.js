@@ -51,8 +51,8 @@ module.exports = {
                 replacements
             );
 
-            let config = await Config.findOne({ guildId: interaction.guildId });
-            let settings = await Settings.findOne({ guildId: interaction.guildId });
+            let config = await Config.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
+            let settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
 
             if (!config) {
                 const errorEmbed = new EmbedBuilder()
@@ -69,7 +69,7 @@ module.exports = {
                 settings = await Settings.findOneAndUpdate(
                     { guildId: interaction.guildId },
                     { $setOnInsert: { guildId: interaction.guildId } },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                    { upsert: true, new: true, setDefaultsOnInsert: true, sort: { _id: -1 } }
                 );
             }
 
@@ -110,7 +110,8 @@ module.exports = {
             if (action === 'remove') {
                 await Config.findOneAndUpdate(
                     { guildId: interaction.guildId },
-                    { $unset: { livestreamChannel: "" } }
+                    { $unset: { livestreamChannel: "" } },
+                    { sort: { _id: -1 } }
                 );
 
                 const removeEmbed = new EmbedBuilder()
@@ -135,7 +136,7 @@ module.exports = {
                         $set: { livestreamAnnouncementsEnabled: enabled },
                         $setOnInsert: { guildId: interaction.guildId }
                     },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                    { upsert: true, new: true, setDefaultsOnInsert: true, sort: { _id: -1 } }
                 );
 
                 const announcementEmbed = new EmbedBuilder()
@@ -164,7 +165,8 @@ module.exports = {
                 // Temporarily save channel to validate
                 await Config.findOneAndUpdate(
                     { guildId: interaction.guildId },
-                    { livestreamChannel: channel.id }
+                    { livestreamChannel: channel.id },
+                    { sort: { _id: -1 } }
                 );
 
                 // Validate channel permissions
@@ -173,7 +175,8 @@ module.exports = {
                     // Revert the change
                     await Config.findOneAndUpdate(
                         { guildId: interaction.guildId },
-                        { $unset: { livestreamChannel: "" } }
+                        { $unset: { livestreamChannel: "" } },
+                        { sort: { _id: -1 } }
                     );
 
                     const errorEmbed = new EmbedBuilder()

@@ -10,6 +10,7 @@ const { getKnownGuildIds } = require('./clusterGuilds');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
+const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
@@ -92,10 +93,51 @@ function getCodeNotificationTargetId(botId, guildId) {
     return `${botId}:guild:${guildId}`;
 }
 
-function getPendingCodesForTarget(codes, existingCodesMap, targetId) {
+function getCodeDeliveryTargets(config, settings, game, botId) {
+    const targets = [];
+    const roleId = config[roleMapping[game]];
+    const sendToChannel = settings?.autoSendOptions?.channel !== false;
+    const sendToThreads = settings?.autoSendOptions?.threads !== false;
+
+    if (sendToChannel && config.channel) {
+        targets.push({
+            id: `${botId}:channel:${config.channel}`,
+            legacyId: getCodeNotificationTargetId(botId, config.guildId),
+            guildId: config.guildId,
+            channelId: config.channel,
+            type: 'channel',
+            roleId,
+            config
+        });
+    }
+
+    const threadMapping = {
+        genshin: config.forumThreads?.genshin,
+        hkrpg: config.forumThreads?.hsr,
+        nap: config.forumThreads?.zzz
+    };
+    const threadId = threadMapping[game];
+    if (sendToThreads && threadId) {
+        targets.push({
+            id: `${botId}:thread:${threadId}`,
+            legacyId: getCodeNotificationTargetId(botId, config.guildId),
+            guildId: config.guildId,
+            channelId: threadId,
+            type: 'thread',
+            roleId,
+            config
+        });
+    }
+
+    return targets;
+}
+
+function getPendingCodesForTarget(codes, existingCodesMap, targetId, legacyTargetId = null) {
     return codes.filter(codeData => {
         const existing = existingCodesMap.get(`${codeData.game}:${codeData.code}`);
-        return !existing?.notifiedTargets?.includes(targetId);
+        const notifiedTargets = existing?.notifiedTargets || [];
+        return !notifiedTargets.includes(targetId)
+            && (!legacyTargetId || !notifiedTargets.includes(legacyTargetId));
     });
 }
 
@@ -144,11 +186,21 @@ async function checkAndSendNewCodes(client) {
     
     try {
         // Fetch all configurations, settings, and languages in parallel once
-        const [configs, allSettings, languages] = await Promise.all([
-            Config.find({}).lean(),
-            Settings.find({}).lean(),
+        const [rawConfigs, rawSettings, languages] = await Promise.all([
+            Config.find({}).sort({ _id: 1 }).lean(),
+            Settings.find({}).sort({ _id: 1 }).lean(),
             Language.find({}).lean()
         ]);
+        const configs = getLatestGuildRecords(rawConfigs);
+        const allSettings = getLatestGuildRecords(rawSettings);
+        const duplicateConfigs = countDuplicateGuildRecords(rawConfigs);
+        const duplicateSettings = countDuplicateGuildRecords(rawSettings);
+        if (duplicateConfigs || duplicateSettings) {
+            console.warn(
+                `[Code Check] Ignoring duplicate DB rows: ${duplicateConfigs} config, `
+                + `${duplicateSettings} settings (newest row per guild wins)`
+            );
+        }
 
         // Create lookup maps to avoid repeated database queries
         const settingsMap = allSettings.reduce((map, setting) => {
@@ -199,15 +251,15 @@ async function checkAndSendNewCodes(client) {
         const gameResponses = await Promise.all(gameCodeRequests);
 
         await Promise.all(gameResponses.map(async (response, index) => {
-            if (response.error) {
-                return;
-            }
-
             const game = games[index];
+            const primaryCodesAreValid = Array.isArray(response.data?.codes);
+            const primaryCodes = primaryCodesAreValid ? response.data.codes : [];
+            response.expirationSafe = !response.error && primaryCodesAreValid;
             const hoyolabCodes = await getHoyolabExchangeCodes(game);
+            response.data = response.data || {};
             response.data.codes = mergeExchangeCodes(
                 game,
-                response.data?.codes || [],
+                primaryCodes,
                 hoyolabCodes
             );
             response.data.codes = await enrichCodesWithHoyolabRewards(
@@ -224,11 +276,11 @@ async function checkAndSendNewCodes(client) {
         gameResponses.forEach((response, index) => {
             const game = games[index];
             
-            // If there was an error fetching this game's codes, skip expiration check for this game
-            if (response.error) {
+            // A partial source can still provide new codes, but is not authoritative
+            // enough to expire codes that are absent from its response.
+            if (!response.expirationSafe) {
                 failedGames.add(game);
-                console.log(`Skipping expiration check for ${game} due to API error`);
-                return;
+                console.log(`Skipping expiration check for ${game} because the primary API was unavailable or invalid`);
             }
             
             const gameCodes = response.data?.codes || [];
@@ -374,7 +426,7 @@ async function checkAndSendNewCodes(client) {
         console.log(`Pre-built ${embedCache.size} embed(s) for ${Object.keys(newCodesForGames).length} game(s) × ${uniqueLanguages.size} language(s)`);
 
         // Prepare message sending tasks as lazy functions (not yet executing)
-        const messageTasks = [];
+        const messageTasks = new Map();
         let skippedNotInGuild = 0;
         let skippedAutoSendOff = 0;
         // Filter configs that have autoSend enabled
@@ -395,26 +447,31 @@ async function checkAndSendNewCodes(client) {
                 }
 
                 const codes = newCodesForGames[game];
-                const targetId = getCodeNotificationTargetId(botId, guildId);
-                const pendingCodes = getPendingCodesForTarget(
-                    codes,
-                    existingCodesMap,
-                    targetId
-                );
-                if (pendingCodes.length > 0) {
+                const deliveryTargets = getCodeDeliveryTargets(config, settings, game, botId);
+                for (const target of deliveryTargets) {
+                    const pendingCodes = getPendingCodesForTarget(
+                        codes,
+                        existingCodesMap,
+                        target.id,
+                        target.legacyId
+                    );
+                    if (pendingCodes.length === 0) {
+                        continue;
+                    }
+
                     // Determine guild language for embed lookup
                     const guildLangCode = languageMap[guildId]?.language || 'en';
                     const cachedEmbed = embedCache.get(`${game}:${guildLangCode}`) || embedCache.get(`${game}:en`);
 
-                    messageTasks.push({
+                    messageTasks.set(`${game}:${target.id}`, {
                         game,
                         codes: pendingCodes,
-                        targetId,
+                        targetId: target.id,
                         run: async () => {
                             const claimedCodes = await claimCodeNotifications(
                                 game,
                                 pendingCodes,
-                                targetId
+                                target.id
                             );
                             if (claimedCodes.length === 0) {
                                 return false;
@@ -428,20 +485,18 @@ async function checkAndSendNewCodes(client) {
                                         guildLangCode,
                                         claimedCodes
                                     );
-                                const sent = await sendCodeNotification(
+                                const sent = await sendCodeNotificationTarget(
                                     client,
-                                    config,
-                                    settings,
+                                    target,
                                     game,
                                     claimedCodes,
-                                    guildId,
                                     claimedEmbed
                                 );
                                 if (!sent) {
                                     await releaseCodeNotificationClaims(
                                         game,
                                         claimedCodes,
-                                        targetId
+                                        target.id
                                     );
                                 }
                                 return sent;
@@ -449,7 +504,7 @@ async function checkAndSendNewCodes(client) {
                                 await releaseCodeNotificationClaims(
                                     game,
                                     claimedCodes,
-                                    targetId
+                                    target.id
                                 );
                                 throw error;
                             }
@@ -461,18 +516,19 @@ async function checkAndSendNewCodes(client) {
 
         // Execute message sends in batches of 50 for rate-limit safety at 2500+ guilds
         // Discord global rate limit is 50 requests/second, so batches of 50 with natural async gaps work well
-        console.log(`Task summary: ${messageTasks.length} to send, ${skippedNotInGuild} guilds not found, ${skippedAutoSendOff} auto-send disabled`);
-        if (messageTasks.length > 0) {
-            console.log(`Sending notifications to ${messageTasks.length} guild-game combination(s) in batches of 50...`);
-            const results = await processInBatches(messageTasks, 50);
+        const queuedTasks = [...messageTasks.values()];
+        console.log(`Task summary: ${queuedTasks.length} to send, ${skippedNotInGuild} guilds not found, ${skippedAutoSendOff} auto-send disabled`);
+        if (queuedTasks.length > 0) {
+            console.log(`Sending notifications to ${queuedTasks.length} channel/thread target(s) in batches of 50...`);
+            const results = await processInBatches(queuedTasks, 50);
             const successCount = results.filter(
                 result => result.status === 'fulfilled' && result.value === true
             ).length;
-            console.log(`Code notifications delivered to ${successCount}/${messageTasks.length} targets`);
+            console.log(`Code notifications delivered to ${successCount}/${queuedTasks.length} targets`);
         }
         
         const elapsed = Date.now() - startTime;
-        console.log(`Code check process completed in ${elapsed}ms. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Sent to ${messageTasks.length} targets.`);
+        console.log(`Code check process completed in ${elapsed}ms. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Queued ${queuedTasks.length} targets.`);
     } catch (error) {
         console.error('Error in checkAndSendNewCodes:', error);
     } finally {
@@ -532,143 +588,53 @@ async function buildEmbedForGameAndLang(game, lang, codes) {
     }
 }
 
-async function sendCodeNotification(client, config, settings, game, codes, guildId, cachedEmbed) {
+async function sendCodeNotificationTarget(client, target, game, codes, cachedEmbed) {
+    const { guildId, channelId, type, roleId, config } = target;
     if (!guildId || !codes?.length) {
         console.log(`[sendNotif] Skip ${guildId}: missing guildId or codes`);
         return false;
     }
 
-    let sent = false;
     try {
-        // Check auto-send options (default to true if not set)
-        const sendToChannel = settings?.autoSendOptions?.channel !== false;
-        const sendToThreads = settings?.autoSendOptions?.threads !== false;
-        
-        // If both are disabled, skip (shouldn't happen, but safety check)
-        if (!sendToChannel && !sendToThreads) {
-            console.log(`[sendNotif] Skip ${guildId}: both channel and threads disabled`);
-            return false;
-        }
-
-        // Validate channel if sending to it
-        const channel = sendToChannel ? client.channels.cache.get(config.channel) : null;
-        if (sendToChannel) {
-            // Check if channel is text-based
-            if (channel && !channel.isTextBased()) {
-                return false;
-            }
-
-            // Check if channel.send is a function
-            if (channel && typeof channel.send !== 'function') {
-                return false;
-            }
-        }
-
+        const channel = client.channels.cache.get(channelId);
         const guild = client.guilds.cache.get(guildId) || channel?.guild || null;
         const botMember = guild?.members?.me
             || guild?.members?.cache?.get(client.user.id)
             || null;
-        
-        // Validate cached permissions when available. Discord still validates every send.
-        let canSendToChannel = sendToChannel && Boolean(config.channel);
-        if (sendToChannel && channel && botMember) {
-            const channelPermissions = channel.permissionsFor(botMember);
-            if (!channelPermissions || !channelPermissions.has(PermissionFlagsBits.SendMessages)) {
-                canSendToChannel = false;
-            } else if (!channelPermissions.has(PermissionFlagsBits.EmbedLinks)) {
-                canSendToChannel = false;
+        if (channel) {
+            if (!channel.isTextBased?.() || typeof channel.send !== 'function') {
+                console.warn(`[sendNotif] ${guildId}/${channelId} is not a sendable text channel`);
+                return false;
             }
-            // If we reach here without setting to false, canSendToChannel remains true
-        }
-        
-        // If neither channel nor threads can receive, exit early
-        if (!canSendToChannel && !sendToThreads) {
-            console.log(`[sendNotif] Skip ${guildId}: no channel permission and threads disabled`);
-            return false;
+
+            const permissions = botMember ? channel.permissionsFor(botMember) : null;
+            const sendPermission = type === 'thread'
+                ? PermissionFlagsBits.SendMessagesInThreads
+                : PermissionFlagsBits.SendMessages;
+            if (permissions && !permissions.has([
+                PermissionFlagsBits.ViewChannel,
+                sendPermission,
+                PermissionFlagsBits.EmbedLinks
+            ])) {
+                console.warn(`[sendNotif] Missing permissions for ${guildId}/${channelId} (${type})`);
+                return false;
+            }
         }
 
-        // Use the pre-built embed from cache instead of rebuilding
-        const embed = cachedEmbed.embed;
-
-        // Prepare message content with proper role mentions
-        const roleField = roleMapping[game];
-        const roleId = config[roleField];
         const roleMention = getRoleMention(roleId);
-        const content = roleMention.content;
-        const allowedMentions = roleMention.allowedMentions;
-
-        // Send the message to main channel (if enabled and has permissions)
-        if (canSendToChannel && config.channel) {
-            await sendChannelMessage(client, config.channel, {
-                content: content, 
-                embeds: [embed],
-                allowedMentions: allowedMentions
-            });
-            sent = true;
-        }
-        
-        // Also send to dedicated forum thread for this game if configured (if enabled)
-        if (sendToThreads && config.forumThreads) {
-            try {
-                // Map game IDs to thread keys
-                const threadMapping = {
-                    'genshin': 'genshin',
-                    'hkrpg': 'hsr',
-                    'nap': 'zzz'
-                };
-                
-                const threadKey = threadMapping[game];
-                const threadId = config.forumThreads[threadKey];
-                
-                if (threadId) {
-                    const forumThread = client.channels.cache.get(threadId);
-                    if (!forumThread) {
-                        await sendChannelMessage(client, threadId, {
-                            content: getRoleMention(config[roleMapping[game]]).content,
-                            embeds: [embed],
-                            allowedMentions: getRoleMention(config[roleMapping[game]]).allowedMentions
-                        });
-                        sent = true;
-                    } else {
-                        const { ChannelType } = require('discord.js');
-                        // Verify it's actually a thread
-                        if ([ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread].includes(forumThread.type)) {
-                            // Use already-resolved botMember from cache instead of fetching from API
-                            const threadPermissions = botMember
-                                ? forumThread.permissionsFor(botMember)
-                                : null;
-                            
-                            if (!threadPermissions || threadPermissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
-                                // Get the role for this game to mention in thread
-                                const threadRoleMapping = {
-                                    'genshin': config.genshinRole,
-                                    'hkrpg': config.hsrRole,
-                                    'nap': config.zzzRole
-                                };
-                                
-                                const threadRoleId = threadRoleMapping[game];
-                                const threadRoleMention = getRoleMention(threadRoleId);
-                                
-                                // Send to the dedicated thread with role mention
-                                await forumThread.send({ 
-                                    content: threadRoleMention.content,
-                                    embeds: [embed],
-                                    allowedMentions: threadRoleMention.allowedMentions
-                                });
-                                sent = true;
-                            }
-                        }
-                    }
-                }
-            } catch (forumError) {
-                // Silently fail forum thread posting, don't affect main channel
-                console.log(`Could not post to forum thread for guild ${guildId}:`, forumError.message);
-            }
-        }
-
-        return sent;
+        await sendChannelMessage(client, channelId, {
+            content: roleMention.content,
+            embeds: [cachedEmbed.embed],
+            allowedMentions: roleMention.allowedMentions
+        });
+        return true;
 
     } catch (error) {
+        console.error(
+            `[sendNotif] Failed ${guildId}/${channelId} (${type}) for ${game} `
+            + `[${codes.map(code => code.code).join(', ')}]:`,
+            error.code || error.message
+        );
         // Handle specific Discord API errors silently
         if (error.code === 50001 || error.code === 50013) {
             // Missing Access (50001) or Missing Permissions (50013)
@@ -780,5 +746,6 @@ module.exports = {
     checkAndSendNewCodes,
     getCodesToNotify,
     getCodeNotificationTargetId,
-    getPendingCodesForTarget
+    getPendingCodesForTarget,
+    getCodeDeliveryTargets
 };

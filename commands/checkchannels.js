@@ -34,7 +34,7 @@ module.exports = {
 
             if (!isValid) {
                 // Channel validation failed - provide helpful message
-                const config = await Config.findOne({ guildId });
+                const config = await Config.findOne({ guildId }).sort({ _id: -1 });
                 let message = `⚠️ Channel validation failed: ${error}\n\n`;
                 
                 if (config && config.channel) {

@@ -139,7 +139,7 @@ module.exports = {
             await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 updateData,
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             );
 
             // Enable auto-send by default and enable threads posting
@@ -149,7 +149,7 @@ module.exports = {
                     autoSendEnabled: true,
                     'autoSendOptions.threads': true
                 },
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             );
 
             // Success message

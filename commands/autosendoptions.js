@@ -50,8 +50,8 @@ module.exports = {
 
         try {
             // Check if auto-send is enabled first
-            const settings = await Settings.findOne({ guildId: interaction.guildId });
-            if (!settings?.autoSendEnabled) {
+            const settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
+            if (settings?.autoSendEnabled === false) {
                 const warningMsg = await languageManager.getString(
                     'commands.autosendoptions.warning.autoSendDisabled',
                     interaction.guildId
@@ -103,7 +103,7 @@ module.exports = {
                     'autoSendOptions.channel': channelEnabled,
                     'autoSendOptions.threads': threadsEnabled
                 },
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             );
 
             // Success message

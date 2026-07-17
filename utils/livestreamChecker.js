@@ -3,7 +3,7 @@ const LivestreamTracking = require('../models/LivestreamTracking');
 const Code = require('../models/Code');
 const { getState, fetchLivestreamCodes, parseAndSaveCodes, getStateName } = require('./hoyolabAPI');
 const { distributeIfReady } = require('./livestreamDistribution');
-const { sendAnnouncement } = require('./livestreamAnnouncement');
+const { sendAnnouncement, wasAnnouncementSentForBot } = require('./livestreamAnnouncement');
 
 /**
  * Livestream Code Checker
@@ -170,7 +170,12 @@ async function checkGame(client, game) {
 }
 
 async function announceUpcomingIfNeeded(client, tracking) {
-    if (!client || !tracking || tracking.disabled || tracking.announcementSent) {
+    if (
+        !client
+        || !tracking
+        || tracking.disabled
+        || wasAnnouncementSentForBot(tracking, client.user?.id)
+    ) {
         return;
     }
 
@@ -194,8 +199,6 @@ async function announceUpcomingIfNeeded(client, tracking) {
         youtubeStreams: tracking.youtubeStreams || []
     });
 
-    tracking.announcementSent = true;
-    await tracking.save();
 }
 
 /**

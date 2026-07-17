@@ -64,7 +64,7 @@ module.exports = {
             const tempConfig = await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 { channel: channel.id },
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             );
 
             // Validate channel using our utility function
@@ -106,7 +106,7 @@ module.exports = {
                     'notifications.permissionMissing.lastNotified': null,
                     'notifications.permissionMissing.permission': null
                 },
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             );
             
             // Enable or disable auto-send in settings based on the option
@@ -119,7 +119,7 @@ module.exports = {
                     'channelStatus.lastError': null,
                     'channelStatus.lastChecked': new Date()
                 },
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             );
 
             // Get translated strings for the success message

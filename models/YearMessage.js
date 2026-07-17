@@ -7,7 +7,4 @@ const yearMessageSchema = new mongoose.Schema({
     sentAt: { type: Date, default: Date.now }
 });
 
-// Add index for faster lookups
-yearMessageSchema.index({ guildId: 1 });
-
 module.exports = mongoose.model('YearMessage', yearMessageSchema);

@@ -4,7 +4,8 @@ const assert = require('node:assert');
 const {
   getCodesToNotify,
   getCodeNotificationTargetId,
-  getPendingCodesForTarget
+  getPendingCodesForTarget,
+  getCodeDeliveryTargets
 } = require('../utils/autoCodeSend');
 
 const activeCode = {
@@ -111,5 +112,52 @@ test('already delivered guild targets are not queued again', () => {
       getCodeNotificationTargetId('bot-a', 'guild-b')
     ),
     [activeCode]
+  );
+});
+
+test('regular code delivery tracks the channel and thread separately', () => {
+  const targets = getCodeDeliveryTargets({
+    guildId: 'guild-a',
+    channel: 'channel-a',
+    zzzRole: 'role-a',
+    forumThreads: { zzz: 'thread-a' }
+  }, {
+    autoSendOptions: { channel: true, threads: true }
+  }, 'nap', 'bot-a');
+
+  assert.deepStrictEqual(
+    targets.map(target => target.id),
+    ['bot-a:channel:channel-a', 'bot-a:thread:thread-a']
+  );
+  assert.deepStrictEqual(targets.map(target => target.roleId), ['role-a', 'role-a']);
+});
+
+test('regular code delivery respects channel and thread options', () => {
+  const targets = getCodeDeliveryTargets({
+    guildId: 'guild-a',
+    channel: 'channel-a',
+    forumThreads: { zzz: 'thread-a' }
+  }, {
+    autoSendOptions: { channel: false, threads: true }
+  }, 'nap', 'bot-a');
+
+  assert.deepStrictEqual(targets.map(target => target.id), ['bot-a:thread:thread-a']);
+});
+
+test('legacy guild delivery markers suppress a deploy-time replay', () => {
+  const legacyTargetId = getCodeNotificationTargetId('bot-a', 'guild-a');
+  const existingCodes = new Map([[
+    'nap:ZZZY2ANNIV',
+    { ...activeCode, notifiedTargets: [legacyTargetId] }
+  ]]);
+
+  assert.deepStrictEqual(
+    getPendingCodesForTarget(
+      [activeCode],
+      existingCodes,
+      'bot-a:channel:channel-a',
+      legacyTargetId
+    ),
+    []
   );
 });

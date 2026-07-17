@@ -18,11 +18,11 @@ async function getGuildData(guildId, options = {}) {
     const queries = [];
     
     if (includeConfig) {
-        queries.push(Config.findOne({ guildId }));
+        queries.push(Config.findOne({ guildId }).sort({ _id: -1 }));
     }
     
     if (includeSettings) {
-        queries.push(Settings.findOne({ guildId }));
+        queries.push(Settings.findOne({ guildId }).sort({ _id: -1 }));
     }
     
     if (includeLanguage) {
@@ -62,7 +62,7 @@ async function updateGuildData(guildId, updates = {}) {
             Config.findOneAndUpdate(
                 { guildId },
                 config,
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             )
         );
     }
@@ -72,7 +72,7 @@ async function updateGuildData(guildId, updates = {}) {
             Settings.findOneAndUpdate(
                 { guildId },
                 settings,
-                { upsert: true, new: true }
+                { upsert: true, new: true, sort: { _id: -1 } }
             )
         );
     }

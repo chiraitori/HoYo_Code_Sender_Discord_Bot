@@ -10,7 +10,9 @@ require.cache[require.resolve('../models/Config')] = {
   filename: require.resolve('../models/Config'),
   loaded: true,
   exports: {
-    findOne: async ({ guildId }) => configStore.get(guildId) || null,
+    findOne: ({ guildId }) => ({
+      sort: async () => configStore.get(guildId) || null,
+    }),
   },
 };
 

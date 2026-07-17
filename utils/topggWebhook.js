@@ -155,7 +155,8 @@ function setupTopggWebhook(app, client) {
                 if (!thankyouSent && trackingInfo && trackingInfo.guildId) {
                     try {
                         // Find the configuration for the specific guild where the vote command was used
-                        const guildConfig = await Config.findOne({ guildId: trackingInfo.guildId });
+                        const guildConfig = await Config.findOne({ guildId: trackingInfo.guildId })
+                            .sort({ _id: -1 });
                         
                         if (guildConfig && guildConfig.channel) {
                             const channel = await client.channels.fetch(guildConfig.channel);

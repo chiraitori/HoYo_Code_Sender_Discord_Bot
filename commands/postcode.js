@@ -148,7 +148,7 @@ module.exports = {
             if (code3) codes.push(code3);
 
             // Get config from database
-            const config = await Config.findOne({ guildId: interaction.guild.id });
+            const config = await Config.findOne({ guildId: interaction.guild.id }).sort({ _id: -1 });
             if (!config || !config.channel) {
                 const noConfigMessage = await languageManager.getString(
                     'errors.noConfig',

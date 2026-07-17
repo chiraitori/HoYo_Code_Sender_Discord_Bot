@@ -23,6 +23,7 @@ const STATE_NAMES = {
     4: 'Searching',
     5: 'Found'
 };
+const MIN_LIVESTREAM_CODE_COUNT = 3;
 
 /**
  * Get current state for a game
@@ -54,7 +55,7 @@ async function getState(game, version, botId = null) {
     }
 
     // CHECK 4: Already distributed?
-    const hasCodes = tracking.found || tracking.codes?.length > 0;
+    const hasCodes = tracking.codes?.length >= MIN_LIVESTREAM_CODE_COUNT;
     const distributedForBot = botId
         ? tracking.distributedBots?.includes(botId)
         : tracking.distributed;
@@ -63,7 +64,7 @@ async function getState(game, version, botId = null) {
     }
 
     // CHECK 5: Found all codes?
-    if (tracking.found) {
+    if (tracking.found && hasCodes) {
         return 5; // Found
     }
 
@@ -126,7 +127,7 @@ async function parseAndSaveCodes(responseData, game, version) {
 
     // STEP 1: Parse codes from ALL modules with exchange_group (improved logic)
     const codes = [];
-    let expectedCount = 3; // Default
+    let expectedCount = MIN_LIVESTREAM_CODE_COUNT;
 
     for (const module of modules) {
         // Check if module has exchange_group with bonuses
@@ -135,14 +136,18 @@ async function parseAndSaveCodes(responseData, game, version) {
 
             // Get expected count if available
             if (module.exchange_group.bonuses_summary?.code_count) {
-                expectedCount = module.exchange_group.bonuses_summary.code_count;
+                expectedCount = Math.max(
+                    expectedCount,
+                    module.exchange_group.bonuses_summary.code_count
+                );
             }
 
             console.log(`[Hoyolab API] Module type ${module.module_type || 'unknown'}: ${bonuses.length} bonuses`);
 
             // Extract codes from this module
             for (const bonus of bonuses) {
-                if (bonus.exchange_code) {
+                const isActive = !bonus.code_status || bonus.code_status === 'ON';
+                if (bonus.exchange_code && isActive) {
                     const code = bonus.exchange_code.trim().toUpperCase();
 
                     // Avoid duplicates
@@ -169,22 +174,43 @@ async function parseAndSaveCodes(responseData, game, version) {
         return false;
     }
 
-    // STEP 2: Save to database
-    const tracking = await LivestreamTracking.findOneAndUpdate(
+    const allCodesFound = codes.length >= expectedCount;
+    if (!allCodesFound) {
+        console.log(
+            `[Hoyolab API] Waiting for livestream set: ${codes.length}/${expectedCount} `
+            + `codes for ${game} v${version}`
+        );
+    }
+
+    const existing = await LivestreamTracking.findOne({ game, version });
+    const existingCodes = (existing?.codes || [])
+        .map(codeData => codeData.code)
+        .filter(Boolean)
+        .sort();
+    const incomingCodes = codes.map(codeData => codeData.code).sort();
+    const codesChanged = existingCodes.length !== incomingCodes.length
+        || existingCodes.some((code, index) => code !== incomingCodes[index]);
+
+    // STEP 2: Save to database. Delivery progress is reset only when a complete,
+    // changed livestream set is found; repeated API responses must not repost it.
+    const update = {
+        codes,
+        lastChecked: new Date(),
+        found: allCodesFound
+    };
+    if (allCodesFound && (codesChanged || !existing?.found)) {
+        update.distributed = false;
+        update.distributedBots = [];
+        update.distributedTargets = [];
+    }
+
+    await LivestreamTracking.findOneAndUpdate(
         { game, version },
-        {
-            codes: codes,
-            lastChecked: new Date(),
-            found: codes.length > 0,
-            distributed: false,
-            distributedBots: [],
-            distributedTargets: []
-        },
+        update,
         { upsert: true, new: true }
     );
 
-    // Return true if we found any codes
-    return codes.length > 0;
+    return allCodesFound;
 }
 
 /**

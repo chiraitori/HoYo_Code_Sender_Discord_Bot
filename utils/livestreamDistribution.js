@@ -7,6 +7,7 @@ const { sendChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
+const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 
 /**
  * Auto-distribution system for livestream codes
@@ -31,21 +32,13 @@ const ROLE_MAPPING = {
     'nap': 'zzzRole'
 };
 
-async function processInBatches(tasks, batchSize = 25) {
-    const results = [];
-    for (let index = 0; index < tasks.length; index += batchSize) {
-        results.push(...await Promise.allSettled(
-            tasks.slice(index, index + batchSize).map(task => task())
-        ));
-    }
-    return results;
-}
-
 function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds = null) {
-    const settingsMap = new Map(settings.map(row => [row.guildId, row]));
+    const latestConfigs = getLatestGuildRecords(configs);
+    const latestSettings = getLatestGuildRecords(settings);
+    const settingsMap = new Map(latestSettings.map(row => [row.guildId, row]));
     const targets = new Map();
 
-    for (const config of configs) {
+    for (const config of latestConfigs) {
         if (knownGuildIds && !knownGuildIds.has(config.guildId)) {
             continue;
         }
@@ -56,7 +49,7 @@ function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds
         }
 
         const channelId = config.livestreamChannel || config.channel;
-        if (channelId) {
+        if (guildSettings?.autoSendOptions?.channel !== false && channelId) {
             const targetId = `${botId || 'legacy'}:channel:${channelId}`;
             targets.set(targetId, {
                 id: targetId,
@@ -157,9 +150,17 @@ async function distributeIfReady(client, game, version = null, codes = null) {
 
     // Get all guilds with auto-send enabled
     const [allConfigs, allSettings] = await Promise.all([
-        Config.find({}).lean(),
-        Settings.find({}).lean()
+        Config.find({}).sort({ _id: 1 }).lean(),
+        Settings.find({}).sort({ _id: 1 }).lean()
     ]);
+    const duplicateConfigs = countDuplicateGuildRecords(allConfigs);
+    const duplicateSettings = countDuplicateGuildRecords(allSettings);
+    if (duplicateConfigs || duplicateSettings) {
+        console.warn(
+            `[Auto-Distribution] Ignoring duplicate DB rows: ${duplicateConfigs} config, `
+            + `${duplicateSettings} settings (newest row per guild wins)`
+        );
+    }
     const knownGuildIds = await getKnownGuildIds(client);
     const targets = getDeliveryTargets(
         allConfigs,
@@ -170,12 +171,6 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     );
     const deliveredTargetIds = new Set(tracking.distributedTargets || []);
     const pendingTargets = getPendingDeliveryTargets(targets, deliveredTargetIds);
-    const tasks = pendingTargets.map(target => () => (
-        target.type === 'channel'
-            ? sendToChannel(client, target.config, game, embed)
-            : sendToThread(client, target.config, game, embed)
-    ));
-
     if (targets.length === 0) {
         console.warn(`[Auto-Distribution] No eligible delivery targets for ${game}; will retry`);
         return;
@@ -193,7 +188,29 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         return;
     }
 
-    const results = await processInBatches(tasks);
+    const results = [];
+    const batchSize = 25;
+    for (let index = 0; index < pendingTargets.length; index += batchSize) {
+        const batchTargets = pendingTargets.slice(index, index + batchSize);
+        const batchResults = await Promise.allSettled(batchTargets.map(target => (
+            target.type === 'channel'
+                ? sendToChannel(client, target.config, game, embed)
+                : sendToThread(client, target.config, game, embed)
+        )));
+        results.push(...batchResults);
+
+        const successfulBatchTargetIds = batchResults.flatMap((result, resultIndex) => (
+            result.status === 'fulfilled' && result.value === true
+                ? [batchTargets[resultIndex].id]
+                : []
+        ));
+        if (successfulBatchTargetIds.length > 0) {
+            await LivestreamTracking.updateOne(
+                { game, version: trackingVersion },
+                { $addToSet: { distributedTargets: { $each: successfulBatchTargetIds } } }
+            );
+        }
+    }
     const progress = getDeliveryProgress(
         targets,
         deliveredTargetIds,
