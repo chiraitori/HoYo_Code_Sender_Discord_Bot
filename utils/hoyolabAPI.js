@@ -30,7 +30,7 @@ const STATE_NAMES = {
  * @param {string} version - Game version
  * @returns {Promise<number>} State (0-5)
  */
-async function getState(game, version) {
+async function getState(game, version, botId = null) {
     const tracking = await LivestreamTracking.findOne({ game, version });
 
     if (!tracking) {
@@ -54,7 +54,11 @@ async function getState(game, version) {
     }
 
     // CHECK 4: Already distributed?
-    if (tracking.distributed && (tracking.found || tracking.codes?.length > 0)) {
+    const hasCodes = tracking.found || tracking.codes?.length > 0;
+    const distributedForBot = botId
+        ? tracking.distributedBots?.includes(botId)
+        : tracking.distributed;
+    if (distributedForBot && hasCodes) {
         return 3; // Distributed
     }
 
@@ -173,6 +177,7 @@ async function parseAndSaveCodes(responseData, game, version) {
             lastChecked: new Date(),
             found: codes.length > 0,
             distributed: false,
+            distributedBots: [],
             distributedTargets: []
         },
         { upsert: true, new: true }

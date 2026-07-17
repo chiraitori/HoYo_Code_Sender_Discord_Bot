@@ -54,6 +54,22 @@ test('getState returns distributed after codes were found and distributed', asyn
   assert.strictEqual(await getState('nap', '3.1'), 3);
 });
 
+test('getState tracks distribution independently for each bot', async () => {
+  trackingDocument = {
+    game: 'nap',
+    version: '3.1',
+    streamTime: Math.floor(Date.now() / 1000) - 60,
+    disabled: false,
+    found: true,
+    distributed: true,
+    distributedBots: ['staging-bot'],
+    codes: [{ code: 'ZZZY2ANNIV' }],
+  };
+
+  assert.strictEqual(await getState('nap', '3.1', 'staging-bot'), 3);
+  assert.strictEqual(await getState('nap', '3.1', 'production-bot'), 5);
+});
+
 test('parseAndSaveCodes clears stale distributed flag when codes are found', async () => {
   const found = await parseAndSaveCodes({
     data: {
@@ -72,6 +88,7 @@ test('parseAndSaveCodes clears stale distributed flag when codes are found', asy
   assert.strictEqual(found, true);
   assert.strictEqual(savedUpdate.update.found, true);
   assert.strictEqual(savedUpdate.update.distributed, false);
+  assert.deepStrictEqual(savedUpdate.update.distributedBots, []);
   assert.deepStrictEqual(savedUpdate.update.distributedTargets, []);
   assert.deepStrictEqual(savedUpdate.query, { game: 'nap', version: '3.1' });
 });

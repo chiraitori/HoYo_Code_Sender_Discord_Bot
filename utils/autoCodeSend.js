@@ -55,10 +55,27 @@ async function processInBatches(tasks, batchSize) {
     const results = [];
     for (let i = 0; i < tasks.length; i += batchSize) {
         const batch = tasks.slice(i, i + batchSize);
-        const batchResults = await Promise.allSettled(batch.map(fn => fn()));
+        const batchResults = await Promise.allSettled(batch.map(task => task.run()));
         results.push(...batchResults);
     }
     return results;
+}
+
+function getCodesToNotify(gameCodes, existingCodesMap, botId, notificationCutoff) {
+    return gameCodes
+        .filter(codeData => codeData.status === 'OK')
+        .filter(codeData => {
+            const existing = existingCodesMap.get(`${codeData.game}:${codeData.code}`);
+            if (!existing) {
+                return true;
+            }
+            if (existing.notifiedBots?.includes(botId)) {
+                return false;
+            }
+
+            const firstSeenAt = new Date(existing.timestamp).getTime();
+            return Number.isFinite(firstSeenAt) && firstSeenAt >= notificationCutoff;
+        });
 }
 
 async function checkAndSendNewCodes(client) {
@@ -99,10 +116,23 @@ async function checkAndSendNewCodes(client) {
             });
         }
 
+        const botId = client.user?.id;
+        if (!botId) {
+            throw new Error('Cannot check codes before the bot is ready');
+        }
+
         // Batch fetch all existing codes
         const allExistingCodes = await Code.find({}).lean();
-        const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));
+        const existingCodesMap = new Map(
+            allExistingCodes.map(code => [`${code.game}:${code.code}`, code])
+        );
         const knownGuildIds = await getKnownGuildIds(client);
+        const lookbackHours = Number.parseInt(
+            process.env.CODE_NOTIFICATION_LOOKBACK_HOURS || '24',
+            10
+        );
+        const notificationCutoff = Date.now()
+            - Math.max(1, Number.isFinite(lookbackHours) ? lookbackHours : 24) * 60 * 60 * 1000;
 
         // Fetch all games' codes in parallel
         const gameCodeRequests = games.map(game => 
@@ -163,22 +193,27 @@ async function checkAndSendNewCodes(client) {
             });
             
             if (gameCodes.length) {
-                const newCodes = gameCodes.filter(codeData => 
-                    !existingCodesSet.has(`${codeData.game}:${codeData.code}`) && 
-                    codeData.status === 'OK'
+                const activeCodes = gameCodes.filter(codeData => codeData.status === 'OK');
+                const newCodes = getCodesToNotify(
+                    gameCodes,
+                    existingCodesMap,
+                    botId,
+                    notificationCutoff
                 );
 
                 if (newCodes.length) {
                     newCodesForGames[game] = newCodes;
-                    // Prepare codes for batch save
-                    newCodes.forEach(codeData => {
+                }
+
+                activeCodes
+                    .filter(codeData => !existingCodesMap.has(`${codeData.game}:${codeData.code}`))
+                    .forEach(codeData => {
                         codesToSave.push({
                             game: codeData.game,
                             code: codeData.code,
                             isExpired: false
                         });
                     });
-                }
             }
         });
 
@@ -202,7 +237,19 @@ async function checkAndSendNewCodes(client) {
         
         // Add new codes
         if (codesToSave.length > 0) {
-            operations.push(Code.insertMany(codesToSave));
+            operations.push(Code.bulkWrite(codesToSave.map(codeData => ({
+                updateOne: {
+                    filter: { game: codeData.game, code: codeData.code },
+                    update: {
+                        $setOnInsert: {
+                            ...codeData,
+                            timestamp: new Date(),
+                            notifiedBots: []
+                        }
+                    },
+                    upsert: true
+                }
+            })), { ordered: false }));
         }
 
         // Mark expired codes
@@ -279,15 +326,12 @@ async function checkAndSendNewCodes(client) {
 
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = [];
-        const guildsToCleanup = [];
-
         // Filter configs that have autoSend enabled
         for (const config of configs) {
             const guildId = config.guildId;
             const settings = settingsMap[guildId];
             
             if (!knownGuildIds.has(guildId)) {
-                guildsToCleanup.push(guildId);
                 continue;
             }
             
@@ -310,22 +354,47 @@ async function checkAndSendNewCodes(client) {
                     const cachedEmbed = embedCache.get(`${game}:${guildLangCode}`) || embedCache.get(`${game}:en`);
 
                     // Push as a lazy function (not yet invoked) for batched execution
-                    messageTasks.push(() => sendCodeNotification(client, config, settings, game, codes, guildId, cachedEmbed));
+                    messageTasks.push({
+                        game,
+                        codes,
+                        run: () => sendCodeNotification(
+                            client,
+                            config,
+                            settings,
+                            game,
+                            codes,
+                            guildId,
+                            cachedEmbed
+                        )
+                    });
                 }
             }
-        }
-
-        // Clean up configurations for guilds where bot was removed
-        if (guildsToCleanup.length > 0) {
-            const cleanupTasks = guildsToCleanup.map(guildId => cleanupGuildConfiguration(guildId));
-            await Promise.allSettled(cleanupTasks);
         }
 
         // Execute message sends in batches of 50 for rate-limit safety at 2500+ guilds
         // Discord global rate limit is 50 requests/second, so batches of 50 with natural async gaps work well
         if (messageTasks.length > 0) {
             console.log(`Sending notifications to ${messageTasks.length} guild-game combination(s) in batches of 50...`);
-            await processInBatches(messageTasks, 50);
+            const results = await processInBatches(messageTasks, 50);
+            const successfulCodesByGame = new Map();
+
+            results.forEach((result, index) => {
+                if (result.status !== 'fulfilled' || result.value !== true) {
+                    return;
+                }
+
+                const task = messageTasks[index];
+                const codeSet = successfulCodesByGame.get(task.game) || new Set();
+                task.codes.forEach(code => codeSet.add(code.code));
+                successfulCodesByGame.set(task.game, codeSet);
+            });
+
+            await Promise.all([...successfulCodesByGame].map(([game, codes]) =>
+                Code.updateMany(
+                    { game, code: { $in: [...codes] } },
+                    { $addToSet: { notifiedBots: botId } }
+                )
+            ));
         }
         
         const elapsed = Date.now() - startTime;
@@ -392,9 +461,10 @@ async function buildEmbedForGameAndLang(game, lang, codes) {
 async function sendCodeNotification(client, config, settings, game, codes, guildId, cachedEmbed) {
     // Validate inputs silently
     if (!guildId || !codes?.length) {
-        return;
+        return false;
     }
 
+    let sent = false;
     try {
         // Check auto-send options (default to true if not set)
         const sendToChannel = settings?.autoSendOptions?.channel !== false;
@@ -402,7 +472,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         
         // If both are disabled, skip (shouldn't happen, but safety check)
         if (!sendToChannel && !sendToThreads) {
-            return;
+            return false;
         }
 
         // Validate channel if sending to it
@@ -410,12 +480,12 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         if (sendToChannel) {
             // Check if channel is text-based
             if (channel && !channel.isTextBased()) {
-                return;
+                return false;
             }
 
             // Check if channel.send is a function
             if (channel && typeof channel.send !== 'function') {
-                return;
+                return false;
             }
         }
 
@@ -438,7 +508,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         
         // If neither channel nor threads can receive, exit early
         if (!canSendToChannel && !sendToThreads) {
-            return;
+            return false;
         }
 
         // Use the pre-built embed from cache instead of rebuilding
@@ -481,6 +551,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                 embeds: [embed],
                 allowedMentions: allowedMentions
             });
+            sent = true;
         }
         
         // Also send to dedicated forum thread for this game if configured (if enabled)
@@ -510,6 +581,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                                     : []
                             }
                         });
+                        sent = true;
                     } else {
                         const { ChannelType } = require('discord.js');
                         // Verify it's actually a thread
@@ -546,6 +618,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
                                     embeds: [embed],
                                     allowedMentions: threadAllowedMentions
                                 });
+                                sent = true;
                             }
                         }
                     }
@@ -556,6 +629,8 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
             }
         }
 
+        return sent;
+
     } catch (error) {
         // Handle specific Discord API errors silently
         if (error.code === 50001 || error.code === 50013) {
@@ -564,7 +639,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
             if (guild) {
                 await notifyGuildOwnerMissingPermissions(client, guild, config, 'SendMessages');
             }
-            return;
+            return false;
         }
 
         if (error.code === 10003) {
@@ -573,24 +648,11 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
             if (guild) {
                 await notifyGuildOwnerMissingChannel(client, guild, config);
             }
-            return;
+            return false;
         }
 
         // For other errors, fail silently
-        return;
-    }
-}
-
-// Helper function to clean up guild configuration when bot is kicked
-async function cleanupGuildConfiguration(guildId) {
-    try {
-        await Promise.all([
-            Config.deleteOne({ guildId }),
-            Settings.deleteOne({ guildId }),
-            Language.deleteOne({ guildId })
-        ]);
-    } catch (error) {
-        // Silently handle cleanup errors
+        return false;
     }
 }
 
@@ -677,4 +739,7 @@ async function notifyGuildOwnerMissingPermissions(client, guild, config, permiss
     }
 }
 
-module.exports = { checkAndSendNewCodes };
+module.exports = {
+    checkAndSendNewCodes,
+    getCodesToNotify
+};

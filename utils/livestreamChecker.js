@@ -109,7 +109,8 @@ async function checkGame(client, game) {
     const version = tracking.version || '1.0';
     await announceUpcomingIfNeeded(client, tracking);
 
-    const state = await getState(game, version);
+    const botId = client.user?.id;
+    const state = await getState(game, version, botId);
 
     console.log(`[Livestream Checker] ${game} - State: ${state} (${getStateName(state)})`);
 
@@ -163,7 +164,7 @@ async function checkGame(client, game) {
     }
 
     // Update tracking message
-    const latestState = await getState(game, version);
+    const latestState = await getState(game, version, botId);
     const latestTracking = await LivestreamTracking.findOne({ game, version });
     await updateTrackingMessage(client, game, latestState, latestTracking || tracking);
 }

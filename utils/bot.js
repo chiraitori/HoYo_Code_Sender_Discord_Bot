@@ -935,23 +935,8 @@ client.on('guildCreate', async (guild) => {
 
 client.on('guildDelete', async (guild) => {
     console.log(`Removed from guild: ${guild.name} (${guild.id})`);
-
-    // Clean up database entries for this guild
-    try {
-        const Config = require('../models/Config');
-        const Settings = require('../models/Settings');
-        const Language = require('../models/Language');
-
-        await Promise.all([
-            Config.deleteOne({ guildId: guild.id }),
-            Settings.deleteOne({ guildId: guild.id }),
-            Language.deleteOne({ guildId: guild.id })
-        ]);
-
-        console.log(`Cleaned up configuration for guild: ${guild.name} (${guild.id})`);
-    } catch (error) {
-        console.error(`Error cleaning up guild ${guild.id}:`, error);
-    }
+    // Config is shared by multiple bot applications. Keep it until an admin
+    // explicitly removes the setup so one bot cannot delete another bot's data.
 });
 
 // After Express and client setup

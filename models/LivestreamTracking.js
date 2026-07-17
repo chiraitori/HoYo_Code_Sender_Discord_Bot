@@ -38,6 +38,10 @@ const livestreamTrackingSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    distributedBots: {
+        type: [String],
+        default: []
+    },
     distributedTargets: {
         type: [String],
         default: []

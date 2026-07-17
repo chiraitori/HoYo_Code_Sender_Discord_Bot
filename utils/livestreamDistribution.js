@@ -4,6 +4,7 @@ const Settings = require('../models/Settings');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { getState } = require('./hoyolabAPI');
 const { sendChannelMessage } = require('./discordMessageSender');
+const { getKnownGuildIds } = require('./clusterGuilds');
 
 /**
  * Auto-distribution system for livestream codes
@@ -38,11 +39,15 @@ async function processInBatches(tasks, batchSize = 25) {
     return results;
 }
 
-function getDeliveryTargets(configs, settings, game) {
+function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds = null) {
     const settingsMap = new Map(settings.map(row => [row.guildId, row]));
     const targets = new Map();
 
     for (const config of configs) {
+        if (knownGuildIds && !knownGuildIds.has(config.guildId)) {
+            continue;
+        }
+
         const guildSettings = settingsMap.get(config.guildId);
         if (!guildSettings?.autoSendEnabled) {
             continue;
@@ -57,7 +62,7 @@ function getDeliveryTargets(configs, settings, game) {
 
         const channelId = config.livestreamChannel || config.channel;
         if (channelId) {
-            const targetId = `channel:${channelId}`;
+            const targetId = `${botId || 'legacy'}:channel:${channelId}`;
             targets.set(targetId, {
                 id: targetId,
                 type: 'channel',
@@ -72,7 +77,7 @@ function getDeliveryTargets(configs, settings, game) {
         };
         const threadId = threadMapping[game];
         if (guildSettings.autoSendOptions?.threads !== false && threadId) {
-            const targetId = `thread:${threadId}`;
+            const targetId = `${botId || 'legacy'}:thread:${threadId}`;
             targets.set(targetId, {
                 id: targetId,
                 type: 'thread',
@@ -137,7 +142,12 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     }
 
     const trackingVersion = tracking.version || '1.0';
-    const state = await getState(game, trackingVersion);
+    const botId = client.user?.id;
+    if (!botId) {
+        throw new Error('Cannot distribute livestream codes before the bot is ready');
+    }
+
+    const state = await getState(game, trackingVersion, botId);
 
     // Only distribute if STATE = 5 (Found) and not already distributed
     if (state !== 5) {
@@ -155,7 +165,14 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         Config.find({}).lean(),
         Settings.find({ autoSendEnabled: true }).lean()
     ]);
-    const targets = getDeliveryTargets(allConfigs, allSettings, game);
+    const knownGuildIds = await getKnownGuildIds(client);
+    const targets = getDeliveryTargets(
+        allConfigs,
+        allSettings,
+        game,
+        botId,
+        knownGuildIds
+    );
     const deliveredTargetIds = new Set(tracking.distributedTargets || []);
     const pendingTargets = getPendingDeliveryTargets(targets, deliveredTargetIds);
     const tasks = pendingTargets.map(target => () => (
@@ -172,7 +189,10 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     if (pendingTargets.length === 0) {
         await LivestreamTracking.findOneAndUpdate(
             { game, version: trackingVersion },
-            { $set: { distributed: true } },
+            {
+                $set: { distributed: true },
+                $addToSet: { distributedBots: botId }
+            },
             { upsert: false }
         );
         return;
@@ -204,6 +224,12 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     if (successfulTargetIds.length > 0) {
         update.$addToSet = {
             distributedTargets: { $each: successfulTargetIds }
+        };
+    }
+    if (distributed) {
+        update.$addToSet = {
+            ...(update.$addToSet || {}),
+            distributedBots: botId
         };
     }
 

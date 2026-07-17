@@ -16,9 +16,9 @@ test('uses the livestream channel when one is configured', () => {
     }
   ], [
     { guildId: 'guild-a', autoSendEnabled: true }
-  ], 'nap');
+  ], 'nap', 'bot-a');
 
-  assert.deepStrictEqual(targets.map(target => target.id), ['channel:live-channel']);
+  assert.deepStrictEqual(targets.map(target => target.id), ['bot-a:channel:live-channel']);
 });
 
 test('falls back to the normal channel when no livestream channel is configured', () => {
@@ -26,9 +26,9 @@ test('falls back to the normal channel when no livestream channel is configured'
     { guildId: 'guild-a', channel: 'normal-channel' }
   ], [
     { guildId: 'guild-a', autoSendEnabled: true }
-  ], 'nap');
+  ], 'nap', 'bot-a');
 
-  assert.deepStrictEqual(targets.map(target => target.id), ['channel:normal-channel']);
+  assert.deepStrictEqual(targets.map(target => target.id), ['bot-a:channel:normal-channel']);
 });
 
 test('keeps channel and forum thread deliveries as separate retry targets', () => {
@@ -44,11 +44,11 @@ test('keeps channel and forum thread deliveries as separate retry targets', () =
       autoSendEnabled: true,
       autoSendOptions: { threads: true }
     }
-  ], 'nap');
+  ], 'nap', 'bot-a');
 
   assert.deepStrictEqual(
     targets.map(target => target.id).sort(),
-    ['channel:normal-channel', 'thread:zzz-thread']
+    ['bot-a:channel:normal-channel', 'bot-a:thread:zzz-thread']
   );
 });
 
@@ -66,13 +66,57 @@ test('skips disabled guilds and games excluded by favorites', () => {
     }
   ];
 
-  assert.deepStrictEqual(getDeliveryTargets(configs, settings, 'nap'), []);
+  assert.deepStrictEqual(getDeliveryTargets(configs, settings, 'nap', 'bot-a'), []);
+});
+
+test('keeps delivery targets separate for different bot tokens', () => {
+  const configs = [{ guildId: 'guild-a', channel: 'normal-channel' }];
+  const settings = [{ guildId: 'guild-a', autoSendEnabled: true }];
+
+  const stagingTargets = getDeliveryTargets(
+    configs,
+    settings,
+    'nap',
+    'staging-bot'
+  );
+  const productionTargets = getDeliveryTargets(
+    configs,
+    settings,
+    'nap',
+    'production-bot'
+  );
+
+  assert.notStrictEqual(stagingTargets[0].id, productionTargets[0].id);
+});
+
+test('only includes guilds visible to the current bot', () => {
+  const configs = [
+    { guildId: 'production-guild', channel: 'production-channel' },
+    { guildId: 'staging-guild', channel: 'staging-channel' }
+  ];
+  const settings = [
+    { guildId: 'production-guild', autoSendEnabled: true },
+    { guildId: 'staging-guild', autoSendEnabled: true }
+  ];
+
+  const targets = getDeliveryTargets(
+    configs,
+    settings,
+    'nap',
+    'production-bot',
+    new Set(['production-guild'])
+  );
+
+  assert.deepStrictEqual(
+    targets.map(target => target.id),
+    ['production-bot:channel:production-channel']
+  );
 });
 
 test('retries only failed targets and completes after their later success', () => {
   const targets = [
-    { id: 'channel:one' },
-    { id: 'channel:two' }
+    { id: 'bot-a:channel:one' },
+    { id: 'bot-a:channel:two' }
   ];
   const firstPending = getPendingDeliveryTargets(targets, []);
   const firstProgress = getDeliveryProgress(targets, [], firstPending, [
@@ -80,14 +124,14 @@ test('retries only failed targets and completes after their later success', () =
     { status: 'rejected', reason: new Error('Missing Access') }
   ]);
 
-  assert.deepStrictEqual(firstProgress.successfulTargetIds, ['channel:one']);
+  assert.deepStrictEqual(firstProgress.successfulTargetIds, ['bot-a:channel:one']);
   assert.strictEqual(firstProgress.distributed, false);
 
   const secondPending = getPendingDeliveryTargets(
     targets,
     firstProgress.deliveredTargetIds
   );
-  assert.deepStrictEqual(secondPending.map(target => target.id), ['channel:two']);
+  assert.deepStrictEqual(secondPending.map(target => target.id), ['bot-a:channel:two']);
 
   const secondProgress = getDeliveryProgress(
     targets,
