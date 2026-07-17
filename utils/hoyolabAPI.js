@@ -172,7 +172,8 @@ async function parseAndSaveCodes(responseData, game, version) {
             codes: codes,
             lastChecked: new Date(),
             found: codes.length > 0,
-            distributed: false
+            distributed: false,
+            distributedTargets: []
         },
         { upsert: true, new: true }
     );

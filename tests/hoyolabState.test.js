@@ -72,5 +72,6 @@ test('parseAndSaveCodes clears stale distributed flag when codes are found', asy
   assert.strictEqual(found, true);
   assert.strictEqual(savedUpdate.update.found, true);
   assert.strictEqual(savedUpdate.update.distributed, false);
+  assert.deepStrictEqual(savedUpdate.update.distributedTargets, []);
   assert.deepStrictEqual(savedUpdate.query, { game: 'nap', version: '3.1' });
 });

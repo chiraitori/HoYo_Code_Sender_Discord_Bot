@@ -38,6 +38,74 @@ async function processInBatches(tasks, batchSize = 25) {
     return results;
 }
 
+function getDeliveryTargets(configs, settings, game) {
+    const settingsMap = new Map(settings.map(row => [row.guildId, row]));
+    const targets = new Map();
+
+    for (const config of configs) {
+        const guildSettings = settingsMap.get(config.guildId);
+        if (!guildSettings?.autoSendEnabled) {
+            continue;
+        }
+
+        if (
+            guildSettings.favoriteGames?.enabled
+            && guildSettings.favoriteGames.games?.[game] === false
+        ) {
+            continue;
+        }
+
+        const channelId = config.livestreamChannel || config.channel;
+        if (channelId) {
+            const targetId = `channel:${channelId}`;
+            targets.set(targetId, {
+                id: targetId,
+                type: 'channel',
+                config
+            });
+        }
+
+        const threadMapping = {
+            genshin: config.forumThreads?.genshin,
+            hkrpg: config.forumThreads?.hsr,
+            nap: config.forumThreads?.zzz
+        };
+        const threadId = threadMapping[game];
+        if (guildSettings.autoSendOptions?.threads !== false && threadId) {
+            const targetId = `thread:${threadId}`;
+            targets.set(targetId, {
+                id: targetId,
+                type: 'thread',
+                config
+            });
+        }
+    }
+
+    return [...targets.values()];
+}
+
+function getPendingDeliveryTargets(targets, deliveredTargetIds) {
+    const delivered = new Set(deliveredTargetIds || []);
+    return targets.filter(target => !delivered.has(target.id));
+}
+
+function getDeliveryProgress(targets, deliveredTargetIds, pendingTargets, results) {
+    const delivered = new Set(deliveredTargetIds || []);
+    const successfulTargetIds = results.flatMap((result, index) => (
+        result.status === 'fulfilled' && result.value === true
+            ? [pendingTargets[index].id]
+            : []
+    ));
+    successfulTargetIds.forEach(targetId => delivered.add(targetId));
+
+    return {
+        successfulTargetIds,
+        deliveredTargetIds: delivered,
+        failCount: results.length - successfulTargetIds.length,
+        distributed: targets.every(target => delivered.has(target.id))
+    };
+}
+
 /**
  * Check and distribute codes for all games
  * @param {Client} client - Discord client
@@ -87,45 +155,68 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         Config.find({}).lean(),
         Settings.find({ autoSendEnabled: true }).lean()
     ]);
-    const settingsMap = new Map(allSettings.map(settings => [settings.guildId, settings]));
-    const tasks = [];
+    const targets = getDeliveryTargets(allConfigs, allSettings, game);
+    const deliveredTargetIds = new Set(tracking.distributedTargets || []);
+    const pendingTargets = getPendingDeliveryTargets(targets, deliveredTargetIds);
+    const tasks = pendingTargets.map(target => () => (
+        target.type === 'channel'
+            ? sendToChannel(client, target.config, game, embed)
+            : sendToThread(client, target.config, game, embed)
+    ));
 
-    for (const config of allConfigs) {
-        const settings = settingsMap.get(config.guildId);
-        if (!settings) {
-            continue;
-        }
+    if (targets.length === 0) {
+        console.warn(`[Auto-Distribution] No eligible delivery targets for ${game}; will retry`);
+        return;
+    }
 
-        if (
-            settings.favoriteGames?.enabled
-            && settings.favoriteGames.games?.[game] === false
-        ) {
-            continue;
-        }
-
-        if (config.livestreamChannel || config.channel) {
-            tasks.push(() => sendToChannel(client, config, game, embed));
-        }
-
-        if (settings.autoSendOptions?.threads !== false && config.forumThreads) {
-            tasks.push(() => sendToThread(client, config, game, embed));
-        }
+    if (pendingTargets.length === 0) {
+        await LivestreamTracking.findOneAndUpdate(
+            { game, version: trackingVersion },
+            { $set: { distributed: true } },
+            { upsert: false }
+        );
+        return;
     }
 
     const results = await processInBatches(tasks);
-    const successCount = results.filter(
-        result => result.status === 'fulfilled' && result.value === true
-    ).length;
-    const failCount = results.length - successCount;
+    const progress = getDeliveryProgress(
+        targets,
+        deliveredTargetIds,
+        pendingTargets,
+        results
+    );
+    const { successfulTargetIds, failCount, distributed } = progress;
+    const successCount = successfulTargetIds.length;
 
-    // Mark as distributed
+    for (let index = 0; index < results.length; index++) {
+        const result = results[index];
+        if (result.status === 'rejected') {
+            console.error(
+                `[Auto-Distribution] Failed ${pendingTargets[index].id}:`,
+                result.reason?.message || result.reason
+            );
+        }
+    }
+
+    const update = {
+        $set: { distributed }
+    };
+    if (successfulTargetIds.length > 0) {
+        update.$addToSet = {
+            distributedTargets: { $each: successfulTargetIds }
+        };
+    }
+
     await LivestreamTracking.findOneAndUpdate(
         { game, version: trackingVersion },
-        { distributed: true },
+        update,
         { upsert: false }
     );
 
-    console.log(`[Auto-Distribution] ✅ Distributed ${game} codes to ${successCount} guilds (${failCount} failed)`);
+    console.log(
+        `[Auto-Distribution] Delivered ${game} codes to ${successCount} new targets `
+        + `(${failCount} failed, ${progress.deliveredTargetIds.size}/${targets.length} complete)`
+    );
 }
 
 /**
@@ -351,5 +442,8 @@ async function buildCodesEmbed(game, tracking) {
 
 module.exports = {
     checkAndDistribute,
-    distributeIfReady
+    distributeIfReady,
+    getDeliveryTargets,
+    getPendingDeliveryTargets,
+    getDeliveryProgress
 };
