@@ -882,6 +882,10 @@ client.once('clientReady', async () => {
                 console.error('Scheduled code check failed:', error);
             });
         }, 5 * 60 * 1000);
+        // Run initial code check immediately on startup
+        checkAndSendNewCodes(client).catch(error => {
+            console.error('Initial code check failed:', error);
+        });
 
         // Check for year change messages (every 30 minutes)
         setInterval(() => {

@@ -62,7 +62,7 @@ async function processInBatches(tasks, batchSize) {
     return results;
 }
 
-function getCodesToNotify(gameCodes, existingCodesMap, botId, notificationCutoff) {
+function getCodesToNotify(gameCodes, existingCodesMap, botId) {
     return gameCodes
         .filter(codeData => codeData.status === 'OK')
         .filter(codeData => {
@@ -74,8 +74,16 @@ function getCodesToNotify(gameCodes, existingCodesMap, botId, notificationCutoff
                 return false;
             }
 
-            const firstSeenAt = new Date(existing.timestamp).getTime();
-            return Number.isFinite(firstSeenAt) && firstSeenAt >= notificationCutoff;
+            // Legacy migration guard: if the record predates the notifiedBots field,
+            // it will have neither notifiedBots nor an empty array. Skip those to
+            // avoid replaying ancient codes after a schema migration.
+            if (!Array.isArray(existing.notifiedBots)) {
+                return false;
+            }
+
+            // Code exists, this bot hasn't notified it yet, and it has the modern
+            // schema → always retry regardless of age.
+            return true;
         });
 }
 
@@ -128,12 +136,7 @@ async function checkAndSendNewCodes(client) {
             allExistingCodes.map(code => [`${code.game}:${code.code}`, code])
         );
         const knownGuildIds = await getKnownGuildIds(client);
-        const lookbackHours = Number.parseInt(
-            process.env.CODE_NOTIFICATION_LOOKBACK_HOURS || '24',
-            10
-        );
-        const notificationCutoff = Date.now()
-            - Math.max(1, Number.isFinite(lookbackHours) ? lookbackHours : 24) * 60 * 60 * 1000;
+        console.log(`Code check: ${allExistingCodes.length} existing codes in DB, ${knownGuildIds.size} known guilds`);
 
         // Fetch all games' codes in parallel
         const gameCodeRequests = games.map(game => 
@@ -198,12 +201,12 @@ async function checkAndSendNewCodes(client) {
                 const newCodes = getCodesToNotify(
                     gameCodes,
                     existingCodesMap,
-                    botId,
-                    notificationCutoff
+                    botId
                 );
 
                 if (newCodes.length) {
                     newCodesForGames[game] = newCodes;
+                    console.log(`[${game}] ${newCodes.length} new code(s) to notify: ${newCodes.map(c => c.code).join(', ')}`);
                 }
 
                 activeCodes
@@ -327,18 +330,22 @@ async function checkAndSendNewCodes(client) {
 
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = [];
+        let skippedNotInGuild = 0;
+        let skippedAutoSendOff = 0;
         // Filter configs that have autoSend enabled
         for (const config of configs) {
             const guildId = config.guildId;
             const settings = settingsMap[guildId];
             
             if (!knownGuildIds.has(guildId)) {
+                skippedNotInGuild++;
                 continue;
             }
             
             // Process each game with new codes
             for (const game in newCodesForGames) {
                 if (!shouldSendGameNotifications(settings, game)) {
+                    skippedAutoSendOff++;
                     continue;
                 }
 
@@ -368,6 +375,7 @@ async function checkAndSendNewCodes(client) {
 
         // Execute message sends in batches of 50 for rate-limit safety at 2500+ guilds
         // Discord global rate limit is 50 requests/second, so batches of 50 with natural async gaps work well
+        console.log(`Task summary: ${messageTasks.length} to send, ${skippedNotInGuild} guilds not found, ${skippedAutoSendOff} auto-send disabled`);
         if (messageTasks.length > 0) {
             console.log(`Sending notifications to ${messageTasks.length} guild-game combination(s) in batches of 50...`);
             const results = await processInBatches(messageTasks, 50);
@@ -454,8 +462,8 @@ async function buildEmbedForGameAndLang(game, lang, codes) {
 }
 
 async function sendCodeNotification(client, config, settings, game, codes, guildId, cachedEmbed) {
-    // Validate inputs silently
     if (!guildId || !codes?.length) {
+        console.log(`[sendNotif] Skip ${guildId}: missing guildId or codes`);
         return false;
     }
 
@@ -467,6 +475,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         
         // If both are disabled, skip (shouldn't happen, but safety check)
         if (!sendToChannel && !sendToThreads) {
+            console.log(`[sendNotif] Skip ${guildId}: both channel and threads disabled`);
             return false;
         }
 
@@ -503,6 +512,7 @@ async function sendCodeNotification(client, config, settings, game, codes, guild
         
         // If neither channel nor threads can receive, exit early
         if (!canSendToChannel && !sendToThreads) {
+            console.log(`[sendNotif] Skip ${guildId}: no channel permission and threads disabled`);
             return false;
         }
 

@@ -17,40 +17,60 @@ test('a staging notification does not suppress production', () => {
       notifiedBots: ['staging-bot']
     }]
   ]);
-  const cutoff = Date.now() - 60 * 60 * 1000;
 
   assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'staging-bot', cutoff),
+    getCodesToNotify([activeCode], existingCodes, 'staging-bot'),
     []
   );
   assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'production-bot', cutoff),
+    getCodesToNotify([activeCode], existingCodes, 'production-bot'),
     [activeCode]
   );
 });
 
 test('globally new codes are sent by the current bot', () => {
   assert.deepStrictEqual(
-    getCodesToNotify([activeCode], new Map(), 'production-bot', Date.now()),
+    getCodesToNotify([activeCode], new Map(), 'production-bot'),
     [activeCode]
   );
 });
 
-test('old legacy codes are not replayed during migration', () => {
+test('legacy codes without notifiedBots array are not replayed', () => {
+  // Simulates records from before the notifiedBots field was added
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
       timestamp: new Date('2026-01-01T00:00:00Z')
+      // note: no notifiedBots field at all
     }]
   ]);
 
   assert.deepStrictEqual(
-    getCodesToNotify(
-      [activeCode],
-      existingCodes,
-      'production-bot',
-      Date.now() - 24 * 60 * 60 * 1000
-    ),
+    getCodesToNotify([activeCode], existingCodes, 'production-bot'),
+    []
+  );
+});
+
+test('codes with empty notifiedBots array are always retried', () => {
+  // After DB clear, codes are re-inserted with notifiedBots: []
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-01-01T00:00:00Z'),
+      notifiedBots: []  // modern schema, no bot has notified yet
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot'),
+    [activeCode]
+  );
+});
+
+test('expired codes from API are filtered out', () => {
+  const expiredCode = { ...activeCode, status: 'EXPIRED' };
+  assert.deepStrictEqual(
+    getCodesToNotify([expiredCode], new Map(), 'production-bot'),
     []
   );
 });
