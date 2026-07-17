@@ -54,7 +54,7 @@ async function getState(game, version) {
     }
 
     // CHECK 4: Already distributed?
-    if (tracking.distributed) {
+    if (tracking.distributed && (tracking.found || tracking.codes?.length > 0)) {
         return 3; // Distributed
     }
 
@@ -171,7 +171,8 @@ async function parseAndSaveCodes(responseData, game, version) {
         {
             codes: codes,
             lastChecked: new Date(),
-            found: codes.length > 0
+            found: codes.length > 0,
+            distributed: false
         },
         { upsert: true, new: true }
     );

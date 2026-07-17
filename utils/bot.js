@@ -17,6 +17,7 @@ const { startLivestreamChecker } = require('./livestreamChecker');
 const { startPostTracker } = require('./hoyolabPostTracker');
 const { sendChannelMessage } = require('./discordMessageSender');
 const { getShardIdsFromEnv } = require('./shards');
+const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
@@ -270,6 +271,8 @@ async function getCachedApiData(game, apiUrl) {
         }
 
         const data = response.data;
+        const hoyolabCodes = await getHoyolabExchangeCodes(game);
+        data.codes = mergeExchangeCodes(game, data?.codes || [], hoyolabCodes);
         apiCache.set(cacheKey, {
             data: data,
             timestamp: Date.now(),

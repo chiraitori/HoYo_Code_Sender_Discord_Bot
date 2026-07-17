@@ -127,26 +127,14 @@ async function checkGame(client, game) {
                 // Save codes to database for distribution
                 const updatedTracking = await LivestreamTracking.findOne({ game, version });
                 if (updatedTracking && updatedTracking.codes) {
-                    const codeValues = updatedTracking.codes.map(codeData => codeData.code);
-                    const existingCodes = await Code.find({
-                        game,
-                        code: { $in: codeValues },
-                        isExpired: false
-                    }).select({ code: 1 }).lean();
-                    const existingCodeSet = new Set(existingCodes.map(code => code.code));
-                    const newCodeData = updatedTracking.codes.filter(
-                        codeData => !existingCodeSet.has(codeData.code)
-                    );
+                    const distributionCodes = updatedTracking.codes.filter(codeData => codeData.code);
 
-                    if (newCodeData.length === 0) {
-                        console.log(`[Livestream Checker] Codes for ${game} were already handled; skipping duplicate distribution`);
-                        updatedTracking.distributed = true;
-                        await updatedTracking.save();
+                    if (distributionCodes.length === 0) {
                         return;
                     }
 
                     const timestamp = new Date();
-                    await Code.bulkWrite(newCodeData.map(codeData => ({
+                    await Code.bulkWrite(distributionCodes.map(codeData => ({
                         updateOne: {
                             filter: { game, code: codeData.code },
                             update: {
@@ -165,10 +153,13 @@ async function checkGame(client, game) {
 
                     // AUTO-DISTRIBUTE: Pop codes immediately when all 3 found
                     console.log(`[Livestream Checker] 🚀 Triggering auto-distribution for ${game}...`);
-                    await distributeIfReady(client, game, version, newCodeData);
+                    await distributeIfReady(client, game, version, distributionCodes);
                 }
             }
         }
+    } else if (state === 5) {
+        console.log(`[Livestream Checker] ${game} codes found but not distributed; triggering distribution...`);
+        await distributeIfReady(client, game, version);
     }
 
     // Update tracking message

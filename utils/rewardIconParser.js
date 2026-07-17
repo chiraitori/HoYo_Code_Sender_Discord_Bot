@@ -108,7 +108,7 @@ function parseIconBonuses(iconBonuses, game = 'genshin', lang = 'en') {
         const itemName = getItemName(itemData, lang);
 
         if (itemName) {
-            rewards.push(`${bonus.bonus_num.toLocaleString()} ${itemName}`);
+            rewards.push(`${Number(bonus.bonus_num).toLocaleString('en-US')} ${itemName}`);
         } else {
             // Unknown item - just show quantity
             const unknownText = lang === 'vi' ? 'Vật phẩm' : 'Unknown Item';

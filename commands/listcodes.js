@@ -3,6 +3,7 @@ const axios = require('axios');
 const Code = require('../models/Code');
 const languageManager = require('../utils/language');
 const { enrichCodesWithHoyolabRewards } = require('../utils/codeRewardEnricher');
+const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('../utils/hoyolabExchangeCodes');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -34,6 +35,12 @@ module.exports = {
                 }
             });
 
+            const hoyolabCodes = await getHoyolabExchangeCodes(game);
+            response.data.codes = mergeExchangeCodes(
+                game,
+                response.data?.codes || [],
+                hoyolabCodes
+            );
             response.data.codes = await enrichCodesWithHoyolabRewards(
                 game,
                 response.data?.codes || []

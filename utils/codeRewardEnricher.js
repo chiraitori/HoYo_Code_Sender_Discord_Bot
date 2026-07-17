@@ -1,43 +1,19 @@
-const { fetchLivestreamCodes } = require('./hoyolabAPI');
-const { parseIconBonuses } = require('./rewardIconParser');
-
-const rewardCache = new Map();
-const CACHE_DURATION = 3 * 60 * 1000;
+const { getHoyolabExchangeCodes } = require('./hoyolabExchangeCodes');
 
 function hasRewardText(rewards) {
     return typeof rewards === 'string' && rewards.trim().length > 0;
 }
 
 async function getHoyolabRewards(game) {
-    const cached = rewardCache.get(game);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        return cached.rewards;
-    }
-
     try {
-        const response = await fetchLivestreamCodes(game);
-        const modules = response?.data?.modules || [];
+        const codes = await getHoyolabExchangeCodes(game);
         const rewards = new Map();
 
-        for (const module of modules) {
-            const bonuses = module.exchange_group?.bonuses || [];
-
-            for (const bonus of bonuses) {
-                if (!bonus.exchange_code || !bonus.icon_bonuses?.length) {
-                    continue;
-                }
-
-                rewards.set(
-                    bonus.exchange_code.trim().toUpperCase(),
-                    parseIconBonuses(bonus.icon_bonuses, game, 'en')
-                );
+        for (const code of codes) {
+            if (hasRewardText(code.rewards)) {
+                rewards.set(code.code, code.rewards);
             }
         }
-
-        rewardCache.set(game, {
-            rewards,
-            timestamp: Date.now()
-        });
 
         return rewards;
     } catch (error) {

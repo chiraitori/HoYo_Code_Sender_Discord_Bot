@@ -103,7 +103,7 @@ async function distributeIfReady(client, game, version = null, codes = null) {
             continue;
         }
 
-        if (settings.autoSendOptions?.channel !== false && config.channel) {
+        if (config.livestreamChannel || config.channel) {
             tasks.push(() => sendToChannel(client, config, game, embed));
         }
 

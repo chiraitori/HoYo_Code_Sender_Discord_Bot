@@ -6,6 +6,8 @@ const Language = require('../models/Language');
 const languageManager = require('./language');
 const { enrichCodesWithHoyolabRewards } = require('./codeRewardEnricher');
 const { sendChannelMessage } = require('./discordMessageSender');
+const { getKnownGuildIds } = require('./clusterGuilds');
+const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
@@ -100,6 +102,7 @@ async function checkAndSendNewCodes(client) {
         // Batch fetch all existing codes
         const allExistingCodes = await Code.find({}).lean();
         const existingCodesSet = new Set(allExistingCodes.map(code => `${code.game}:${code.code}`));
+        const knownGuildIds = await getKnownGuildIds(client);
 
         // Fetch all games' codes in parallel
         const gameCodeRequests = games.map(game => 
@@ -123,6 +126,12 @@ async function checkAndSendNewCodes(client) {
             }
 
             const game = games[index];
+            const hoyolabCodes = await getHoyolabExchangeCodes(game);
+            response.data.codes = mergeExchangeCodes(
+                game,
+                response.data?.codes || [],
+                hoyolabCodes
+            );
             response.data.codes = await enrichCodesWithHoyolabRewards(
                 game,
                 response.data?.codes || []
@@ -277,7 +286,7 @@ async function checkAndSendNewCodes(client) {
             const guildId = config.guildId;
             const settings = settingsMap[guildId];
             
-            if (!client.guilds.cache.has(guildId)) {
+            if (!knownGuildIds.has(guildId)) {
                 guildsToCleanup.push(guildId);
                 continue;
             }
