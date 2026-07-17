@@ -5,6 +5,7 @@ const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
 const { validateChannel } = require('../utils/channelValidator');
 const { handleDMRestriction } = require('../utils/dmHandler');
+const { removeOtherGuildRecords } = require('../utils/guildRecords');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -92,7 +93,7 @@ module.exports = {
             }
             
             // If validation passed, update the full configuration
-            await Config.findOneAndUpdate(
+            const savedConfig = await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 {
                     genshinRole: genshinRole.id,
@@ -110,7 +111,7 @@ module.exports = {
             );
             
             // Enable or disable auto-send in settings based on the option
-            await Settings.findOneAndUpdate(
+            const savedSettings = await Settings.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 { 
                     autoSendEnabled: enableAutoSend,
@@ -121,6 +122,25 @@ module.exports = {
                 },
                 { upsert: true, new: true, sort: { _id: -1 } }
             );
+
+            const [removedConfigs, removedSettings] = await Promise.all([
+                removeOtherGuildRecords(
+                    Config,
+                    interaction.guildId,
+                    savedConfig?._id
+                ),
+                removeOtherGuildRecords(
+                    Settings,
+                    interaction.guildId,
+                    savedSettings?._id
+                )
+            ]);
+            if (removedConfigs || removedSettings) {
+                console.log(
+                    `[Setup] Removed duplicate rows for guild ${interaction.guildId}: `
+                    + `${removedConfigs} config, ${removedSettings} settings`
+                );
+            }
 
             // Get translated strings for the success message
             const successMessage = await languageManager.getString(

@@ -22,7 +22,21 @@ function countDuplicateGuildRecords(records = []) {
     return guildIds.length - new Set(guildIds).size;
 }
 
+async function removeOtherGuildRecords(Model, guildId, keepId) {
+    if (!Model || !guildId || !keepId) {
+        return 0;
+    }
+
+    const result = await Model.deleteMany({
+        guildId,
+        _id: { $ne: keepId }
+    });
+
+    return result.deletedCount || 0;
+}
+
 module.exports = {
     getLatestGuildRecords,
-    countDuplicateGuildRecords
+    countDuplicateGuildRecords,
+    removeOtherGuildRecords
 };
