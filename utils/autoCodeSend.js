@@ -8,6 +8,7 @@ const { enrichCodesWithHoyolabRewards } = require('./codeRewardEnricher');
 const { sendChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
+const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
@@ -335,15 +336,9 @@ async function checkAndSendNewCodes(client) {
                 continue;
             }
             
-            // Skip if autoSend is disabled
-            if (!settings?.autoSendEnabled) continue;
-
             // Process each game with new codes
             for (const game in newCodesForGames) {
-                // Skip if favorite games filter is enabled and this game is not selected
-                if (settings?.favoriteGames?.enabled && 
-                    settings.favoriteGames.games && 
-                    settings.favoriteGames.games[game] === false) {
+                if (!shouldSendGameNotifications(settings, game)) {
                     continue;
                 }
 

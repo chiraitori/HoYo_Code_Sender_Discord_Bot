@@ -69,6 +69,17 @@ test('skips disabled guilds and games excluded by favorites', () => {
   assert.deepStrictEqual(getDeliveryTargets(configs, settings, 'nap', 'bot-a'), []);
 });
 
+test('includes configured guilds that do not have a settings document yet', () => {
+  const targets = getDeliveryTargets([
+    { guildId: 'legacy-guild', channel: 'legacy-channel' }
+  ], [], 'nap', 'bot-a');
+
+  assert.deepStrictEqual(
+    targets.map(target => target.id),
+    ['bot-a:channel:legacy-channel']
+  );
+});
+
 test('keeps delivery targets separate for different bot tokens', () => {
   const configs = [{ guildId: 'guild-a', channel: 'normal-channel' }];
   const settings = [{ guildId: 'guild-a', autoSendEnabled: true }];

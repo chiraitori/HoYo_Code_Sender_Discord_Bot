@@ -5,6 +5,7 @@ const LivestreamTracking = require('../models/LivestreamTracking');
 const { getState } = require('./hoyolabAPI');
 const { sendChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
+const { shouldSendGameNotifications } = require('./notificationPreferences');
 
 /**
  * Auto-distribution system for livestream codes
@@ -49,14 +50,7 @@ function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds
         }
 
         const guildSettings = settingsMap.get(config.guildId);
-        if (!guildSettings?.autoSendEnabled) {
-            continue;
-        }
-
-        if (
-            guildSettings.favoriteGames?.enabled
-            && guildSettings.favoriteGames.games?.[game] === false
-        ) {
+        if (!shouldSendGameNotifications(guildSettings, game)) {
             continue;
         }
 
@@ -76,7 +70,7 @@ function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds
             nap: config.forumThreads?.zzz
         };
         const threadId = threadMapping[game];
-        if (guildSettings.autoSendOptions?.threads !== false && threadId) {
+        if (guildSettings?.autoSendOptions?.threads !== false && threadId) {
             const targetId = `${botId || 'legacy'}:thread:${threadId}`;
             targets.set(targetId, {
                 id: targetId,
@@ -163,7 +157,7 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     // Get all guilds with auto-send enabled
     const [allConfigs, allSettings] = await Promise.all([
         Config.find({}).lean(),
-        Settings.find({ autoSendEnabled: true }).lean()
+        Settings.find({}).lean()
     ]);
     const knownGuildIds = await getKnownGuildIds(client);
     const targets = getDeliveryTargets(
