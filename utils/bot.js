@@ -12,6 +12,7 @@ const { checkAndSendNewCodes } = require('./autoCodeSend');
 const { checkAndSendYearChangeMessage } = require('./yearChangeCheck');
 const { setupTopggWebhook } = require('./topggWebhook');
 const { auditGuildConfigurations } = require('./configAudit');
+const { recoverMissingGuildConfigurations } = require('./configRecovery');
 const { sendWelcomeMessage } = require('./welcome');
 const authMiddleware = require('./authMiddleware');
 const { startLivestreamChecker } = require('./livestreamChecker');
@@ -880,10 +881,28 @@ client.once('clientReady', async () => {
 
     // Singleton background tasks — only run on shard 0
     if (runsPrimaryServices) {
+        let configAudit;
         try {
-            await auditGuildConfigurations(client);
+            configAudit = await auditGuildConfigurations(client);
         } catch (error) {
             console.error('[Config Audit] Startup audit failed:', error.message);
+        }
+
+        if (
+            configAudit?.missingConfigGuildIds?.length > 0
+            && process.env.CONFIG_AUTO_RECOVERY !== 'false'
+        ) {
+            try {
+                const recovery = await recoverMissingGuildConfigurations(
+                    client,
+                    configAudit.missingConfigGuildIds
+                );
+                if (recovery.recovered > 0) {
+                    configAudit = await auditGuildConfigurations(client);
+                }
+            } catch (error) {
+                console.error('[Config Recovery] Startup recovery failed:', error);
+            }
         }
 
         try {
