@@ -1,7 +1,10 @@
 'use strict';
 
 const Config = require('../models/Config');
+const Settings = require('../models/Settings');
 const { broadcastEvalWhenReady } = require('./clusterGuilds');
+const { shouldSendGameNotifications } = require('./notificationPreferences');
+const { getLatestGuildRecords } = require('./guildRecords');
 
 const ROLE_FIELDS = {
     genshin: 'genshinRole',
@@ -206,9 +209,46 @@ async function reconcileConfiguredRoles(client, configs, game) {
     };
 }
 
+async function reconcileAllConfiguredRoles(client) {
+    const [rawConfigs, rawSettings] = await Promise.all([
+        Config.find({}).sort({ _id: 1 }).lean(),
+        Settings.find({}).sort({ _id: 1 }).lean()
+    ]);
+    const configs = getLatestGuildRecords(rawConfigs);
+    const settings = getLatestGuildRecords(rawSettings);
+    const settingsMap = new Map(settings.map(row => [row.guildId, row]));
+    const threadFields = {
+        genshin: 'genshin',
+        hkrpg: 'hsr',
+        nap: 'zzz'
+    };
+    const summaries = {};
+
+    for (const game of Object.keys(ROLE_FIELDS)) {
+        const eligibleConfigs = configs.filter(config => {
+            const guildSettings = settingsMap.get(config.guildId);
+            const hasChannelTarget = guildSettings?.autoSendOptions?.channel !== false
+                && Boolean(config.livestreamChannel || config.channel);
+            const hasThreadTarget = guildSettings?.autoSendOptions?.threads !== false
+                && Boolean(config.forumThreads?.[threadFields[game]]);
+            return shouldSendGameNotifications(guildSettings, game)
+                && (hasChannelTarget || hasThreadTarget);
+        });
+
+        summaries[game] = await reconcileConfiguredRoles(
+            client,
+            eligibleConfigs,
+            game
+        );
+    }
+
+    return summaries;
+}
+
 module.exports = {
     ROLE_FIELDS,
     normalizeRoleName,
     findMatchingGameRole,
-    reconcileConfiguredRoles
+    reconcileConfiguredRoles,
+    reconcileAllConfiguredRoles
 };

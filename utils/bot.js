@@ -19,6 +19,7 @@ const { sendChannelMessage } = require('./discordMessageSender');
 const { getShardIdsFromEnv } = require('./shards');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { getDiscordIdentityError } = require('./discordIdentity');
+const { reconcileAllConfiguredRoles } = require('./configuredRoles');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
@@ -877,6 +878,13 @@ client.once('clientReady', async () => {
 
     // Singleton background tasks — only run on shard 0
     if (runsPrimaryServices) {
+        try {
+            const roleMigration = await reconcileAllConfiguredRoles(client);
+            console.log(`[Role Config] Startup reconciliation complete: ${JSON.stringify(roleMigration)}`);
+        } catch (error) {
+            console.error('[Role Config] Startup reconciliation failed:', error);
+        }
+
         // Start regular code checking (every 5 minutes)
         setInterval(() => {
             checkAndSendNewCodes(client).catch(error => {
