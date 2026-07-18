@@ -10,6 +10,7 @@ const { getKnownGuildIds } = require('./clusterGuilds');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
+const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS } = require('./gameEmojis');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
@@ -455,6 +456,16 @@ async function checkAndSendNewCodes(client) {
         await Promise.all(embedBuildPromises);
 
         console.log(`Pre-built ${embedCache.size} embed(s) for ${Object.keys(newCodesForGames).length} game(s) × ${uniqueLanguages.size} language(s)`);
+
+        for (const game of Object.keys(newCodesForGames)) {
+            const eligibleConfigs = configs.filter(config => {
+                const settings = settingsMap[config.guildId];
+                return knownGuildIds.has(config.guildId)
+                    && shouldSendGameNotifications(settings, game)
+                    && getCodeDeliveryTargets(config, settings, game, botId).length > 0;
+            });
+            await reconcileConfiguredRoles(client, eligibleConfigs, game);
+        }
 
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = new Map();

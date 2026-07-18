@@ -7,6 +7,7 @@ const { sendChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
+const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
 
@@ -169,6 +170,11 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         game,
         botId,
         knownGuildIds
+    );
+    await reconcileConfiguredRoles(
+        client,
+        [...new Set(targets.map(target => target.config))],
+        game
     );
     const deliveredTargetIds = new Set(tracking.distributedTargets || []);
     const pendingTargets = getPendingDeliveryTargets(targets, deliveredTargetIds);
