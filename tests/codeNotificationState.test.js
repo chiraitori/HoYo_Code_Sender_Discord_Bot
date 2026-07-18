@@ -14,19 +14,57 @@ const activeCode = {
   status: 'OK'
 };
 
-test('a staging notification does not suppress production', () => {
+test('an old staging notification does not suppress production', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
-      timestamp: new Date(),
+      timestamp: new Date('2026-01-01T00:00:00Z'),
       notifiedBots: ['staging-bot']
     }]
   ]);
 
   assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'staging-bot'),
+    getCodesToNotify([activeCode], existingCodes, 'staging-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime()
+    }),
     []
   );
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime()
+    }),
+    [activeCode]
+  );
+});
+
+test('recent bot-level delivery is retried to migrate missing guild targets', () => {
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-07-17T17:49:26Z'),
+      notifiedBots: ['production-bot']
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime(),
+      migrationLookbackHours: 72
+    }),
+    [activeCode]
+  );
+});
+
+test('target-level delivery state overrides the old bot-level marker', () => {
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-01-01T00:00:00Z'),
+      notifiedBots: ['production-bot'],
+      notifiedTargets: ['production-bot:channel:channel-a']
+    }]
+  ]);
+
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'production-bot'),
     [activeCode]

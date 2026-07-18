@@ -64,7 +64,23 @@ async function processInBatches(tasks, batchSize) {
     return results;
 }
 
-function getCodesToNotify(gameCodes, existingCodesMap, botId) {
+function getCodesToNotify(
+    gameCodes,
+    existingCodesMap,
+    botId,
+    {
+        now = Date.now(),
+        migrationLookbackHours = Number.parseInt(
+            process.env.CODE_NOTIFICATION_MIGRATION_LOOKBACK_HOURS || '72',
+            10
+        )
+    } = {}
+) {
+    const safeLookbackHours = Number.isFinite(migrationLookbackHours)
+        ? Math.max(1, migrationLookbackHours)
+        : 72;
+    const migrationCutoff = now - safeLookbackHours * 60 * 60 * 1000;
+
     return gameCodes
         .filter(codeData => codeData.status === 'OK')
         .filter(codeData => {
@@ -72,19 +88,27 @@ function getCodesToNotify(gameCodes, existingCodesMap, botId) {
             if (!existing) {
                 return true;
             }
-            if (existing.notifiedBots?.includes(botId)) {
-                return false;
+
+            // Per-channel/thread state is authoritative. Older releases marked the
+            // whole bot as notified after the first successful guild, which left
+            // later guilds permanently skipped. Once target state exists, always
+            // let the target-level filter decide what is still pending.
+            if (Array.isArray(existing.notifiedTargets)) {
+                return true;
             }
 
-            // Legacy migration guard: if the record predates the notifiedBots field,
-            // it will have neither notifiedBots nor an empty array. Skip those to
-            // avoid replaying ancient codes after a schema migration.
+            // Legacy migration guard: records from before bot-level tracking are
+            // too old to replay safely because they have no delivery information.
             if (!Array.isArray(existing.notifiedBots)) {
                 return false;
             }
 
-            // Code exists, this bot hasn't notified it yet, and it has the modern
-            // schema → always retry regardless of age.
+            if (existing.notifiedBots.includes(botId)) {
+                const firstSeenAt = new Date(existing.timestamp).getTime();
+                return Number.isFinite(firstSeenAt) && firstSeenAt >= migrationCutoff;
+            }
+
+            // A modern global record with no current-bot marker was never completed.
             return true;
         });
 }
