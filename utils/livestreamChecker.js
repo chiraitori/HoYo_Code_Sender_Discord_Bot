@@ -114,16 +114,17 @@ async function checkGame(client, game) {
 
     console.log(`[Livestream Checker] ${game} - State: ${state} (${getStateName(state)})`);
 
-    // Only process if STATE = 4 (Searching) or 5 (Found)
-    if (state === 4) {
-        // STATE 4: Searching - Poll API
+    // Continue polling after a delivered code so later codes can be discovered.
+    const withinSearchWindow = tracking.streamTime >= currentTime - maxSearchAge;
+    if (state === 4 || (state === 3 && withinSearchWindow)) {
         const response = await fetchLivestreamCodes(game);
 
         if (response) {
-            const allCodesFound = await parseAndSaveCodes(response, game, version);
+            const codesFound = await parseAndSaveCodes(response, game, version);
+            const refreshedState = await getState(game, version, botId);
 
-            if (allCodesFound) {
-                console.log(`[Livestream Checker] ✅ All codes found for ${game}!`);
+            if (codesFound && refreshedState === 5) {
+                console.log(`[Livestream Checker] New livestream code delivery ready for ${game}`);
 
                 // Save codes to database for distribution
                 const updatedTracking = await LivestreamTracking.findOne({ game, version });
@@ -152,7 +153,7 @@ async function checkGame(client, game) {
                         }
                     })));
 
-                    // AUTO-DISTRIBUTE: Pop codes immediately when all 3 found
+                    // Send each newly discovered code immediately.
                     console.log(`[Livestream Checker] 🚀 Triggering auto-distribution for ${game}...`);
                     await distributeIfReady(client, game, version, distributionCodes);
                 }

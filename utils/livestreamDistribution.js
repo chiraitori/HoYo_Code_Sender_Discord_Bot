@@ -10,6 +10,12 @@ const { getRoleMention } = require('./roleMention');
 const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
+const {
+    getCodeDeliveryId,
+    getLegacyCodeDeliveryIds,
+    getPendingCodeDeliveries,
+    getCodeDeliveryProgress
+} = require('./livestreamDeliveryState');
 
 /**
  * Auto-distribution system for livestream codes
@@ -144,11 +150,17 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         return;
     }
 
-    console.log(`[Auto-Distribution] 🚀 Distributing codes for ${game}...`);
+    console.log(`[Auto-Distribution] 🚀 Distributing new codes for ${game}...`);
     const distributionTracking = codes
         ? { ...tracking.toObject(), codes }
         : tracking;
-    const embed = await buildCodesEmbed(game, distributionTracking);
+    const distributionData = typeof distributionTracking.toObject === 'function'
+        ? distributionTracking.toObject()
+        : distributionTracking;
+    const distributionCodes = distributionData.codes?.filter(codeData => codeData.code) || [];
+    if (distributionCodes.length === 0) {
+        return;
+    }
 
     // Get all guilds with auto-send enabled
     const [allConfigs, allSettings] = await Promise.all([
@@ -176,14 +188,32 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         [...new Set(targets.map(target => target.config))],
         game
     );
-    const deliveredTargetIds = new Set(tracking.distributedTargets || []);
-    const pendingTargets = getPendingDeliveryTargets(targets, deliveredTargetIds);
     if (targets.length === 0) {
         console.warn(`[Auto-Distribution] No eligible delivery targets for ${game}; will retry`);
         return;
     }
 
-    if (pendingTargets.length === 0) {
+    const storedCodeDeliveryIds = tracking.distributedCodeTargets || [];
+    const legacyCodeDeliveryIds = storedCodeDeliveryIds.length === 0
+        ? getLegacyCodeDeliveryIds(tracking.distributedTargets, distributionCodes)
+        : [];
+    const deliveredCodeTargetIds = new Set([
+        ...storedCodeDeliveryIds,
+        ...legacyCodeDeliveryIds
+    ]);
+    if (legacyCodeDeliveryIds.length > 0) {
+        await LivestreamTracking.updateOne(
+            { game, version: trackingVersion },
+            { $addToSet: { distributedCodeTargets: { $each: legacyCodeDeliveryIds } } }
+        );
+    }
+
+    const pendingDeliveries = getPendingCodeDeliveries(
+        targets,
+        distributionCodes,
+        deliveredCodeTargetIds
+    );
+    if (pendingDeliveries.length === 0) {
         await LivestreamTracking.findOneAndUpdate(
             { game, version: trackingVersion },
             {
@@ -195,43 +225,57 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         return;
     }
 
+    const embeds = new Map();
+    for (const delivery of pendingDeliveries) {
+        const signature = delivery.codes.map(codeData => codeData.code).sort().join(',');
+        if (!embeds.has(signature)) {
+            embeds.set(signature, await buildCodesEmbed(game, {
+                ...distributionData,
+                codes: delivery.codes
+            }));
+        }
+        delivery.embed = embeds.get(signature);
+    }
+
     const results = [];
     const batchSize = 25;
-    for (let index = 0; index < pendingTargets.length; index += batchSize) {
-        const batchTargets = pendingTargets.slice(index, index + batchSize);
-        const batchResults = await Promise.allSettled(batchTargets.map(target => (
-            target.type === 'channel'
-                ? sendToChannel(client, target.config, game, embed)
-                : sendToThread(client, target.config, game, embed)
+    for (let index = 0; index < pendingDeliveries.length; index += batchSize) {
+        const batchDeliveries = pendingDeliveries.slice(index, index + batchSize);
+        const batchResults = await Promise.allSettled(batchDeliveries.map(delivery => (
+            delivery.target.type === 'channel'
+                ? sendToChannel(client, delivery.target.config, game, delivery.embed)
+                : sendToThread(client, delivery.target.config, game, delivery.embed)
         )));
         results.push(...batchResults);
 
-        const successfulBatchTargetIds = batchResults.flatMap((result, resultIndex) => (
+        const successfulBatchCodeTargetIds = batchResults.flatMap((result, resultIndex) => (
             result.status === 'fulfilled' && result.value === true
-                ? [batchTargets[resultIndex].id]
+                ? batchDeliveries[resultIndex].codes.map(
+                    codeData => getCodeDeliveryId(batchDeliveries[resultIndex].target.id, codeData)
+                )
                 : []
         ));
-        if (successfulBatchTargetIds.length > 0) {
+        if (successfulBatchCodeTargetIds.length > 0) {
             await LivestreamTracking.updateOne(
                 { game, version: trackingVersion },
-                { $addToSet: { distributedTargets: { $each: successfulBatchTargetIds } } }
+                { $addToSet: { distributedCodeTargets: { $each: successfulBatchCodeTargetIds } } }
             );
         }
     }
-    const progress = getDeliveryProgress(
+    const progress = getCodeDeliveryProgress(
         targets,
-        deliveredTargetIds,
-        pendingTargets,
+        distributionCodes,
+        deliveredCodeTargetIds,
+        pendingDeliveries,
         results
     );
-    const { successfulTargetIds, failCount, distributed } = progress;
-    const successCount = successfulTargetIds.length;
+    const { successfulCodeTargetIds, failCount, distributed } = progress;
 
     for (let index = 0; index < results.length; index++) {
         const result = results[index];
         if (result.status === 'rejected') {
             console.error(
-                `[Auto-Distribution] Failed ${pendingTargets[index].id}:`,
+                `[Auto-Distribution] Failed ${pendingDeliveries[index].target.id}:`,
                 result.reason?.message || result.reason
             );
         }
@@ -240,9 +284,9 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     const update = {
         $set: { distributed }
     };
-    if (successfulTargetIds.length > 0) {
+    if (successfulCodeTargetIds.length > 0) {
         update.$addToSet = {
-            distributedTargets: { $each: successfulTargetIds }
+            distributedCodeTargets: { $each: successfulCodeTargetIds }
         };
     }
     if (distributed) {
@@ -259,8 +303,8 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     );
 
     console.log(
-        `[Auto-Distribution] Delivered ${game} codes to ${successCount} new targets `
-        + `(${failCount} failed, ${progress.deliveredTargetIds.size}/${targets.length} complete)`
+        `[Auto-Distribution] Delivered ${successfulCodeTargetIds.length} new ${game} code-targets `
+        + `(${failCount} targets failed, ${progress.deliveredCodeTargetIds.size} total recorded)`
     );
 }
 

@@ -1,6 +1,7 @@
 const axios = require('axios');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { parseIconBonuses } = require('./rewardIconParser');
+const { getLegacyCodeDeliveryIds } = require('./livestreamDeliveryState');
 
 /**
  * Hoyolab API Client for Livestream Codes
@@ -23,7 +24,6 @@ const STATE_NAMES = {
     4: 'Searching',
     5: 'Found'
 };
-const MIN_LIVESTREAM_CODE_COUNT = 3;
 
 /**
  * Get current state for a game
@@ -55,7 +55,7 @@ async function getState(game, version, botId = null) {
     }
 
     // CHECK 4: Already distributed?
-    const hasCodes = tracking.codes?.length >= MIN_LIVESTREAM_CODE_COUNT;
+    const hasCodes = tracking.codes?.length > 0;
     const distributedForBot = botId
         ? tracking.distributedBots?.includes(botId)
         : tracking.distributed;
@@ -63,7 +63,7 @@ async function getState(game, version, botId = null) {
         return 3; // Distributed
     }
 
-    // CHECK 5: Found all codes?
+    // CHECK 5: Found at least one code that still needs delivery?
     if (tracking.found && hasCodes) {
         return 5; // Found
     }
@@ -127,20 +127,10 @@ async function parseAndSaveCodes(responseData, game, version) {
 
     // STEP 1: Parse codes from ALL modules with exchange_group (improved logic)
     const codes = [];
-    let expectedCount = MIN_LIVESTREAM_CODE_COUNT;
-
     for (const module of modules) {
         // Check if module has exchange_group with bonuses
         if (module.exchange_group && module.exchange_group.bonuses) {
             const bonuses = module.exchange_group.bonuses;
-
-            // Get expected count if available
-            if (module.exchange_group.bonuses_summary?.code_count) {
-                expectedCount = Math.max(
-                    expectedCount,
-                    module.exchange_group.bonuses_summary.code_count
-                );
-            }
 
             console.log(`[Hoyolab API] Module type ${module.module_type || 'unknown'}: ${bonuses.length} bonuses`);
 
@@ -174,34 +164,40 @@ async function parseAndSaveCodes(responseData, game, version) {
         return false;
     }
 
-    const allCodesFound = codes.length >= expectedCount;
-    if (!allCodesFound) {
-        console.log(
-            `[Hoyolab API] Waiting for livestream set: ${codes.length}/${expectedCount} `
-            + `codes for ${game} v${version}`
-        );
-    }
-
     const existing = await LivestreamTracking.findOne({ game, version });
     const existingCodes = (existing?.codes || [])
         .map(codeData => codeData.code)
         .filter(Boolean)
         .sort();
     const incomingCodes = codes.map(codeData => codeData.code).sort();
-    const codesChanged = existingCodes.length !== incomingCodes.length
-        || existingCodes.some((code, index) => code !== incomingCodes[index]);
+    const existingCodeSet = new Set(existingCodes);
+    const newlyDiscoveredCodes = incomingCodes.filter(code => !existingCodeSet.has(code));
 
-    // STEP 2: Save to database. Delivery progress is reset only when a complete,
-    // changed livestream set is found; repeated API responses must not repost it.
+    const existingCodeDeliveryIds = existing?.distributedCodeTargets || [];
+    const existingCodeDeliveryIdSet = new Set(existingCodeDeliveryIds);
+    const migratedCodeDeliveryIds = getLegacyCodeDeliveryIds(
+        existing?.distributedTargets,
+        existing?.codes
+    ).filter(deliveryId => !existingCodeDeliveryIdSet.has(deliveryId));
+
+    // STEP 2: Save every active code immediately. Existing target-level progress is
+    // migrated to per-code progress before adding new codes, preventing old codes
+    // from being replayed when the API reveals codes one at a time.
     const update = {
-        codes,
-        lastChecked: new Date(),
-        found: allCodesFound
+        $set: {
+            codes,
+            lastChecked: new Date(),
+            found: true
+        }
     };
-    if (allCodesFound && (codesChanged || !existing?.found)) {
-        update.distributed = false;
-        update.distributedBots = [];
-        update.distributedTargets = [];
+    if (newlyDiscoveredCodes.length > 0 || !existing?.found) {
+        update.$set.distributed = false;
+        update.$set.distributedBots = [];
+    }
+    if (migratedCodeDeliveryIds.length > 0) {
+        update.$addToSet = {
+            distributedCodeTargets: { $each: migratedCodeDeliveryIds }
+        };
     }
 
     await LivestreamTracking.findOneAndUpdate(
@@ -210,7 +206,7 @@ async function parseAndSaveCodes(responseData, game, version) {
         { upsert: true, new: true }
     );
 
-    return allCodesFound;
+    return true;
 }
 
 /**

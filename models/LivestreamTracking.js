@@ -10,7 +10,7 @@ const mongoose = require('mongoose');
  * 2 = Not yet live
  * 3 = Distributed
  * 4 = Searching (actively polling API)
- * 5 = Found (all codes found)
+ * 5 = Found (one or more codes need delivery)
  */
 const livestreamTrackingSchema = new mongoose.Schema({
     game: {
@@ -43,6 +43,10 @@ const livestreamTrackingSchema = new mongoose.Schema({
         default: []
     },
     distributedTargets: {
+        type: [String],
+        default: []
+    },
+    distributedCodeTargets: {
         type: [String],
         default: []
     },

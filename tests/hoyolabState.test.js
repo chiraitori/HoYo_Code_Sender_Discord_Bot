@@ -78,7 +78,7 @@ test('getState tracks distribution independently for each bot', async () => {
   assert.strictEqual(await getState('nap', '3.1', 'production-bot'), 5);
 });
 
-test('getState does not distribute an incomplete promotional-code set', async () => {
+test('getState distributes a single newly discovered code', async () => {
   trackingDocument = {
     game: 'nap',
     version: '3.1',
@@ -89,7 +89,7 @@ test('getState does not distribute an incomplete promotional-code set', async ()
     codes: [{ code: 'ZZZY2ANNIV' }]
   };
 
-  assert.strictEqual(await getState('nap', '3.1', 'production-bot'), 4);
+  assert.strictEqual(await getState('nap', '3.1', 'production-bot'), 5);
 });
 
 test('parseAndSaveCodes clears stale distributed flag when codes are found', async () => {
@@ -117,14 +117,14 @@ test('parseAndSaveCodes clears stale distributed flag when codes are found', asy
   }, 'nap', '3.1');
 
   assert.strictEqual(found, true);
-  assert.strictEqual(savedUpdate.update.found, true);
-  assert.strictEqual(savedUpdate.update.distributed, false);
-  assert.deepStrictEqual(savedUpdate.update.distributedBots, []);
-  assert.deepStrictEqual(savedUpdate.update.distributedTargets, []);
+  assert.strictEqual(savedUpdate.update.$set.found, true);
+  assert.strictEqual(savedUpdate.update.$set.distributed, false);
+  assert.deepStrictEqual(savedUpdate.update.$set.distributedBots, []);
+  assert.strictEqual(savedUpdate.update.$set.distributedTargets, undefined);
   assert.deepStrictEqual(savedUpdate.query, { game: 'nap', version: '3.1' });
 });
 
-test('parseAndSaveCodes does not treat one promotional code as a livestream set', async () => {
+test('parseAndSaveCodes makes one code ready for immediate delivery', async () => {
   const found = await parseAndSaveCodes({
     data: {
       modules: [{
@@ -140,10 +140,75 @@ test('parseAndSaveCodes does not treat one promotional code as a livestream set'
     },
   }, 'nap', '3.1');
 
-  assert.strictEqual(found, false);
-  assert.strictEqual(savedUpdate.update.found, false);
-  assert.strictEqual(savedUpdate.update.distributed, undefined);
-  assert.strictEqual(savedUpdate.update.distributedTargets, undefined);
+  assert.strictEqual(found, true);
+  assert.strictEqual(savedUpdate.update.$set.found, true);
+  assert.strictEqual(savedUpdate.update.$set.distributed, false);
+  assert.deepStrictEqual(savedUpdate.update.$set.distributedBots, []);
+  assert.strictEqual(savedUpdate.update.$set.distributedTargets, undefined);
+});
+
+test('a later code preserves old delivery markers and reopens delivery', async () => {
+  trackingDocument = {
+    game: 'nap',
+    version: '3.1',
+    found: true,
+    distributed: true,
+    distributedBots: ['bot-a'],
+    distributedTargets: ['bot-a:channel:one'],
+    codes: [{ code: 'ZZZLIVE1' }]
+  };
+
+  const found = await parseAndSaveCodes({
+    data: {
+      modules: [{
+        exchange_group: {
+          bonuses: ['ZZZLIVE1', 'ZZZLIVE2'].map(exchange_code => ({
+            exchange_code,
+            icon_bonuses: []
+          }))
+        }
+      }]
+    }
+  }, 'nap', '3.1');
+
+  assert.strictEqual(found, true);
+  assert.strictEqual(savedUpdate.update.$set.distributed, false);
+  assert.deepStrictEqual(savedUpdate.update.$set.distributedBots, []);
+  assert.deepStrictEqual(savedUpdate.update.$addToSet, {
+    distributedCodeTargets: {
+      $each: ['bot-a:channel:one:code:ZZZLIVE1']
+    }
+  });
+});
+
+test('the same single code does not reopen delivery', async () => {
+  trackingDocument = {
+    game: 'nap',
+    version: '3.1',
+    found: true,
+    distributed: true,
+    distributedBots: ['bot-a'],
+    distributedCodeTargets: ['bot-a:channel:one:code:ZZZLIVE1'],
+    codes: [{ code: 'ZZZLIVE1' }]
+  };
+
+  const found = await parseAndSaveCodes({
+    data: {
+      modules: [{
+        exchange_group: {
+          bonuses: [{
+            exchange_code: 'ZZZLIVE1',
+            icon_bonuses: []
+          }]
+        }
+      }]
+    }
+  }, 'nap', '3.1');
+
+  assert.strictEqual(found, true);
+  assert.strictEqual(savedUpdate.update.$set.distributed, undefined);
+  assert.strictEqual(savedUpdate.update.$set.distributedBots, undefined);
+  assert.strictEqual(savedUpdate.update.$addToSet, undefined);
 });
 
 test('repeated complete livestream responses preserve delivery progress', async () => {
@@ -176,7 +241,7 @@ test('repeated complete livestream responses preserve delivery progress', async 
   }, 'nap', '3.1');
 
   assert.strictEqual(found, true);
-  assert.strictEqual(savedUpdate.update.distributed, undefined);
-  assert.strictEqual(savedUpdate.update.distributedBots, undefined);
-  assert.strictEqual(savedUpdate.update.distributedTargets, undefined);
+  assert.strictEqual(savedUpdate.update.$set.distributed, undefined);
+  assert.strictEqual(savedUpdate.update.$set.distributedBots, undefined);
+  assert.strictEqual(savedUpdate.update.$set.distributedTargets, undefined);
 });
