@@ -73,6 +73,12 @@ function getCodesToNotify(
         migrationLookbackHours = Number.parseInt(
             process.env.CODE_NOTIFICATION_MIGRATION_LOOKBACK_HOURS || '72',
             10
+        ),
+        migrationCodes = new Set(
+            (process.env.CODE_NOTIFICATION_MIGRATION_CODES || 'ZZZY2ANNIV')
+                .split(',')
+                .map(code => code.trim().toUpperCase())
+                .filter(Boolean)
         )
     } = {}
 ) {
@@ -89,14 +95,6 @@ function getCodesToNotify(
                 return true;
             }
 
-            // Per-channel/thread state is authoritative. Older releases marked the
-            // whole bot as notified after the first successful guild, which left
-            // later guilds permanently skipped. Once target state exists, always
-            // let the target-level filter decide what is still pending.
-            if (Array.isArray(existing.notifiedTargets)) {
-                return true;
-            }
-
             // Legacy migration guard: records from before bot-level tracking are
             // too old to replay safely because they have no delivery information.
             if (!Array.isArray(existing.notifiedBots)) {
@@ -105,7 +103,19 @@ function getCodesToNotify(
 
             if (existing.notifiedBots.includes(botId)) {
                 const firstSeenAt = new Date(existing.timestamp).getTime();
-                return Number.isFinite(firstSeenAt) && firstSeenAt >= migrationCutoff;
+                return migrationCodes.has(codeData.code.toUpperCase())
+                    && Number.isFinite(firstSeenAt)
+                    && firstSeenAt >= migrationCutoff;
+            }
+
+            // Per-channel/thread state is authoritative only for this bot. Configs
+            // and codes can be shared by production and staging applications, so a
+            // target written by another bot must not trigger a historical replay.
+            const hasCurrentBotTarget = existing.notifiedTargets?.some(
+                targetId => targetId.startsWith(`${botId}:`)
+            );
+            if (hasCurrentBotTarget) {
+                return true;
             }
 
             // A modern global record with no current-bot marker was never completed.

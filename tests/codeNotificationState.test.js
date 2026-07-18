@@ -49,25 +49,67 @@ test('recent bot-level delivery is retried to migrate missing guild targets', ()
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'production-bot', {
       now: new Date('2026-07-18T00:00:00Z').getTime(),
-      migrationLookbackHours: 72
+      migrationLookbackHours: 72,
+      migrationCodes: new Set(['ZZZY2ANNIV'])
     }),
     [activeCode]
   );
 });
 
-test('target-level delivery state overrides the old bot-level marker', () => {
+test('target-level delivery state continues an allowed legacy migration', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
-      timestamp: new Date('2026-01-01T00:00:00Z'),
+      timestamp: new Date('2026-07-17T17:49:26Z'),
       notifiedBots: ['production-bot'],
       notifiedTargets: ['production-bot:channel:channel-a']
     }]
   ]);
 
   assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'production-bot'),
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime(),
+      migrationCodes: new Set(['ZZZY2ANNIV'])
+    }),
     [activeCode]
+  );
+});
+
+test('another bot target does not migrate an old current-bot delivery', () => {
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-01-01T00:00:00Z'),
+      notifiedBots: ['production-bot'],
+      notifiedTargets: ['staging-bot:channel:channel-a']
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime()
+    }),
+    []
+  );
+});
+
+test('current-bot targets do not continue a non-allowlisted legacy replay', () => {
+  const oldCode = { game: 'nap', code: 'ZENLESSGIFT', status: 'OK' };
+  const existingCodes = new Map([
+    ['nap:ZENLESSGIFT', {
+      ...oldCode,
+      timestamp: new Date('2026-07-17T17:49:26Z'),
+      notifiedBots: ['production-bot'],
+      notifiedTargets: ['production-bot:channel:channel-a']
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([oldCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime(),
+      migrationCodes: new Set(['ZZZY2ANNIV'])
+    }),
+    []
   );
 });
 
