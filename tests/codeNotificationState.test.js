@@ -14,100 +14,78 @@ const activeCode = {
   status: 'OK'
 };
 
-test('an old staging notification does not suppress production', () => {
+test('legacy rows are not replayed for any bot', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
-      timestamp: new Date('2026-01-01T00:00:00Z'),
-      notifiedBots: ['staging-bot']
+      timestamp: new Date('2026-07-17T17:49:26Z'),
+      notifiedBots: ['production-bot'],
+      notifiedTargets: ['production-bot:channel:channel-a']
     }]
   ]);
 
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime()
+    }),
+    []
+  );
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'staging-bot', {
       now: new Date('2026-07-18T00:00:00Z').getTime()
     }),
     []
   );
-  assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
-      now: new Date('2026-07-18T00:00:00Z').getTime()
-    }),
-    [activeCode]
-  );
 });
 
-test('recent bot-level delivery is retried to migrate missing guild targets', () => {
-  const existingCodes = new Map([
-    ['nap:ZZZY2ANNIV', {
-      ...activeCode,
-      timestamp: new Date('2026-07-17T17:49:26Z'),
-      notifiedBots: ['production-bot']
-    }]
-  ]);
-
-  assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
-      now: new Date('2026-07-18T00:00:00Z').getTime(),
-      migrationLookbackHours: 72,
-      migrationCodes: new Set(['ZZZY2ANNIV'])
-    }),
-    [activeCode]
-  );
-});
-
-test('target-level delivery state continues an allowed legacy migration', () => {
-  const existingCodes = new Map([
-    ['nap:ZZZY2ANNIV', {
-      ...activeCode,
-      timestamp: new Date('2026-07-17T17:49:26Z'),
-      notifiedBots: ['production-bot'],
-      notifiedTargets: ['production-bot:channel:channel-a']
-    }]
-  ]);
-
-  assert.deepStrictEqual(
-    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
-      now: new Date('2026-07-18T00:00:00Z').getTime(),
-      migrationCodes: new Set(['ZZZY2ANNIV'])
-    }),
-    [activeCode]
-  );
-});
-
-test('another bot target does not migrate an old current-bot delivery', () => {
+test('a bot continues delivery for a modern code it already activated', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
       timestamp: new Date('2026-01-01T00:00:00Z'),
-      notifiedBots: ['production-bot'],
-      notifiedTargets: ['staging-bot:channel:channel-a']
+      deliveryVersion: 2,
+      deliveryBots: ['production-bot']
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot'),
+    [activeCode]
+  );
+});
+
+test('a second bot can pick up a recently discovered modern code', () => {
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-07-17T17:49:26Z'),
+      deliveryVersion: 2,
+      deliveryBots: ['staging-bot']
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime(),
+      discoveryLookbackHours: 72
+    }),
+    [activeCode]
+  );
+});
+
+test('a second bot does not replay an old modern code', () => {
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-01-01T00:00:00Z'),
+      deliveryVersion: 2,
+      deliveryBots: ['staging-bot']
     }]
   ]);
 
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'production-bot', {
       now: new Date('2026-07-18T00:00:00Z').getTime()
-    }),
-    []
-  );
-});
-
-test('current-bot targets do not continue a non-allowlisted legacy replay', () => {
-  const oldCode = { game: 'nap', code: 'ZENLESSGIFT', status: 'OK' };
-  const existingCodes = new Map([
-    ['nap:ZENLESSGIFT', {
-      ...oldCode,
-      timestamp: new Date('2026-07-17T17:49:26Z'),
-      notifiedBots: ['production-bot'],
-      notifiedTargets: ['production-bot:channel:channel-a']
-    }]
-  ]);
-
-  assert.deepStrictEqual(
-    getCodesToNotify([oldCode], existingCodes, 'production-bot', {
-      now: new Date('2026-07-18T00:00:00Z').getTime(),
-      migrationCodes: new Set(['ZZZY2ANNIV'])
     }),
     []
   );
@@ -120,13 +98,11 @@ test('globally new codes are sent by the current bot', () => {
   );
 });
 
-test('legacy codes without notifiedBots array are not replayed', () => {
-  // Simulates records from before the notifiedBots field was added
+test('legacy codes without a delivery version are not replayed', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
       timestamp: new Date('2026-01-01T00:00:00Z')
-      // note: no notifiedBots field at all
     }]
   ]);
 
@@ -136,19 +112,18 @@ test('legacy codes without notifiedBots array are not replayed', () => {
   );
 });
 
-test('codes with empty notifiedBots array are always retried', () => {
-  // After DB clear, codes are re-inserted with notifiedBots: []
+test('DB reset rows without a delivery version are not treated as new', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
       timestamp: new Date('2026-01-01T00:00:00Z'),
-      notifiedBots: []  // modern schema, no bot has notified yet
+      notifiedBots: []
     }]
   ]);
 
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'production-bot'),
-    [activeCode]
+    []
   );
 });
 

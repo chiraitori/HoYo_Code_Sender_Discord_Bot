@@ -43,6 +43,8 @@ const settingsMapping = {
     'nap': 'nap'
 };
 
+const CURRENT_DELIVERY_VERSION = 2;
+
 // Support links for donations
 const supportLinks = {
     kofi: 'https://ko-fi.com/chiraitori',
@@ -70,22 +72,16 @@ function getCodesToNotify(
     botId,
     {
         now = Date.now(),
-        migrationLookbackHours = Number.parseInt(
-            process.env.CODE_NOTIFICATION_MIGRATION_LOOKBACK_HOURS || '72',
+        discoveryLookbackHours = Number.parseInt(
+            process.env.CODE_NOTIFICATION_DISCOVERY_LOOKBACK_HOURS || '72',
             10
-        ),
-        migrationCodes = new Set(
-            (process.env.CODE_NOTIFICATION_MIGRATION_CODES || 'ZZZY2ANNIV')
-                .split(',')
-                .map(code => code.trim().toUpperCase())
-                .filter(Boolean)
         )
     } = {}
 ) {
-    const safeLookbackHours = Number.isFinite(migrationLookbackHours)
-        ? Math.max(1, migrationLookbackHours)
+    const safeLookbackHours = Number.isFinite(discoveryLookbackHours)
+        ? Math.max(1, discoveryLookbackHours)
         : 72;
-    const migrationCutoff = now - safeLookbackHours * 60 * 60 * 1000;
+    const discoveryCutoff = now - safeLookbackHours * 60 * 60 * 1000;
 
     return gameCodes
         .filter(codeData => codeData.status === 'OK')
@@ -95,31 +91,20 @@ function getCodesToNotify(
                 return true;
             }
 
-            // Legacy migration guard: records from before bot-level tracking are
-            // too old to replay safely because they have no delivery information.
-            if (!Array.isArray(existing.notifiedBots)) {
+            // Legacy rows have no reliable per-target history. They stay silent
+            // unless a one-time database migration explicitly upgrades them.
+            if (existing.deliveryVersion !== CURRENT_DELIVERY_VERSION) {
                 return false;
             }
 
-            if (existing.notifiedBots.includes(botId)) {
-                const firstSeenAt = new Date(existing.timestamp).getTime();
-                return migrationCodes.has(codeData.code.toUpperCase())
-                    && Number.isFinite(firstSeenAt)
-                    && firstSeenAt >= migrationCutoff;
-            }
-
-            // Per-channel/thread state is authoritative only for this bot. Configs
-            // and codes can be shared by production and staging applications, so a
-            // target written by another bot must not trigger a historical replay.
-            const hasCurrentBotTarget = existing.notifiedTargets?.some(
-                targetId => targetId.startsWith(`${botId}:`)
-            );
-            if (hasCurrentBotTarget) {
+            if (existing.deliveryBots?.includes(botId)) {
                 return true;
             }
 
-            // A modern global record with no current-bot marker was never completed.
-            return true;
+            // Other bot applications sharing this DB get a bounded window to pick
+            // up genuinely new codes, without replaying history when started later.
+            const firstSeenAt = new Date(existing.timestamp).getTime();
+            return Number.isFinite(firstSeenAt) && firstSeenAt >= discoveryCutoff;
         });
 }
 
@@ -336,10 +321,6 @@ async function checkAndSendNewCodes(client) {
 
                 if (newCodes.length) {
                     newCodesForGames[game] = newCodes;
-                    console.log(
-                        `[${game}] Evaluating ${newCodes.length} active code(s) for pending targets: `
-                        + newCodes.map(code => code.code).join(', ')
-                    );
                 }
 
                 activeCodes
@@ -382,7 +363,9 @@ async function checkAndSendNewCodes(client) {
                             ...codeData,
                             timestamp: new Date(),
                             notifiedBots: [],
-                            notifiedTargets: []
+                            notifiedTargets: [],
+                            deliveryVersion: CURRENT_DELIVERY_VERSION,
+                            deliveryBots: [botId]
                         }
                     },
                     upsert: true
@@ -429,6 +412,22 @@ async function checkAndSendNewCodes(client) {
         // Execute all database operations
         if (operations.length > 0) {
             await Promise.all(operations);
+        }
+
+        const deliveryCodes = Object.values(newCodesForGames).flat();
+        if (deliveryCodes.length > 0) {
+            await Code.updateMany(
+                {
+                    $or: deliveryCodes.map(code => ({
+                        game: code.game,
+                        code: code.code
+                    }))
+                },
+                {
+                    $set: { deliveryVersion: CURRENT_DELIVERY_VERSION },
+                    $addToSet: { deliveryBots: botId }
+                }
+            );
         }
 
         // ===== OPTIMIZED MESSAGE SENDING =====
