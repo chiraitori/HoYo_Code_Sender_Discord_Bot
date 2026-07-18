@@ -2,6 +2,7 @@ const axios = require('axios');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { parseIconBonuses } = require('./rewardIconParser');
 const { getLegacyCodeDeliveryIds } = require('./livestreamDeliveryState');
+const { isTrackingPastDistributionWindow } = require('./livestreamWindow');
 
 /**
  * Hoyolab API Client for Livestream Codes
@@ -52,6 +53,11 @@ async function getState(game, version, botId = null) {
     const currentTime = Math.floor(Date.now() / 1000);
     if (tracking.streamTime > currentTime) {
         return 2; // Not yet live
+    }
+
+    // A newly restored channel must never make an old livestream eligible again.
+    if (isTrackingPastDistributionWindow(tracking, currentTime)) {
+        return 3; // Closed distribution window
     }
 
     // CHECK 4: Already distributed?

@@ -4,6 +4,7 @@ const Code = require('../models/Code');
 const { getState, fetchLivestreamCodes, parseAndSaveCodes, getStateName } = require('./hoyolabAPI');
 const { distributeIfReady } = require('./livestreamDistribution');
 const { sendAnnouncement, wasAnnouncementSentForBot } = require('./livestreamAnnouncement');
+const { isTrackingPastDistributionWindow } = require('./livestreamWindow');
 
 /**
  * Livestream Code Checker
@@ -99,9 +100,15 @@ async function checkGame(client, game) {
 
     const currentTime = Math.floor(Date.now() / 1000);
     const maxSearchAge = 48 * 60 * 60;
-    if (!tracking.found && tracking.streamTime < currentTime - maxSearchAge) {
-        console.log(`[Livestream Checker] ${game} tracking is older than 48 hours; closing it`);
+    if (isTrackingPastDistributionWindow(tracking, currentTime, maxSearchAge)) {
+        console.log(
+            `[Livestream Checker] ${game} tracking is older than 48 hours; `
+            + 'closing it without distribution'
+        );
         tracking.distributed = true;
+        if (client.user?.id && !tracking.distributedBots?.includes(client.user.id)) {
+            tracking.distributedBots = [...(tracking.distributedBots || []), client.user.id];
+        }
         await tracking.save();
         return;
     }

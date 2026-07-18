@@ -12,6 +12,10 @@ const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
 const {
+    isTrackingPastDistributionWindow,
+    getActiveLivestreamCodes
+} = require('./livestreamWindow');
+const {
     getCodeDeliveryId,
     getLegacyCodeDeliveryIds,
     getSharedCodeDeliveryIds,
@@ -149,6 +153,22 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         throw new Error('Cannot distribute livestream codes before the bot is ready');
     }
 
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (isTrackingPastDistributionWindow(tracking, nowSeconds)) {
+        await LivestreamTracking.updateOne(
+            { game, version: trackingVersion },
+            {
+                $set: { distributed: true },
+                $addToSet: { distributedBots: botId }
+            }
+        );
+        console.log(
+            `[Auto-Distribution] Skipping stale ${game} ${trackingVersion} tracking; `
+            + 'the 48-hour delivery window has closed'
+        );
+        return;
+    }
+
     const state = await getState(game, trackingVersion, botId);
 
     // Only distribute if STATE = 5 (Found) and not already distributed
@@ -157,16 +177,31 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     }
 
     console.log(`[Auto-Distribution] 🚀 Distributing new codes for ${game}...`);
-    const distributionTracking = codes
-        ? { ...tracking.toObject(), codes }
+    const baseDistributionData = typeof tracking.toObject === 'function'
+        ? tracking.toObject()
         : tracking;
-    const distributionData = typeof distributionTracking.toObject === 'function'
-        ? distributionTracking.toObject()
-        : distributionTracking;
-    const distributionCodes = distributionData.codes?.filter(codeData => codeData.code) || [];
+    const distributionCodes = getActiveLivestreamCodes(
+        codes || baseDistributionData.codes,
+        nowSeconds
+    );
     if (distributionCodes.length === 0) {
+        await LivestreamTracking.updateOne(
+            { game, version: trackingVersion },
+            {
+                $set: { distributed: true },
+                $addToSet: { distributedBots: botId }
+            }
+        );
+        console.log(
+            `[Auto-Distribution] Skipping ${game} ${trackingVersion}; `
+            + 'all livestream codes are expired'
+        );
         return;
     }
+    const distributionData = {
+        ...baseDistributionData,
+        codes: distributionCodes
+    };
 
     // Get all guilds with auto-send enabled
     const [allConfigs, allSettings] = await Promise.all([

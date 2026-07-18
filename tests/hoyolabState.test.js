@@ -92,6 +92,21 @@ test('getState distributes a single newly discovered code', async () => {
   assert.strictEqual(await getState('nap', '3.1', 'production-bot'), 5);
 });
 
+test('getState never reopens a livestream older than 48 hours for another bot', async () => {
+  trackingDocument = {
+    game: 'hkrpg',
+    version: '4.4',
+    streamTime: Math.floor(Date.now() / 1000) - 14 * 24 * 60 * 60,
+    disabled: false,
+    found: true,
+    distributed: true,
+    distributedBots: ['staging-bot'],
+    codes: [{ code: 'OLDLIVE', expireAt: Math.floor(Date.now() / 1000) - 60 }]
+  };
+
+  assert.strictEqual(await getState('hkrpg', '4.4', 'production-bot'), 3);
+});
+
 test('parseAndSaveCodes clears stale distributed flag when codes are found', async () => {
   const found = await parseAndSaveCodes({
     data: {
