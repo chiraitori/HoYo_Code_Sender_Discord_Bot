@@ -18,6 +18,7 @@ const { startPostTracker } = require('./hoyolabPostTracker');
 const { sendChannelMessage } = require('./discordMessageSender');
 const { getShardIdsFromEnv } = require('./shards');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
+const { getDiscordIdentityError } = require('./discordIdentity');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
@@ -822,8 +823,10 @@ async function registerCommands() {
             { body: registeredCommandPayload }
         );
         console.log('Successfully registered application commands.');
+        return true;
     } catch (error) {
         console.error('Error registering commands:', error);
+        return false;
     }
 }
 
@@ -838,11 +841,21 @@ mongoose.connect(process.env.MONGODB_URI)
 client.once('clientReady', async () => {
     const wsShardIds = Array.from(client.ws.shards.keys());
     console.log(`Logged in as ${client.user.tag} | WS Shards: [${wsShardIds.join(', ')}] | Primary: ${runsPrimaryServices}`);
+    const identityError = getDiscordIdentityError(client.user, process.env.CLIENT_ID);
+    if (identityError) {
+        console.error(`[Startup] ${identityError}`);
+        console.error('[Startup] Use DISCORD_TOKEN and CLIENT_ID from the same Discord application.');
+        await shutdown('CONFIG_ERROR', 1);
+        return;
+    }
+
     try {
         // Only register commands from one shard to avoid rate limits
         if (runsPrimaryServices) {
-            await registerCommands();
-            console.log('Commands registered successfully');
+            const registered = await registerCommands();
+            if (registered) {
+                console.log('Commands registered successfully');
+            }
         }
     } catch (error) {
         console.error('Error during startup:', error);
@@ -990,7 +1003,7 @@ process.on('unhandledRejection', error => {
 });
 
 let shuttingDown = false;
-async function shutdown(signal) {
+async function shutdown(signal, exitCode = 0) {
     if (shuttingDown) {
         return;
     }
@@ -1004,7 +1017,7 @@ async function shutdown(signal) {
 
     client.destroy();
     await mongoose.disconnect().catch(() => {});
-    process.exit(0);
+    process.exit(exitCode);
 }
 
 process.once('SIGTERM', () => {

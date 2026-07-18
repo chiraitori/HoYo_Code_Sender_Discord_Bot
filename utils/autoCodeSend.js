@@ -326,7 +326,10 @@ async function checkAndSendNewCodes(client) {
 
                 if (newCodes.length) {
                     newCodesForGames[game] = newCodes;
-                    console.log(`[${game}] ${newCodes.length} new code(s) to notify: ${newCodes.map(c => c.code).join(', ')}`);
+                    console.log(
+                        `[${game}] Evaluating ${newCodes.length} active code(s) for pending targets: `
+                        + newCodes.map(code => code.code).join(', ')
+                    );
                 }
 
                 activeCodes
@@ -541,6 +544,14 @@ async function checkAndSendNewCodes(client) {
         // Execute message sends in batches of 50 for rate-limit safety at 2500+ guilds
         // Discord global rate limit is 50 requests/second, so batches of 50 with natural async gaps work well
         const queuedTasks = [...messageTasks.values()];
+        const matchingConfiguredGuilds = configs.length - skippedNotInGuild;
+        if (configs.length > 0 && matchingConfiguredGuilds === 0) {
+            console.error(
+                `[Code Check] None of the ${configs.length} configured guild(s) belong to `
+                + `${client.user.tag} (${botId}). Check DISCORD_TOKEN, CLIENT_ID, and whether `
+                + 'this bot has been set up in its test guild.'
+            );
+        }
         console.log(`Task summary: ${queuedTasks.length} to send, ${skippedNotInGuild} guilds not found, ${skippedAutoSendOff} auto-send disabled`);
         if (queuedTasks.length > 0) {
             console.log(`Sending notifications to ${queuedTasks.length} channel/thread target(s) in batches of 50...`);
