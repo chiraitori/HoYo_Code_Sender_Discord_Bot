@@ -1,14 +1,14 @@
 'use strict';
 
-const DEFAULT_DISTRIBUTION_WINDOW_SECONDS = 48 * 60 * 60;
+const DEFAULT_DISTRIBUTION_WINDOW_SECONDS = 24 * 60 * 60;
 
 function getDistributionWindowSeconds() {
     const configuredHours = Number.parseFloat(
-        process.env.LIVESTREAM_DISTRIBUTION_WINDOW_HOURS || '48'
+        process.env.LIVESTREAM_DISTRIBUTION_WINDOW_HOURS || '24'
     );
     const safeHours = Number.isFinite(configuredHours) && configuredHours > 0
         ? configuredHours
-        : 48;
+        : 24;
     return safeHours * 60 * 60;
 }
 

@@ -164,7 +164,7 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         );
         console.log(
             `[Auto-Distribution] Skipping stale ${game} ${trackingVersion} tracking; `
-            + 'the 48-hour delivery window has closed'
+            + 'the 24-hour delivery window has closed'
         );
         return;
     }

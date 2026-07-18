@@ -13,14 +13,14 @@ test('closes livestream tracking after its distribution window', () => {
   const now = 1_000_000;
 
   assert.strictEqual(isTrackingPastDistributionWindow(
-    { streamTime: now - 48 * 60 * 60 - 1 },
+    { streamTime: now - 24 * 60 * 60 - 1 },
     now,
-    48 * 60 * 60
+    24 * 60 * 60
   ), true);
   assert.strictEqual(isTrackingPastDistributionWindow(
     { streamTime: now - 60 },
     now,
-    48 * 60 * 60
+    24 * 60 * 60
   ), false);
 });
 

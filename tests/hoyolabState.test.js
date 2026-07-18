@@ -92,7 +92,7 @@ test('getState distributes a single newly discovered code', async () => {
   assert.strictEqual(await getState('nap', '3.1', 'production-bot'), 5);
 });
 
-test('getState never reopens a livestream older than 48 hours for another bot', async () => {
+test('getState never reopens a livestream older than 24 hours for another bot', async () => {
   trackingDocument = {
     game: 'hkrpg',
     version: '4.4',
