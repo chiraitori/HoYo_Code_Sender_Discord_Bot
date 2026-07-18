@@ -11,6 +11,7 @@ const rateLimit = require('express-rate-limit');
 const { checkAndSendNewCodes } = require('./autoCodeSend');
 const { checkAndSendYearChangeMessage } = require('./yearChangeCheck');
 const { setupTopggWebhook } = require('./topggWebhook');
+const { auditGuildConfigurations } = require('./configAudit');
 const { sendWelcomeMessage } = require('./welcome');
 const authMiddleware = require('./authMiddleware');
 const { startLivestreamChecker } = require('./livestreamChecker');
@@ -879,6 +880,12 @@ client.once('clientReady', async () => {
 
     // Singleton background tasks — only run on shard 0
     if (runsPrimaryServices) {
+        try {
+            await auditGuildConfigurations(client);
+        } catch (error) {
+            console.error('[Config Audit] Startup audit failed:', error.message);
+        }
+
         try {
             const roleMigration = await reconcileAllConfiguredRoles(client);
             console.log(`[Role Config] Startup reconciliation complete: ${JSON.stringify(roleMigration)}`);
