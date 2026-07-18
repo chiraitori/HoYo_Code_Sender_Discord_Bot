@@ -25,9 +25,9 @@ function decodeXml(value = '') {
     return value
         .replace(/&quot;/g, '"')
         .replace(/&apos;/g, "'")
-        .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
 }
 
 function getTagValue(xml, tag) {
@@ -335,6 +335,7 @@ async function fetchYoutubeLivestream(game) {
 
 module.exports = {
     OFFICIAL_CHANNELS,
+    decodeXml,
     fetchChannelLivePage,
     fetchPremiereDetails,
     fetchYoutubeLivestreams,

@@ -20,6 +20,7 @@ const { getShardIdsFromEnv } = require('./shards');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { getDiscordIdentityError } = require('./discordIdentity');
 const { reconcileAllConfiguredRoles } = require('./configuredRoles');
+const { getValidatedLanguage } = require('./dashboardInput');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
@@ -551,17 +552,17 @@ app.put('/api/server/:serverId/language', async (req, res) => {
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
-        const { language } = req.body;
+        const language = getValidatedLanguage(req.body?.language);
 
-        if (!['en', 'jp', 'vi'].includes(language)) {
+        if (!language) {
             return res.status(400).json({ error: 'Invalid language code' });
         }
 
         const Language = require('../models/Language');
         await Language.findOneAndUpdate(
             { guildId: serverId },
-            { language },
-            { upsert: true }
+            { $set: { language } },
+            { upsert: true, setDefaultsOnInsert: true, runValidators: true }
         );
 
         res.json({ success: true, language });
