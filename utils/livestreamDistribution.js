@@ -8,6 +8,7 @@ const { getKnownGuildIds } = require('./clusterGuilds');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
+const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
 
 /**
  * Auto-distribution system for livestream codes
@@ -332,7 +333,7 @@ async function sendToChannel(client, config, game, embed) {
     const roleMention = getRoleMention(roleId);
 
     await sendChannelMessage(client, channelId, {
-        content: `${roleMention.content}${roleMention.content ? ' ' : ''}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
+        content: `${roleMention.content}${roleMention.content ? ' ' : ''}${GAME_EMOJIS[game]} **New ${GAME_NAMES[game]} Livestream Codes!**`,
         embeds: [embed],
         allowedMentions: roleMention.allowedMentions
     });
@@ -370,7 +371,7 @@ async function sendToThread(client, config, game, embed) {
     const roleMention = getRoleMention(roleId);
 
     await sendChannelMessage(client, threadId, {
-        content: `${roleMention.content}${roleMention.content ? ' ' : ''}🎉 **New ${GAME_NAMES[game]} Livestream Codes!**`,
+        content: `${roleMention.content}${roleMention.content ? ' ' : ''}${GAME_EMOJIS[game]} **New ${GAME_NAMES[game]} Livestream Codes!**`,
         embeds: [embed],
         allowedMentions: roleMention.allowedMentions
     });
@@ -407,7 +408,7 @@ async function buildCodesEmbed(game, tracking) {
 
     const embed = new EmbedBuilder()
         .setColor('#FFD700') // Gold color for livestream codes
-        .setTitle(`🎮 ${GAME_NAMES[game]} Livestream Codes`)
+        .setTitle(formatGameTitle(game, `${GAME_NAMES[game]} Livestream Codes`))
         .setDescription(`**Version ${tracking.version || 'N/A'}** - Found ${tracking.codes.length} codes!`)
         .setTimestamp();
 

@@ -11,18 +11,13 @@ const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchan
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
+const { GAME_EMOJIS } = require('./gameEmojis');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const gameNames = {
     'genshin': 'Genshin Impact',
     'hkrpg': 'Honkai: Star Rail',
     'nap': 'Zenless Zone Zero'
-};
-
-const gameEmojis = {
-    'genshin': '<:genshin:1368073403231375430>',
-    'hkrpg': '<:hsr:1368073099756703794>',
-    'nap': '<:zzz:1368073452174704763>'
 };
 
 const redeemUrls = {
@@ -595,7 +590,7 @@ async function buildEmbedForGameAndLang(game, lang, codes) {
             fakeGuildId,
             { game: gameNames[game] }
         );
-        const title = `${gameEmojis[game]} ${baseTitle}`;
+        const title = `${GAME_EMOJIS[game]} ${baseTitle}`;
 
         const redeemText = await languageManager.getString(
             'commands.listcodes.redeemButton',

@@ -7,6 +7,7 @@ const languageManager = require('./language');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getLatestGuildRecords } = require('./guildRecords');
+const { formatGameTitle } = require('./gameEmojis');
 
 /**
  * Announcement system for Special Program detection
@@ -256,7 +257,7 @@ async function buildLivestreamAnnouncementEmbedLocalized({
 
     const embed = new EmbedBuilder()
         .setColor('#FFA500') // Orange - upcoming event
-        .setTitle(title)
+        .setTitle(formatGameTitle(game, title, { stripLeadingTv: true }))
         .setDescription(description)
         .addFields(
             {
