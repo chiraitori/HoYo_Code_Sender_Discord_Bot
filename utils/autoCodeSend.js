@@ -132,7 +132,7 @@ function getCodeDeliveryTargets(config, settings, game, botId) {
         nap: config.forumThreads?.zzz
     };
     const threadId = threadMapping[game];
-    if (sendToThreads && threadId) {
+    if (sendToThreads && threadId && threadId !== config.channel) {
         targets.push({
             id: `${botId}:thread:${threadId}`,
             legacyId: getCodeNotificationTargetId(botId, config.guildId),

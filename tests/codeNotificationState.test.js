@@ -187,6 +187,20 @@ test('regular code delivery tracks the channel and thread separately', () => {
   assert.deepStrictEqual(targets.map(target => target.roleId), ['role-a', 'role-a']);
 });
 
+test('regular code delivery does not duplicate the same channel and thread destination', () => {
+  const targets = getCodeDeliveryTargets({
+    guildId: 'guild-a',
+    channel: 'same-destination',
+    forumThreads: { zzz: 'same-destination' }
+  }, {
+    autoSendOptions: { channel: true, threads: true }
+  }, 'nap', 'bot-a');
+
+  assert.deepStrictEqual(targets.map(target => target.id), [
+    'bot-a:channel:same-destination'
+  ]);
+});
+
 test('regular code delivery respects channel and thread options', () => {
   const targets = getCodeDeliveryTargets({
     guildId: 'guild-a',

@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
+const Code = require('../models/Code');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { getState } = require('./hoyolabAPI');
 const { sendChannelMessage } = require('./discordMessageSender');
@@ -13,6 +14,7 @@ const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
 const {
     getCodeDeliveryId,
     getLegacyCodeDeliveryIds,
+    getSharedCodeDeliveryIds,
     getPendingCodeDeliveries,
     getCodeDeliveryProgress
 } = require('./livestreamDeliveryState');
@@ -72,7 +74,11 @@ function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds
             nap: config.forumThreads?.zzz
         };
         const threadId = threadMapping[game];
-        if (guildSettings?.autoSendOptions?.threads !== false && threadId) {
+        if (
+            guildSettings?.autoSendOptions?.threads !== false
+            && threadId
+            && threadId !== channelId
+        ) {
             const targetId = `${botId || 'legacy'}:thread:${threadId}`;
             targets.set(targetId, {
                 id: targetId,
@@ -193,18 +199,28 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         return;
     }
 
+    const regularCodeRows = await Code.find({
+        game,
+        code: { $in: distributionCodes.map(codeData => codeData.code) }
+    }).lean();
     const storedCodeDeliveryIds = tracking.distributedCodeTargets || [];
     const legacyCodeDeliveryIds = storedCodeDeliveryIds.length === 0
         ? getLegacyCodeDeliveryIds(tracking.distributedTargets, distributionCodes)
         : [];
+    const sharedCodeDeliveryIds = getSharedCodeDeliveryIds(targets, regularCodeRows);
     const deliveredCodeTargetIds = new Set([
         ...storedCodeDeliveryIds,
-        ...legacyCodeDeliveryIds
+        ...legacyCodeDeliveryIds,
+        ...sharedCodeDeliveryIds
     ]);
-    if (legacyCodeDeliveryIds.length > 0) {
+    const synchronizedCodeDeliveryIds = [...new Set([
+        ...legacyCodeDeliveryIds,
+        ...sharedCodeDeliveryIds
+    ])];
+    if (synchronizedCodeDeliveryIds.length > 0) {
         await LivestreamTracking.updateOne(
             { game, version: trackingVersion },
-            { $addToSet: { distributedCodeTargets: { $each: legacyCodeDeliveryIds } } }
+            { $addToSet: { distributedCodeTargets: { $each: synchronizedCodeDeliveryIds } } }
         );
     }
 
@@ -256,6 +272,38 @@ async function distributeIfReady(client, game, version = null, codes = null) {
                 : []
         ));
         if (successfulBatchCodeTargetIds.length > 0) {
+            const notifiedTargetsByCode = new Map();
+            batchResults.forEach((result, resultIndex) => {
+                if (result.status !== 'fulfilled' || result.value !== true) {
+                    return;
+                }
+                const delivery = batchDeliveries[resultIndex];
+                for (const codeData of delivery.codes) {
+                    if (!notifiedTargetsByCode.has(codeData.code)) {
+                        notifiedTargetsByCode.set(codeData.code, new Set());
+                    }
+                    notifiedTargetsByCode.get(codeData.code).add(delivery.target.id);
+                }
+            });
+
+            try {
+                await Code.bulkWrite([...notifiedTargetsByCode].map(([code, targetIds]) => ({
+                    updateOne: {
+                        filter: { game, code },
+                        update: {
+                            $setOnInsert: { game, code, isExpired: false, timestamp: new Date() },
+                            $addToSet: { notifiedTargets: { $each: [...targetIds] } }
+                        },
+                        upsert: true
+                    }
+                })), { ordered: false });
+            } catch (error) {
+                console.error(
+                    `[Auto-Distribution] Could not synchronize shared delivery markers for ${game}:`,
+                    error.message
+                );
+            }
+
             await LivestreamTracking.updateOne(
                 { game, version: trackingVersion },
                 { $addToSet: { distributedCodeTargets: { $each: successfulBatchCodeTargetIds } } }

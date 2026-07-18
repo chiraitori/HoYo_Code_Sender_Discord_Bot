@@ -15,6 +15,16 @@ function getLegacyCodeDeliveryIds(targetIds, codes) {
     ));
 }
 
+function getSharedCodeDeliveryIds(targets, codeRows) {
+    return (targets || []).flatMap(target => (
+        (codeRows || []).flatMap(codeRow => (
+            (codeRow.notifiedTargets || []).includes(target.id)
+                ? [getCodeDeliveryId(target.id, codeRow)]
+                : []
+        ))
+    ));
+}
+
 function getPendingCodeDeliveries(targets, codes, deliveredCodeTargetIds) {
     const delivered = new Set(deliveredCodeTargetIds || []);
 
@@ -59,6 +69,7 @@ function getCodeDeliveryProgress(targets, codes, deliveredCodeTargetIds, pending
 module.exports = {
     getCodeDeliveryId,
     getLegacyCodeDeliveryIds,
+    getSharedCodeDeliveryIds,
     getPendingCodeDeliveries,
     getCodeDeliveryProgress
 };

@@ -3,6 +3,7 @@ const assert = require('node:assert');
 
 const {
   getLegacyCodeDeliveryIds,
+  getSharedCodeDeliveryIds,
   getPendingCodeDeliveries,
   getCodeDeliveryProgress
 } = require('../utils/livestreamDeliveryState');
@@ -27,6 +28,19 @@ test('queues only codes that a target has not received', () => {
 
   assert.strictEqual(deliveries.length, 1);
   assert.deepStrictEqual(deliveries[0].codes, [{ code: 'ZZZLIVE2' }]);
+});
+
+test('shares regular-code delivery markers with livestream delivery', () => {
+  assert.deepStrictEqual(
+    getSharedCodeDeliveryIds(
+      [{ id: 'bot-a:channel:one' }, { id: 'bot-a:channel:two' }],
+      [{
+        code: 'ZZZLIVE1',
+        notifiedTargets: ['bot-a:channel:one']
+      }]
+    ),
+    ['bot-a:channel:one:code:ZZZLIVE1']
+  );
 });
 
 test('does not queue a code that was already delivered', () => {

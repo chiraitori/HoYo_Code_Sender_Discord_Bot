@@ -52,6 +52,22 @@ test('keeps channel and forum thread deliveries as separate retry targets', () =
   );
 });
 
+test('does not queue the same destination as both channel and thread', () => {
+  const targets = getDeliveryTargets([{
+    guildId: 'guild-a',
+    channel: 'same-destination',
+    forumThreads: { zzz: 'same-destination' }
+  }], [{
+    guildId: 'guild-a',
+    autoSendEnabled: true,
+    autoSendOptions: { channel: true, threads: true }
+  }], 'nap', 'bot-a');
+
+  assert.deepStrictEqual(targets.map(target => target.id), [
+    'bot-a:channel:same-destination'
+  ]);
+});
+
 test('does not send livestream codes to the main channel when channel delivery is disabled', () => {
   const targets = getDeliveryTargets([{
     guildId: 'guild-a',
