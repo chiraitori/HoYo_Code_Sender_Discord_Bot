@@ -21,23 +21,26 @@
     "gsap": "^3.13.0",
     "lucide-react": "^0.562.0",
     "maath": "^0.10.8",
-    "next": "15.5.15",
+    "next": "15.5.20",
     "ogl": "^1.0.11",
-    "react": "19.1.2",
-    "react-dom": "19.1.2",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.179.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
+    "@eslint/eslintrc": "3.3.6",
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.4.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.5",
+    "eslint-config-next": "15.5.20",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.19"
   }
 }
