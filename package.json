@@ -22,10 +22,10 @@
     "topgg-autoposter": "^2.0.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7"
+    "nodemon": "^3.1.14"
   },
   "overrides": {
-    "undici": "^6.21.2"
+    "undici": "6.28.0"
   },
   "engines": {
     "node": ">=16.9.0"
