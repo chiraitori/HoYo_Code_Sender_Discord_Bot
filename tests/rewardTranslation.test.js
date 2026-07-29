@@ -45,23 +45,36 @@ test('plus-separated rewards are displayed as separate items', () => {
 });
 
 test('AI translates only unknown item names and preserves quantities', async () => {
-  const previousApiKey = process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY = 'test-key';
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'test-key';
   clearRewardTranslationCache();
   let requestCount = 0;
   const httpClient = {
     async post(url, body) {
       requestCount++;
-      assert.strictEqual(url, 'https://api.openai.com/v1/responses');
-      assert.strictEqual(body.text.format.type, 'json_schema');
+      assert.strictEqual(
+        url,
+        'https://generativelanguage.googleapis.com/v1beta/models/'
+          + 'gemini-3.5-flash-lite:generateContent'
+      );
+      assert.strictEqual(
+        body.generationConfig.responseFormat.text.mimeType,
+        'application/json'
+      );
       return {
         data: {
-          output_text: JSON.stringify({
-            translations: [{
-              source: 'Mystery Token',
-              translated: 'Vé Bí Ẩn'
-            }]
-          })
+          candidates: [{
+            content: {
+              parts: [{
+                text: JSON.stringify({
+                  translations: [{
+                    source: 'Mystery Token',
+                    translated: 'Vé Bí Ẩn'
+                  }]
+                })
+              }]
+            }
+          }]
         }
       };
     }
@@ -79,17 +92,17 @@ test('AI translates only unknown item names and preserves quantities', async () 
     assert.strictEqual(requestCount, 1);
   } finally {
     if (previousApiKey === undefined) {
-      delete process.env.OPENAI_API_KEY;
+      delete process.env.GEMINI_API_KEY;
     } else {
-      process.env.OPENAI_API_KEY = previousApiKey;
+      process.env.GEMINI_API_KEY = previousApiKey;
     }
     clearRewardTranslationCache();
   }
 });
 
 test('missing AI configuration keeps the dictionary fallback usable', async () => {
-  const previousApiKey = process.env.OPENAI_API_KEY;
-  delete process.env.OPENAI_API_KEY;
+  const previousApiKey = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
   clearRewardTranslationCache();
 
   try {
@@ -99,7 +112,7 @@ test('missing AI configuration keeps the dictionary fallback usable', async () =
     );
   } finally {
     if (previousApiKey !== undefined) {
-      process.env.OPENAI_API_KEY = previousApiKey;
+      process.env.GEMINI_API_KEY = previousApiKey;
     }
     clearRewardTranslationCache();
   }

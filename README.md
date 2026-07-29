@@ -87,9 +87,9 @@ Create a .env file in the root directory and add the following:
    LIVESTREAM_TRACKING_ENABLED=true
    # Optional: improves YouTube live/upcoming status and exact schedule detection
    YOUTUBE_API_KEY=your_youtube_data_api_key
-   # Optional: AI fallback for unknown Vietnamese/Japanese reward names
-   OPENAI_API_KEY=your_openai_api_key
-   OPENAI_REWARD_MODEL=gpt-5-mini
+   # Optional: Gemini fallback for unknown Vietnamese/Japanese reward names
+   GEMINI_API_KEY=your_gemini_api_key
+   GEMINI_REWARD_MODEL=gemini-3.5-flash-lite
    CLIENT_ID=your_discord_client_id
    OWNER_ID=your_id_in_discord
    # Dashboard URL (optional, for development)
