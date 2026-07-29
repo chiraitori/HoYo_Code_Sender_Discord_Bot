@@ -11,7 +11,7 @@ module.exports = {
         enabled: '有効',
         disabled: '無効',
         notYourButton: 'このボタンはあなたのものではありません。',
-        supportMsg: '❤️ 開発者を応援: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori | chiraitori.me'
+        supportMsg: 'サポート: github.com/sponsors/chiraitori | chiraitori.dev'
     },
     welcome: {
         title: 'HoYo Code Senderを追加していただきありがとうございます！',
@@ -35,7 +35,7 @@ module.exports = {
         listcodes: {
             title: '{game}のアクティブコード',
             noCodes: '{game}のアクティブコードが見つかりません',
-            reward: '報酬: {reward}',
+            reward: '報酬:\n{reward}',
             status: 'ステータス: {status}',
             redeemButton: '受け取る',
             redeemHeader: '受け取り方法',
@@ -300,6 +300,15 @@ module.exports = {
         }
     },
     livestream: {
+        codes: {
+            title: '{game}ライブ配信コード',
+            description: 'バージョン {version} - {count}件のコードが見つかりました！',
+            code: 'コード {number}',
+            expires: '有効期限',
+            unknownExpiry: '不明',
+            redeemHere: 'コードを交換',
+            redeem: '交換ページを開く'
+        },
         announcement: {
             content: '📢 **{game} ライブ配信のお知らせ**',
             title: '📺 {game} Special Program 発表！',

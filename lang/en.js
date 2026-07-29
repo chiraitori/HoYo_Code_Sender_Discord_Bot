@@ -11,7 +11,7 @@ module.exports = {
         enabled: 'ENABLED',
         disabled: 'DISABLED',
         notYourButton: 'This button is not for you.',
-        supportMsg: '❤️ Help the developer: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori | chiraitori.me'
+        supportMsg: 'Support: github.com/sponsors/chiraitori | chiraitori.dev'
     },
     welcome: {
         title: 'Thanks for Adding HoYo Code Sender!',
@@ -29,7 +29,7 @@ module.exports = {
         listcodes: {
             title: 'Active Codes for {game}',
             noCodes: 'No active codes found for {game}',
-            reward: 'Reward: {reward}',
+            reward: 'Reward:\n{reward}',
             status: 'Status: {status}',
             redeemButton: 'Click to Redeem',
             redeemHeader: 'Redeem Here',
@@ -294,6 +294,15 @@ module.exports = {
         }
     },
     livestream: {
+        codes: {
+            title: '{game} Livestream Codes',
+            description: 'Version {version} - Found {count} code(s)!',
+            code: 'Code {number}',
+            expires: 'Expires',
+            unknownExpiry: 'Unknown',
+            redeemHere: 'Redeem Here',
+            redeem: 'Click to Redeem'
+        },
         announcement: {
             content: '📢 **{game} Livestream Announcement**',
             title: '📺 {game} Special Program Announced!',

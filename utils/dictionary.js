@@ -2,6 +2,7 @@ const rewardDictionary = {
     en: {
       'primogem': 'Primogem',
       'primogems': 'Primogems',
+      'poly': 'Polychrome',
       'stellar jade': 'Stellar Jade',
       'denny': 'Denny',
       'polychrome': 'Polychrome',
@@ -34,11 +35,15 @@ const rewardDictionary = {
       'condensed aether': 'Condensed Aether',
       'lost gold fragments': 'Lost Gold Fragment',
       'credits': 'Credit',
+      'credit': 'Credit',
+      'traveler’s guide': "Traveler's Guide",
+      "traveler's guide": "Traveler's Guide",
       'traveler’s guides': "Traveler's Guide",
     },
     jp: {
       'primogem': '原石',
       'primogems': '原石',
+      'poly': 'ポリクローム',
       'stellar jade': '星玉',
       'denny': 'デニー',
       'polychrome': 'ポリクローム',
@@ -71,11 +76,15 @@ const rewardDictionary = {
       'condensed aether': '濃縮エーテル',
       'lost gold fragments': '遺失砕金',
       'credits': '信用ポイント',
+      'credit': '信用ポイント',
+      'traveler’s guide': '漫遊指南',
+      "traveler's guide": '漫遊指南',
       'traveler’s guides': '漫遊指南',
     },
     vi: {
       'primogem': 'Nguyên Thạch',
       'primogems': 'Nguyên Thạch',
+      'poly': 'Film Màu',
       'stellar jade': 'Tinh Thạch',
       'denny': 'Denny',
       'polychrome': 'Film Màu',
@@ -108,28 +117,120 @@ const rewardDictionary = {
       'condensed aether': 'Aether Cô Đặc',
       'lost gold fragments': 'Mảnh Vàng Đánh Mất',
       'credits': 'Điểm Tín Dụng',
+      'credit': 'Điểm Tín Dụng',
+      'traveler’s guide': 'Hướng Dẫn Dạo Chơi',
+      "traveler's guide": 'Hướng Dẫn Dạo Chơi',
       'traveler’s guides': 'Hướng Dẫn Dạo Chơi',
     },
   };
 
 
 
-function translateReward(reward, language = 'en') {
-    if (!reward) return '';
-    
-    let translatedReward = reward.toLowerCase();
-    const dict = rewardDictionary[language] || rewardDictionary.en;
-    
-    // Replace all dictionary terms with their translations
-    Object.entries(dict).forEach(([key, value]) => {
-        const regex = new RegExp(key, 'gi');
-        translatedReward = translatedReward.replace(regex, value);
-    });
-    
-    // Format numbers and quantities
-    translatedReward = translatedReward.replace(/(\d+)\s+([^\d\s]+)/g, '$1 $2');
-    
-    return translatedReward;
+const QUANTITY_WORDS = {
+    one: '1',
+    two: '2',
+    three: '3',
+    four: '4',
+    five: '5',
+    ten: '10',
+    fifteen: '15'
+};
+
+function normalizeRewardName(value) {
+    return String(value || '')
+        .trim()
+        .replace(/[’`]/g, "'")
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
 }
 
-module.exports = { translateReward };
+function splitRewardParts(reward) {
+    return String(reward || '')
+        .replace(/\r/g, '\n')
+        .split(/;|\n+|\s+\+\s+|,(?=\s*[^\d\s])/)
+        .map(part => part.trim())
+        .filter(Boolean);
+}
+
+function parseRewardItem(part) {
+    const text = String(part || '').trim();
+    if (!text) return null;
+
+    const amountPattern = '(\\d[\\d,]*(?:\\.\\d+)?)';
+    let match = text.match(new RegExp(`^(.+?)\\s*[x×*]\\s*${amountPattern}$`, 'i'));
+    if (match) {
+        return { name: match[1].trim(), quantity: match[2] };
+    }
+
+    match = text.match(new RegExp(`^${amountPattern}\\s*[x×*]?\\s+(.+)$`, 'i'));
+    if (match) {
+        return { name: match[2].trim(), quantity: match[1] };
+    }
+
+    match = text.match(new RegExp(`^(.+?[^\\d\\s])\\s*${amountPattern}$`, 'i'));
+    if (match) {
+        return { name: match[1].trim(), quantity: match[2] };
+    }
+
+    const wordMatch = text.match(/^([a-z]+)\s+(.+)$/i);
+    const wordQuantity = wordMatch && QUANTITY_WORDS[wordMatch[1].toLowerCase()];
+    if (wordQuantity) {
+        return { name: wordMatch[2].trim(), quantity: wordQuantity };
+    }
+
+    return { name: text, quantity: null };
+}
+
+function parseRewardItems(reward) {
+    return splitRewardParts(reward)
+        .map(parseRewardItem)
+        .filter(Boolean);
+}
+
+function translateRewardItem(name, language = 'en') {
+    const selectedDictionary = rewardDictionary[language] || rewardDictionary.en;
+    const normalizedName = normalizeRewardName(name);
+    const dictionaryKey = Object.keys(selectedDictionary).find(
+        key => normalizeRewardName(key) === normalizedName
+    );
+
+    if (!dictionaryKey) {
+        return { text: String(name || '').trim(), known: false };
+    }
+
+    return { text: selectedDictionary[dictionaryKey], known: true };
+}
+
+function formatQuantity(quantity) {
+    if (!quantity) return null;
+    const numeric = Number(String(quantity).replace(/,/g, ''));
+    return Number.isFinite(numeric)
+        ? numeric.toLocaleString('en-US')
+        : String(quantity);
+}
+
+function formatRewardItems(items) {
+    return items.map(item => {
+        const quantity = formatQuantity(item.quantity);
+        return `• ${item.name}${quantity ? ` ×${quantity}` : ''}`;
+    }).join('\n');
+}
+
+function translateReward(reward, language = 'en') {
+    const translatedItems = parseRewardItems(reward).map(item => ({
+        ...item,
+        name: translateRewardItem(item.name, language).text
+    }));
+    return translatedItems.map(item => {
+        const quantity = formatQuantity(item.quantity);
+        return `${item.name}${quantity ? ` ×${quantity}` : ''}`;
+    }).join(', ');
+}
+
+module.exports = {
+    formatRewardItems,
+    normalizeRewardName,
+    parseRewardItems,
+    translateReward,
+    translateRewardItem
+};

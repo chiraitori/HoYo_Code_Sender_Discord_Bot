@@ -331,7 +331,7 @@ async function buildLivestreamAnnouncementEmbedLocalized({
         languageManager.getString('livestream.announcement.status.live', guildId),
         languageManager.getString('livestream.announcement.status.upcoming', guildId),
         languageManager.getString('livestream.announcement.status.officialChannel', guildId),
-        languageManager.getString('common.supportMsg', guildId)
+        languageManager.getSupportFooter(guildId)
     ]);
 
     const embed = new EmbedBuilder()

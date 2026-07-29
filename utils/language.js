@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Language = require('../models/Language');
-const { translateReward } = require('./dictionary');
+const { translateRewardWithAi } = require('./aiRewardTranslator');
 
 class LanguageManager {
     constructor() {
@@ -79,24 +79,27 @@ class LanguageManager {
             console.error('Language error:', error);
             return this.getFallbackText(key);
         }
-    }    async getRewardString(reward, guildId) {
+    }
+
+    async getRewardString(reward, guildId) {
         try {
-            // Get guild language (will return 'en' for DMs)
             const selectedLang = await this.getGuildLanguage(guildId);
-            
-            const translatedReward = translateReward(reward, selectedLang);
+            const translatedReward = await translateRewardWithAi(reward, selectedLang);
             const rewardTemplate = await this.getString('commands.listcodes.reward', guildId);
-            
-            // If template is missing, use a simple fallback
+
             if (rewardTemplate.startsWith('Translation missing:')) {
-                return `Reward: ${translatedReward}`;
+                return `Reward:\n${translatedReward}`;
             }
-            
+
             return rewardTemplate.replace('{reward}', translatedReward);
         } catch (error) {
             console.error('Error translating reward:', error);
-            return `Reward: ${reward}`;
+            return `Reward:\n• ${reward}`;
         }
+    }
+
+    async getSupportFooter(guildId) {
+        return this.getString('common.supportMsg', guildId);
     }
 
     getStringFromPath(key, langObj, replacements) {

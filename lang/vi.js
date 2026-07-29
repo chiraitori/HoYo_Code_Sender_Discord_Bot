@@ -11,7 +11,7 @@ module.exports = {
         enabled: 'BẬT',
         disabled: 'TẮT',
         notYourButton: 'Nút này không dành cho bạn.',
-        supportMsg: '❤️ Hỗ trợ nhà phát triển: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori | chiraitori.me'
+        supportMsg: 'Hỗ trợ: github.com/sponsors/chiraitori | chiraitori.dev'
     },
     welcome: {
         title: 'Cảm ơn đã thêm HoYo Code Sender!',
@@ -29,7 +29,7 @@ module.exports = {
         listcodes: {
             title: 'Mã code đang hoạt động cho {game}',
             noCodes: 'Không tìm thấy mã code nào đang hoạt động cho {game}',
-            reward: 'Phần thưởng: {reward}',
+            reward: 'Phần thưởng:\n{reward}',
             status: 'Trạng thái: {status}',
             redeemButton: 'Nhấn để nhận',
             redeemHeader: 'Nhận code tại đây',
@@ -299,6 +299,15 @@ module.exports = {
         }
     },
     livestream: {
+        codes: {
+            title: 'Code livestream {game}',
+            description: 'Phiên bản {version} - Tìm thấy {count} code!',
+            code: 'Code {number}',
+            expires: 'Hết hạn',
+            unknownExpiry: 'Không rõ',
+            redeemHere: 'Nhận code tại đây',
+            redeem: 'Nhấn để nhận'
+        },
         announcement: {
             content: '📢 **Thông báo livestream {game}**',
             title: '📺 {game} đã công bố Special Program!',

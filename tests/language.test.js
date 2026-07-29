@@ -54,7 +54,7 @@ test('getGuildLanguage defaults to en for DMs (null guildId)', async () => {
 
 test('getRewardString translates rewards and applies the template', async () => {
   const result = await languageManager.getRewardString('100 primogems', null);
-  assert.ok(/Primogem/.test(result), `expected a translated reward, got: ${result}`);
+  assert.strictEqual(result, 'Reward:\n• Primogems ×100');
 });
 
 test('getRewardString uses a plain fallback when the template is missing', async () => {
@@ -62,4 +62,11 @@ test('getRewardString uses a plain fallback when the template is missing', async
   // spying on getString via the public method using a key that won't resolve.
   const result = await languageManager.getRewardString('50 mora', null);
   assert.ok(/Mora/.test(result), `expected reward text, got: ${result}`);
+});
+
+test('support footer comes from the language folder', async () => {
+  assert.strictEqual(
+    await languageManager.getSupportFooter(null),
+    'Support: github.com/sponsors/chiraitori | chiraitori.dev'
+  );
 });

@@ -41,14 +41,6 @@ const settingsMapping = {
 
 const CURRENT_DELIVERY_VERSION = 2;
 
-// Support links for donations
-const supportLinks = {
-    kofi: 'https://ko-fi.com/chiraitori',
-    sponsors: 'https://github.com/sponsors/chiraitori',
-    paypal: 'https://paypal.me/chiraitori',
-    banking: 'Use /about command for Vietnamese banking details'
-};
-
 let codeCheckRunning = false;
 
 // Concurrency limiter - processes promises in batches
@@ -594,16 +586,13 @@ async function buildEmbedForGameAndLang(game, lang, codes) {
                 await languageManager.getRewardString(code.rewards, fakeGuildId) : 
                 await languageManager.getString('commands.listcodes.noReward', fakeGuildId);
             
-            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
+            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n${rewardString}`;
         });
 
         const descriptions = await Promise.all(descriptionPromises);
         const finalDescription = descriptions.join('\n\n');
 
-        const supportMsg = await languageManager.getString(
-            'common.supportMsg', 
-            fakeGuildId
-        ) || '❤️ Support: ko-fi.com/chiraitori | paypal.me/chiraitori | github.com/sponsors/chiraitori';
+        const supportMsg = await languageManager.getSupportFooter(fakeGuildId);
 
         const embed = new EmbedBuilder()
             .setColor('#00ff00')

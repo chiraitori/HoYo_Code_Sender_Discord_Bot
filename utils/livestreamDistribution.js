@@ -11,6 +11,7 @@ const { getRoleMention } = require('./roleMention');
 const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
+const languageManager = require('./language');
 const {
     isTrackingPastDistributionWindow,
     getActiveLivestreamCodes
@@ -279,13 +280,16 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     const embeds = new Map();
     for (const delivery of pendingDeliveries) {
         const signature = delivery.codes.map(codeData => codeData.code).sort().join(',');
-        if (!embeds.has(signature)) {
-            embeds.set(signature, await buildCodesEmbed(game, {
+        const guildId = delivery.target.config.guildId;
+        const language = await languageManager.getGuildLanguage(guildId);
+        const embedKey = `${signature}:${language}`;
+        if (!embeds.has(embedKey)) {
+            embeds.set(embedKey, await buildCodesEmbed(game, {
                 ...distributionData,
                 codes: delivery.codes
-            }));
+            }, guildId));
         }
-        delivery.embed = embeds.get(signature);
+        delivery.embed = embeds.get(embedKey);
     }
 
     const results = [];
@@ -517,7 +521,7 @@ async function sendToThread(client, config, game, embed) {
  * @param {Object} tracking - Tracking data
  * @returns {Promise<EmbedBuilder>} Embed
  */
-async function buildCodesEmbed(game, tracking) {
+async function buildCodesEmbed(game, tracking, guildId = null, options = {}) {
     // Try to fetch Events Overview banner (available ~15 min after livestream)
     const OFFICIAL_ACCOUNTS = {
         'genshin': '1015537',
@@ -528,7 +532,8 @@ async function buildCodesEmbed(game, tracking) {
     let finalBanner = tracking.bannerUrl; // Start with Special Program banner
 
     // Try to get Events Overview banner
-    const eventsBanner = await fetchEventsBanner(OFFICIAL_ACCOUNTS[game], game);
+    const bannerFetcher = options.fetchEventsBanner || fetchEventsBanner;
+    const eventsBanner = await bannerFetcher(OFFICIAL_ACCOUNTS[game], game);
     if (eventsBanner) {
         finalBanner = eventsBanner; // Use Events banner if available
 
@@ -539,37 +544,66 @@ async function buildCodesEmbed(game, tracking) {
         );
     }
 
+    const gameName = await languageManager.getString(`games.${game}`, guildId);
+    const [
+        title,
+        description,
+        expiresLabel,
+        unknownExpiry,
+        redeemHere,
+        redeemText,
+        supportFooter
+    ] = await Promise.all([
+        languageManager.getString('livestream.codes.title', guildId, { game: gameName }),
+        languageManager.getString('livestream.codes.description', guildId, {
+            version: tracking.version || 'N/A',
+            count: tracking.codes.length
+        }),
+        languageManager.getString('livestream.codes.expires', guildId),
+        languageManager.getString('livestream.codes.unknownExpiry', guildId),
+        languageManager.getString('livestream.codes.redeemHere', guildId),
+        languageManager.getString('livestream.codes.redeem', guildId),
+        languageManager.getSupportFooter(guildId)
+    ]);
+
     const embed = new EmbedBuilder()
         .setColor('#FFD700') // Gold color for livestream codes
-        .setTitle(formatGameTitle(game, `${GAME_NAMES[game]} Livestream Codes`))
-        .setDescription(`**Version ${tracking.version || 'N/A'}** - Found ${tracking.codes.length} codes!`)
+        .setTitle(formatGameTitle(game, title))
+        .setDescription(description)
         .setTimestamp();
 
     // Add codes with rewards
     if (tracking.codes && tracking.codes.length > 0) {
         for (let i = 0; i < tracking.codes.length; i++) {
             const codeData = tracking.codes[i];
-            let expireText = 'Unknown';
+            let expireText = unknownExpiry;
 
             if (codeData.expireAt && codeData.expireAt > 0) {
                 expireText = `<t:${codeData.expireAt}:R>`;
             }
 
             // Include rewards if available
-            const rewardText = codeData.title ? `\n**Rewards:** ${codeData.title}` : '';
+            const rewardText = codeData.title
+                ? `\n${await languageManager.getRewardString(codeData.title, guildId)}`
+                : '';
+            const codeFieldName = await languageManager.getString(
+                'livestream.codes.code',
+                guildId,
+                { number: i + 1 }
+            );
 
             embed.addFields({
-                name: `Code ${i + 1}`,
-                value: `\`${codeData.code}\`${rewardText}\n**Expires:** ${expireText}`,
-                inline: true
+                name: codeFieldName,
+                value: `\`${codeData.code}\`${rewardText}\n**${expiresLabel}:** ${expireText}`,
+                inline: false
             });
         }
     }
 
     // Add redeem link
     embed.addFields({
-        name: '🔗 Redeem Here',
-        value: `[Click to Redeem](${REDEEM_URLS[game]})`,
+        name: redeemHere,
+        value: `[${redeemText}](${REDEEM_URLS[game]})`,
         inline: false
     });
 
@@ -599,7 +633,7 @@ async function buildCodesEmbed(game, tracking) {
         embed.setImage(finalBanner);
     }
 
-    embed.setFooter({ text: '🎁 From Official Livestream' });
+    embed.setFooter({ text: supportFooter });
 
     return embed;
 }
@@ -607,6 +641,7 @@ async function buildCodesEmbed(game, tracking) {
 module.exports = {
     checkAndDistribute,
     distributeIfReady,
+    buildCodesEmbed,
     getDeliveryTargets,
     getPendingDeliveryTargets,
     getDeliveryProgress

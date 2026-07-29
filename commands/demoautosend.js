@@ -150,17 +150,16 @@ module.exports = {
                     descriptions.push(
                         `**${code.code}** (DEMO)\n` +
                         `[${redeemText}](${redeemUrls[game]}?code=${code.code})\n` +
-                        `└ ${rewardString}`
+                        rewardString
                     );
                 }
                 
                 const finalDescription = descriptions.join('\n\n');
 
                 // Get support message in the server's language
-                const supportMsg = await languageManager.getString(
-                    'common.supportMsg', 
+                const supportMsg = await languageManager.getSupportFooter(
                     interaction.guildId
-                ) || '❤️ Support: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori';
+                );
                 
                 // Create embedded message
                 const embed = new EmbedBuilder()
@@ -168,7 +167,7 @@ module.exports = {
                     .setTitle(title)
                     .setDescription(finalDescription)
                     .setFooter({ 
-                        text: supportMsg + ' | DEMO CODE (NOT ACTUAL)',
+                        text: supportMsg,
                         iconURL: interaction.client.user.displayAvatarURL()
                     })
                     .setTimestamp();

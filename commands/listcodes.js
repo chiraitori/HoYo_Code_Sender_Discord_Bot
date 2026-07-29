@@ -134,10 +134,9 @@ module.exports = {
             }
 
             // Create embeds for each page
-            const supportMsg = await languageManager.getString(
-                'common.supportMsg', 
+            const supportMsg = await languageManager.getSupportFooter(
                 interaction.guildId
-            ) || '❤️ Support: ko-fi.com/chiraitori | github.com/sponsors/chiraitori | paypal.me/chiraitori';
+            );
             
             const embeds = pages.map((pageContent, index) => {
                 const embed = new EmbedBuilder()

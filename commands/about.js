@@ -31,16 +31,12 @@ module.exports = {
                         value: `[Invite](https://discord.com/oauth2/authorize?client_id=${client_id}&permissions=2416331856&scope=applications.commands%20bot)`
                     },
                     {
-                        name: await languageManager.getString('commands.about.donate', interaction.guildId),
-                        value: '[Buy me a coffee](https://ko-fi.com/chiraitori)'
-                    },
-                    {
                         name: await languageManager.getString('commands.about.sponsor', interaction.guildId) || 'GitHub Sponsors',
                         value: '[GitHub Sponsors](https://github.com/sponsors/chiraitori)'
                     },
                     {
                         name: await languageManager.getString('commands.about.devbio', interaction.guildId),
-                        value: '[Bio Link](https://chiraitori.me)'
+                        value: '[chiraitori.dev](https://chiraitori.dev)'
                     }
                     
                 )

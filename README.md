@@ -1,6 +1,6 @@
 # HoYo Code Sender Discord Bot
 
-A Discord bot that automatically fetches and sends redemption codes for HoYoverse games like **Genshin Impact**, **Honkai: Star Rail**, and **Zenless Zone Zero**. This bot allows users to receive the latest game codes directly in their Discord servers. [Invite the bot here](https://discord.com/oauth2/authorize?client_id=1124167011585511516&permissions=2147765312&integration_type=0&scope=bot+applications.commands) | [Bot website](https://hoyo-code.chiraitori.me) | [Documentation](https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot/wiki) | [💖 Donate](#-support-the-project)
+A Discord bot that automatically fetches and sends redemption codes for HoYoverse games like **Genshin Impact**, **Honkai: Star Rail**, and **Zenless Zone Zero**. This bot allows users to receive the latest game codes directly in their Discord servers. [Invite the bot here](https://discord.com/oauth2/authorize?client_id=1124167011585511516&permissions=2147765312&integration_type=0&scope=bot+applications.commands) | [Developer website](https://chiraitori.dev) | [Documentation](https://github.com/chiraitori/HoYo_Code_Sender_Discord_Bot/wiki) | [Support](#-support-the-project)
 
 > **Special Thanks**: This bot uses the [HoYo Codes API](https://github.com/seriaati/hoyo-codes) by [@seria](https://github.com/seriaati) for fetching game codes. Thank you for providing this amazing service! 🙏
 
@@ -87,6 +87,9 @@ Create a .env file in the root directory and add the following:
    LIVESTREAM_TRACKING_ENABLED=true
    # Optional: improves YouTube live/upcoming status and exact schedule detection
    YOUTUBE_API_KEY=your_youtube_data_api_key
+   # Optional: AI fallback for unknown Vietnamese/Japanese reward names
+   OPENAI_API_KEY=your_openai_api_key
+   OPENAI_REWARD_MODEL=gpt-5-mini
    CLIENT_ID=your_discord_client_id
    OWNER_ID=your_id_in_discord
    # Dashboard URL (optional, for development)
@@ -240,57 +243,10 @@ The bot implements several security measures:
 
 ## 💖 Support the Project
 
-If you find this bot useful and want to support its development and maintenance, you can donate through various platforms:
+If you find this bot useful and want to support its development and maintenance:
 
-### International Donations
-
-[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-ea4aaa?style=for-the-badge&logo=github)](https://github.com/sponsors/chiraitori)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi)](https://ko-fi.com/chiraitori)
-[![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C?style=for-the-badge&logo=paypal)](https://paypal.me/chiraitori)
-
-- **GitHub Sponsors**: [github.com/sponsors/chiraitori](https://github.com/sponsors/chiraitori) ⭐ **RECOMMENDED**
-  - **Fee**: GitHub takes **0% fee**, you keep 100% ✅
-  - Supports monthly recurring donations and one-time contributions
-  - **Best option for maximizing your donation impact!**
-  
-- **Ko-fi**: [ko-fi.com/chiraitori](https://ko-fi.com/chiraitori)
-  - **Fee**: Ko-fi **0% platform fee**, but processes through **PayPal** (PayPal fees ~2.9% + $0.30 apply) 💳
-  - One-time or membership support
-  
-- **PayPal**: [paypal.me/chiraitori](https://paypal.me/chiraitori)
-  - **Fee**: PayPal takes **2.9% + $0.30 USD** per transaction ⚠️
-  - For international donations: additional **currency conversion fee (~3-4%)**
-  - Direct PayPal transfer option
-
-### 🎮 CS2 Skin Trading
-
-Got some Counter-Strike 2 skins you don't need? Trade them for bot support! 😄
-
-- **Steam Trade**: Send me a trade offer for CS2 skins
-- **Contact**: Reach out via Discord or GitHub to discuss the trade
-- **How it works**: 
-  - You send CS2 skins → I sell them → Revenue goes to bot development
-  - Any skin value welcome (even cheap ones help!)
-  - Fun way to support if you're a CS2 player! 🔫
-
-**Note**: This is a casual option for gamers who want to support in a unique way!
-
-### Vietnamese Banking (Việt Nam)
-
-For Vietnamese users, you can donate via bank transfer or PayOS:
-
-#### 🏦 Bank Transfer (QR Code - No Fees)
-- **Website**: [chiraitori.io.vn](https://chiraitori.io.vn) - Scrow Down You Will See The **QR** Section
-- **Bank**: MB Bank (Ngân hàng TMCP Quân Đội)
-- **Account Number**: `19071945512011`
-- **Account Name**: `NGUYEN TAN TU`
-- **Transfer Content**: `HoYo Code Bot - [Your Discord Username]` (optional)
-- **Note**: Direct bank transfer via QR code has **NO FEES** ✅
-
-#### 💳 PayOS (Convenient Payment - Has Fees)
-- **Website**: [chiraitori.io.vn](https://chiraitori.io.vn) - Scrow Down You Will See The **"PayOS"** Section
-- **Supported**: ATM cards, credit cards, e-wallets (MoMo, ZaloPay, etc.)
-- **Note**: PayOS charges a small transaction fee (~2-3%) ⚠️
+- [GitHub Sponsors](https://github.com/sponsors/chiraitori)
+- [chiraitori.dev](https://chiraitori.dev)
 
 ### Why Donate?
 

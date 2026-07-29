@@ -3,24 +3,20 @@ const assert = require('node:assert');
 const { translateReward } = require('../utils/dictionary');
 
 test('translateReward translates common Genshin rewards in English', () => {
-  assert.strictEqual(translateReward('100 primogems', 'en'), '100 Primogems');
-  assert.strictEqual(translateReward('50 mora', 'en'), '50 Mora');
-  assert.strictEqual(translateReward('100 stellar jade', 'en'), '100 Stellar Jade');
+  assert.strictEqual(translateReward('100 primogems', 'en'), 'Primogems ×100');
+  assert.strictEqual(translateReward('50 mora', 'en'), 'Mora ×50');
+  assert.strictEqual(translateReward('100 stellar jade', 'en'), 'Stellar Jade ×100');
 });
 
 test('translateReward translates rewards to Japanese', () => {
-  assert.strictEqual(translateReward('50 mora', 'jp'), '50 モラ');
-  assert.strictEqual(translateReward('100 polychrome', 'jp'), '100 ポリクローム');
-  // NOTE: '100 primogems' currently yields '100 原石s' — the singular
-  // `primogem -> 原石` rule matches inside the plural form and leaves a
-  // stray English 's'. This asserts the current behavior as a regression
-  // marker; fix dictionary.js ordering if you want '100 原石' instead.
-  assert.strictEqual(translateReward('100 primogems', 'jp'), '100 原石s');
+  assert.strictEqual(translateReward('50 mora', 'jp'), 'モラ ×50');
+  assert.strictEqual(translateReward('100 polychrome', 'jp'), 'ポリクローム ×100');
+  assert.strictEqual(translateReward('100 primogems', 'jp'), '原石 ×100');
 });
 
 test('translateReward translates rewards to Vietnamese', () => {
-  assert.strictEqual(translateReward('50 mora', 'vi'), '50 Mora');
-  assert.strictEqual(translateReward('100 polychrome', 'vi'), '100 Film Màu');
+  assert.strictEqual(translateReward('50 mora', 'vi'), 'Mora ×50');
+  assert.strictEqual(translateReward('100 polychrome', 'vi'), 'Film Màu ×100');
 });
 
 test('translateReward is case-insensitive on input', () => {
@@ -29,12 +25,12 @@ test('translateReward is case-insensitive on input', () => {
 });
 
 test('translateReward translates quantity words (one, two, ...)', () => {
-  assert.strictEqual(translateReward('one primogem', 'en'), 'x1 Primogem');
-  assert.strictEqual(translateReward('two primogems', 'en'), 'x2 Primogems');
+  assert.strictEqual(translateReward('one primogem', 'en'), 'Primogem ×1');
+  assert.strictEqual(translateReward('two primogems', 'en'), 'Primogems ×2');
 });
 
 test('translateReward falls back to English for unknown language', () => {
-  assert.strictEqual(translateReward('100 mora', 'de'), '100 Mora');
+  assert.strictEqual(translateReward('100 mora', 'de'), 'Mora ×100');
 });
 
 test('translateReward handles empty / null input gracefully', () => {
@@ -43,7 +39,6 @@ test('translateReward handles empty / null input gracefully', () => {
   assert.strictEqual(translateReward(undefined, 'en'), '');
 });
 
-test('translateReward leaves unknown tokens mostly intact', () => {
-  // Unknown words are simply lowercased by the regex pass-through.
-  assert.strictEqual(translateReward('Unknown Item Here', 'en'), 'unknown item here');
+test('translateReward preserves unknown reward names', () => {
+  assert.strictEqual(translateReward('Unknown Item Here', 'en'), 'Unknown Item Here');
 });
