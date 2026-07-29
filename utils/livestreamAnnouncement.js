@@ -20,6 +20,8 @@ const GAME_NAMES = {
     'nap': 'Zenless Zone Zero'
 };
 
+const ANNOUNCEMENT_CLAIM_TTL_MS = 5 * 60 * 1000;
+
 async function processInBatches(tasks, batchSize = 25) {
     const results = [];
     for (let index = 0; index < tasks.length; index += batchSize) {
@@ -28,6 +30,74 @@ async function processInBatches(tasks, batchSize = 25) {
         ));
     }
     return results;
+}
+
+async function claimAnnouncementTarget(
+    game,
+    version,
+    targetId,
+    TrackingModel = LivestreamTracking,
+    now = new Date()
+) {
+    const expiredBefore = new Date(now.getTime() - ANNOUNCEMENT_CLAIM_TTL_MS);
+    await TrackingModel.updateOne(
+        { game, version },
+        {
+            $pull: {
+                announcementClaims: {
+                    targetId,
+                    claimedAt: { $lte: expiredBefore }
+                }
+            }
+        }
+    );
+
+    const tracking = await TrackingModel.findOneAndUpdate(
+        {
+            game,
+            version,
+            announcementTargets: { $ne: targetId },
+            'announcementClaims.targetId': { $ne: targetId }
+        },
+        {
+            $push: {
+                announcementClaims: {
+                    targetId,
+                    claimedAt: now
+                }
+            }
+        },
+        { new: true }
+    );
+
+    return Boolean(tracking);
+}
+
+async function releaseAnnouncementTarget(
+    game,
+    version,
+    targetId,
+    TrackingModel = LivestreamTracking
+) {
+    await TrackingModel.updateOne(
+        { game, version },
+        { $pull: { announcementClaims: { targetId } } }
+    );
+}
+
+async function completeAnnouncementTarget(
+    game,
+    version,
+    targetId,
+    TrackingModel = LivestreamTracking
+) {
+    await TrackingModel.updateOne(
+        { game, version },
+        {
+            $addToSet: { announcementTargets: targetId },
+            $pull: { announcementClaims: { targetId } }
+        }
+    );
 }
 
 /**
@@ -61,21 +131,40 @@ async function sendAnnouncement(client, streamInfo) {
     const pendingTargets = targets.filter(target => !deliveredTargets.has(target.id));
     const tasks = [];
 
-    for (const { config, channelId } of pendingTargets) {
-        tasks.push(() => sendAnnouncementToChannel(
-            client,
-            channelId,
-            config.guildId,
-            game,
-            version,
-            streamTime,
-            bannerUrl,
-            streamInfo.youtubeStreams,
-            streamTimeEstimated
-        ).catch(error => {
-            console.error(`[Announcement] Error for guild ${config.guildId}:`, error.message);
-            return false;
-        }));
+    for (const target of pendingTargets) {
+        tasks.push(async () => {
+            const claimed = await claimAnnouncementTarget(game, version, target.id);
+            if (!claimed) {
+                return false;
+            }
+
+            try {
+                const sent = await sendAnnouncementToChannel(
+                    client,
+                    target.channelId,
+                    target.config.guildId,
+                    game,
+                    version,
+                    streamTime,
+                    bannerUrl,
+                    streamInfo.youtubeStreams,
+                    streamTimeEstimated
+                );
+                if (sent) {
+                    await completeAnnouncementTarget(game, version, target.id);
+                } else {
+                    await releaseAnnouncementTarget(game, version, target.id);
+                }
+                return sent;
+            } catch (error) {
+                await releaseAnnouncementTarget(game, version, target.id);
+                console.error(
+                    `[Announcement] Error for guild ${target.config.guildId}:`,
+                    error.message
+                );
+                return false;
+            }
+        });
     }
 
     const results = await processInBatches(tasks);
@@ -83,25 +172,15 @@ async function sendAnnouncement(client, streamInfo) {
         result => result.status === 'fulfilled' && result.value === true
     ).length;
 
-    const successfulTargetIds = results.flatMap((result, index) => (
-        result.status === 'fulfilled' && result.value === true
-            ? [pendingTargets[index].id]
-            : []
-    ));
-    successfulTargetIds.forEach(targetId => deliveredTargets.add(targetId));
+    const refreshedTracking = await LivestreamTracking.findOne({ game, version }).lean();
+    const finalDeliveredTargets = new Set(refreshedTracking?.announcementTargets || []);
     const complete = targets.length > 0
-        && targets.every(target => deliveredTargets.has(target.id));
+        && targets.every(target => finalDeliveredTargets.has(target.id));
 
     if (tracking) {
         const update = { $set: { announcementSent: complete } };
-        if (successfulTargetIds.length > 0 || complete) {
-            update.$addToSet = {};
-            if (successfulTargetIds.length > 0) {
-                update.$addToSet.announcementTargets = { $each: successfulTargetIds };
-            }
-            if (complete) {
-                update.$addToSet.announcementBots = botId;
-            }
+        if (complete) {
+            update.$addToSet = { announcementBots: botId };
         }
         await LivestreamTracking.updateOne({ game, version }, update);
     }
@@ -311,5 +390,8 @@ module.exports = {
     buildLivestreamAnnouncementEmbed,
     sendAnnouncement,
     getAnnouncementTargets,
-    wasAnnouncementSentForBot
+    wasAnnouncementSentForBot,
+    claimAnnouncementTarget,
+    releaseAnnouncementTarget,
+    completeAnnouncementTarget
 };

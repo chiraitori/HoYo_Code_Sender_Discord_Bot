@@ -114,6 +114,11 @@ const livestreamTrackingSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    announcementClaims: [{
+        _id: false,
+        targetId: String,
+        claimedAt: Date
+    }],
     trackingChannel: {
         type: String, // Channel ID where tracking message is posted
         default: null

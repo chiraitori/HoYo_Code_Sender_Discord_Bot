@@ -5,7 +5,8 @@ const {
   getCodesToNotify,
   getCodeNotificationTargetId,
   getPendingCodesForTarget,
-  getCodeDeliveryTargets
+  getCodeDeliveryTargets,
+  hasCodeReachedAllTargets
 } = require('../utils/autoCodeSend');
 
 const activeCode = {
@@ -38,19 +39,39 @@ test('legacy rows are not replayed for any bot', () => {
   );
 });
 
-test('a bot continues delivery for a modern code it already activated', () => {
+test('a bot continues delivery while a modern code remains pending', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
       timestamp: new Date('2026-01-01T00:00:00Z'),
       deliveryVersion: 2,
-      deliveryBots: ['production-bot']
+      deliveryBots: ['production-bot'],
+      notificationPendingBots: ['production-bot']
     }]
   ]);
 
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'production-bot'),
     [activeCode]
+  );
+});
+
+test('a completed modern code is not replayed to a newly restored target', () => {
+  const existingCodes = new Map([
+    ['nap:ZZZY2ANNIV', {
+      ...activeCode,
+      timestamp: new Date('2026-07-17T17:49:26Z'),
+      deliveryVersion: 2,
+      deliveryBots: ['production-bot'],
+      notificationPendingBots: []
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode], existingCodes, 'production-bot', {
+      now: new Date('2026-07-18T00:00:00Z').getTime()
+    }),
+    []
   );
 });
 
@@ -95,6 +116,37 @@ test('globally new codes are sent by the current bot', () => {
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], new Map(), 'production-bot'),
     [activeCode]
+  );
+});
+
+test('only the one newly discovered code is selected from an active code list', () => {
+  const completedCode = {
+    game: 'nap',
+    code: 'ALREADY_SENT',
+    status: 'OK'
+  };
+  const newCode = {
+    game: 'nap',
+    code: 'ONLY_NEW_CODE',
+    status: 'OK'
+  };
+  const existingCodes = new Map([
+    ['nap:ALREADY_SENT', {
+      ...completedCode,
+      timestamp: new Date('2026-07-29T00:00:00Z'),
+      deliveryVersion: 2,
+      deliveryBots: ['production-bot'],
+      notificationPendingBots: []
+    }]
+  ]);
+
+  assert.deepStrictEqual(
+    getCodesToNotify(
+      [completedCode, newCode],
+      existingCodes,
+      'production-bot'
+    ),
+    [newCode]
   );
 });
 
@@ -229,4 +281,28 @@ test('legacy guild delivery markers suppress a deploy-time replay', () => {
     ),
     []
   );
+});
+
+test('a code is complete only after every current target received it', () => {
+  const targets = [
+    {
+      id: 'bot-a:channel:channel-a',
+      legacyId: 'bot-a:guild:guild-a'
+    },
+    {
+      id: 'bot-a:thread:thread-a',
+      legacyId: 'bot-a:guild:guild-b'
+    }
+  ];
+
+  assert.strictEqual(hasCodeReachedAllTargets({
+    notifiedTargets: ['bot-a:channel:channel-a']
+  }, targets), false);
+
+  assert.strictEqual(hasCodeReachedAllTargets({
+    notifiedTargets: [
+      'bot-a:channel:channel-a',
+      'bot-a:guild:guild-b'
+    ]
+  }, targets), true);
 });

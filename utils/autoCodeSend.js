@@ -93,8 +93,12 @@ function getCodesToNotify(
                 return false;
             }
 
-            if (existing.deliveryBots?.includes(botId)) {
+            if (existing.notificationPendingBots?.includes(botId)) {
                 return true;
+            }
+
+            if (existing.deliveryBots?.includes(botId)) {
+                return false;
             }
 
             // Other bot applications sharing this DB get a bounded window to pick
@@ -154,6 +158,47 @@ function getPendingCodesForTarget(codes, existingCodesMap, targetId, legacyTarge
         return !notifiedTargets.includes(targetId)
             && (!legacyTargetId || !notifiedTargets.includes(legacyTargetId));
     });
+}
+
+function hasCodeReachedAllTargets(code, targets) {
+    if (!Array.isArray(targets) || targets.length === 0) {
+        return false;
+    }
+
+    const notifiedTargets = new Set(code?.notifiedTargets || []);
+    return targets.every(target => (
+        notifiedTargets.has(target.id)
+        || (target.legacyId && notifiedTargets.has(target.legacyId))
+    ));
+}
+
+async function clearCompletedNotificationPendingBots(botId, codesByGame, targetsByGame) {
+    const updates = [];
+
+    for (const [game, codes] of Object.entries(codesByGame)) {
+        const targets = Array.from(targetsByGame.get(game)?.values() || []);
+        if (codes.length === 0 || targets.length === 0) {
+            continue;
+        }
+
+        const rows = await Code.find({
+            game,
+            code: { $in: codes.map(code => code.code) },
+            notificationPendingBots: botId
+        }).lean();
+        const completedCodes = rows
+            .filter(row => hasCodeReachedAllTargets(row, targets))
+            .map(row => row.code);
+
+        if (completedCodes.length > 0) {
+            updates.push(Code.updateMany(
+                { game, code: { $in: completedCodes } },
+                { $pull: { notificationPendingBots: botId } }
+            ));
+        }
+    }
+
+    await Promise.all(updates);
 }
 
 async function claimCodeNotifications(game, codes, targetId) {
@@ -361,7 +406,8 @@ async function checkAndSendNewCodes(client) {
                             notifiedBots: [],
                             notifiedTargets: [],
                             deliveryVersion: CURRENT_DELIVERY_VERSION,
-                            deliveryBots: [botId]
+                            deliveryBots: [botId],
+                            notificationPendingBots: [botId]
                         }
                     },
                     upsert: true
@@ -421,7 +467,10 @@ async function checkAndSendNewCodes(client) {
                 },
                 {
                     $set: { deliveryVersion: CURRENT_DELIVERY_VERSION },
-                    $addToSet: { deliveryBots: botId }
+                    $addToSet: {
+                        deliveryBots: botId,
+                        notificationPendingBots: botId
+                    }
                 }
             );
         }
@@ -469,6 +518,7 @@ async function checkAndSendNewCodes(client) {
 
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = new Map();
+        const targetsByGame = new Map();
         let skippedNotInGuild = 0;
         let skippedAutoSendOff = 0;
         // Filter configs that have autoSend enabled
@@ -490,6 +540,14 @@ async function checkAndSendNewCodes(client) {
 
                 const codes = newCodesForGames[game];
                 const deliveryTargets = getCodeDeliveryTargets(config, settings, game, botId);
+                if (!targetsByGame.has(game)) {
+                    targetsByGame.set(game, new Map());
+                }
+                const gameTargets = targetsByGame.get(game);
+                for (const target of deliveryTargets) {
+                    gameTargets.set(target.id, target);
+                }
+
                 for (const target of deliveryTargets) {
                     const pendingCodes = getPendingCodesForTarget(
                         codes,
@@ -576,6 +634,12 @@ async function checkAndSendNewCodes(client) {
             ).length;
             console.log(`Code notifications delivered to ${successCount}/${queuedTasks.length} targets`);
         }
+
+        await clearCompletedNotificationPendingBots(
+            botId,
+            newCodesForGames,
+            targetsByGame
+        );
         
         const elapsed = Date.now() - startTime;
         console.log(`Code check process completed in ${elapsed}ms. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Queued ${queuedTasks.length} targets.`);
@@ -797,5 +861,6 @@ module.exports = {
     getCodesToNotify,
     getCodeNotificationTargetId,
     getPendingCodesForTarget,
-    getCodeDeliveryTargets
+    getCodeDeliveryTargets,
+    hasCodeReachedAllTargets
 };

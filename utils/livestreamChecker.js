@@ -151,12 +151,12 @@ async function checkGame(client, game) {
                             filter: { game, code: codeData.code },
                             update: {
                                 $set: {
-                                    isExpired: false,
-                                    timestamp
+                                    isExpired: false
                                 },
                                 $setOnInsert: {
                                     game,
-                                    code: codeData.code
+                                    code: codeData.code,
+                                    timestamp
                                 }
                             },
                             upsert: true
