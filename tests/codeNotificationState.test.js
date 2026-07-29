@@ -3,10 +3,10 @@ const assert = require('node:assert');
 
 const {
   getCodesToNotify,
+  insertCodeIfMissing,
   getCodeNotificationTargetId,
   getPendingCodesForTarget,
-  getCodeDeliveryTargets,
-  hasCodeReachedAllTargets
+  getCodeDeliveryTargets
 } = require('../utils/autoCodeSend');
 
 const activeCode = {
@@ -39,7 +39,7 @@ test('legacy rows are not replayed for any bot', () => {
   );
 });
 
-test('a bot continues delivery while a modern code remains pending', () => {
+test('an existing DB code is never replayed even when old state says pending', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
@@ -52,7 +52,7 @@ test('a bot continues delivery while a modern code remains pending', () => {
 
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], existingCodes, 'production-bot'),
-    [activeCode]
+    []
   );
 });
 
@@ -75,7 +75,7 @@ test('a completed modern code is not replayed to a newly restored target', () =>
   );
 });
 
-test('a second bot can pick up a recently discovered modern code', () => {
+test('a second bot does not replay a recently stored code', () => {
   const existingCodes = new Map([
     ['nap:ZZZY2ANNIV', {
       ...activeCode,
@@ -90,7 +90,7 @@ test('a second bot can pick up a recently discovered modern code', () => {
       now: new Date('2026-07-18T00:00:00Z').getTime(),
       discoveryLookbackHours: 72
     }),
-    [activeCode]
+    []
   );
 });
 
@@ -115,6 +115,13 @@ test('a second bot does not replay an old modern code', () => {
 test('globally new codes are sent by the current bot', () => {
   assert.deepStrictEqual(
     getCodesToNotify([activeCode], new Map(), 'production-bot'),
+    [activeCode]
+  );
+});
+
+test('duplicate API entries select a new code only once', () => {
+  assert.deepStrictEqual(
+    getCodesToNotify([activeCode, { ...activeCode }], new Map()),
     [activeCode]
   );
 });
@@ -147,6 +154,29 @@ test('only the one newly discovered code is selected from an active code list', 
       'production-bot'
     ),
     [newCode]
+  );
+});
+
+test('only the process that inserts a code may notify it', async () => {
+  let stored = false;
+  const CodeModel = {
+    async create() {
+      if (stored) {
+        const error = new Error('duplicate key');
+        error.code = 11000;
+        throw error;
+      }
+      stored = true;
+    }
+  };
+
+  assert.strictEqual(
+    await insertCodeIfMissing(activeCode, 'production-bot', CodeModel),
+    true
+  );
+  assert.strictEqual(
+    await insertCodeIfMissing(activeCode, 'staging-bot', CodeModel),
+    false
   );
 });
 
@@ -281,28 +311,4 @@ test('legacy guild delivery markers suppress a deploy-time replay', () => {
     ),
     []
   );
-});
-
-test('a code is complete only after every current target received it', () => {
-  const targets = [
-    {
-      id: 'bot-a:channel:channel-a',
-      legacyId: 'bot-a:guild:guild-a'
-    },
-    {
-      id: 'bot-a:thread:thread-a',
-      legacyId: 'bot-a:guild:guild-b'
-    }
-  ];
-
-  assert.strictEqual(hasCodeReachedAllTargets({
-    notifiedTargets: ['bot-a:channel:channel-a']
-  }, targets), false);
-
-  assert.strictEqual(hasCodeReachedAllTargets({
-    notifiedTargets: [
-      'bot-a:channel:channel-a',
-      'bot-a:guild:guild-b'
-    ]
-  }, targets), true);
 });

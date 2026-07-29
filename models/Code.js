@@ -8,8 +8,7 @@ const codeSchema = new mongoose.Schema({
     notifiedBots: { type: [String], default: [] },
     notifiedTargets: { type: [String], default: [] },
     deliveryVersion: { type: Number },
-    deliveryBots: { type: [String], default: [] },
-    notificationPendingBots: { type: [String], default: [] }
+    deliveryBots: { type: [String], default: [] }
 });
 
 // Add compound index for faster lookups by game and code

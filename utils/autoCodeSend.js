@@ -64,48 +64,39 @@ async function processInBatches(tasks, batchSize) {
 
 function getCodesToNotify(
     gameCodes,
-    existingCodesMap,
-    botId,
-    {
-        now = Date.now(),
-        discoveryLookbackHours = Number.parseInt(
-            process.env.CODE_NOTIFICATION_DISCOVERY_LOOKBACK_HOURS || '72',
-            10
-        )
-    } = {}
+    existingCodesMap
 ) {
-    const safeLookbackHours = Number.isFinite(discoveryLookbackHours)
-        ? Math.max(1, discoveryLookbackHours)
-        : 72;
-    const discoveryCutoff = now - safeLookbackHours * 60 * 60 * 1000;
+    const selectedKeys = new Set();
 
     return gameCodes
         .filter(codeData => codeData.status === 'OK')
         .filter(codeData => {
-            const existing = existingCodesMap.get(`${codeData.game}:${codeData.code}`);
-            if (!existing) {
-                return true;
-            }
-
-            // Legacy rows have no reliable per-target history. They stay silent
-            // unless a one-time database migration explicitly upgrades them.
-            if (existing.deliveryVersion !== CURRENT_DELIVERY_VERSION) {
+            const key = `${codeData.game}:${codeData.code}`;
+            if (existingCodesMap.has(key) || selectedKeys.has(key)) {
                 return false;
             }
-
-            if (existing.notificationPendingBots?.includes(botId)) {
-                return true;
-            }
-
-            if (existing.deliveryBots?.includes(botId)) {
-                return false;
-            }
-
-            // Other bot applications sharing this DB get a bounded window to pick
-            // up genuinely new codes, without replaying history when started later.
-            const firstSeenAt = new Date(existing.timestamp).getTime();
-            return Number.isFinite(firstSeenAt) && firstSeenAt >= discoveryCutoff;
+            selectedKeys.add(key);
+            return true;
         });
+}
+
+async function insertCodeIfMissing(codeData, botId, CodeModel = Code) {
+    try {
+        await CodeModel.create({
+            ...codeData,
+            timestamp: new Date(),
+            notifiedBots: [],
+            notifiedTargets: [],
+            deliveryVersion: CURRENT_DELIVERY_VERSION,
+            deliveryBots: [botId]
+        });
+        return true;
+    } catch (error) {
+        if (error?.code === 11000) {
+            return false;
+        }
+        throw error;
+    }
 }
 
 function getCodeNotificationTargetId(botId, guildId) {
@@ -158,47 +149,6 @@ function getPendingCodesForTarget(codes, existingCodesMap, targetId, legacyTarge
         return !notifiedTargets.includes(targetId)
             && (!legacyTargetId || !notifiedTargets.includes(legacyTargetId));
     });
-}
-
-function hasCodeReachedAllTargets(code, targets) {
-    if (!Array.isArray(targets) || targets.length === 0) {
-        return false;
-    }
-
-    const notifiedTargets = new Set(code?.notifiedTargets || []);
-    return targets.every(target => (
-        notifiedTargets.has(target.id)
-        || (target.legacyId && notifiedTargets.has(target.legacyId))
-    ));
-}
-
-async function clearCompletedNotificationPendingBots(botId, codesByGame, targetsByGame) {
-    const updates = [];
-
-    for (const [game, codes] of Object.entries(codesByGame)) {
-        const targets = Array.from(targetsByGame.get(game)?.values() || []);
-        if (codes.length === 0 || targets.length === 0) {
-            continue;
-        }
-
-        const rows = await Code.find({
-            game,
-            code: { $in: codes.map(code => code.code) },
-            notificationPendingBots: botId
-        }).lean();
-        const completedCodes = rows
-            .filter(row => hasCodeReachedAllTargets(row, targets))
-            .map(row => row.code);
-
-        if (completedCodes.length > 0) {
-            updates.push(Code.updateMany(
-                { game, code: { $in: completedCodes } },
-                { $pull: { notificationPendingBots: botId } }
-            ));
-        }
-    }
-
-    await Promise.all(updates);
 }
 
 async function claimCodeNotifications(game, codes, targetId) {
@@ -394,25 +344,26 @@ async function checkAndSendNewCodes(client) {
         // Batch operations
         const operations = [];
         
-        // Add new codes
+        let insertedCodes = [];
+
+        // Save first. Only the process that wins the unique DB insert may notify.
         if (codesToSave.length > 0) {
-            operations.push(Code.bulkWrite(codesToSave.map(codeData => ({
-                updateOne: {
-                    filter: { game: codeData.game, code: codeData.code },
-                    update: {
-                        $setOnInsert: {
-                            ...codeData,
-                            timestamp: new Date(),
-                            notifiedBots: [],
-                            notifiedTargets: [],
-                            deliveryVersion: CURRENT_DELIVERY_VERSION,
-                            deliveryBots: [botId],
-                            notificationPendingBots: [botId]
-                        }
-                    },
-                    upsert: true
-                }
-            })), { ordered: false }));
+            const insertResults = await Promise.all(codesToSave.map(
+                codeData => insertCodeIfMissing(codeData, botId)
+            ));
+            insertedCodes = codesToSave.filter((codeData, index) => insertResults[index]);
+        }
+
+        const insertedCodeKeys = new Set(
+            insertedCodes.map(code => `${code.game}:${code.code}`)
+        );
+        for (const game of Object.keys(newCodesForGames)) {
+            newCodesForGames[game] = newCodesForGames[game].filter(
+                code => insertedCodeKeys.has(`${code.game}:${code.code}`)
+            );
+            if (newCodesForGames[game].length === 0) {
+                delete newCodesForGames[game];
+            }
         }
 
         // Mark expired codes
@@ -454,25 +405,6 @@ async function checkAndSendNewCodes(client) {
         // Execute all database operations
         if (operations.length > 0) {
             await Promise.all(operations);
-        }
-
-        const deliveryCodes = Object.values(newCodesForGames).flat();
-        if (deliveryCodes.length > 0) {
-            await Code.updateMany(
-                {
-                    $or: deliveryCodes.map(code => ({
-                        game: code.game,
-                        code: code.code
-                    }))
-                },
-                {
-                    $set: { deliveryVersion: CURRENT_DELIVERY_VERSION },
-                    $addToSet: {
-                        deliveryBots: botId,
-                        notificationPendingBots: botId
-                    }
-                }
-            );
         }
 
         // ===== OPTIMIZED MESSAGE SENDING =====
@@ -518,7 +450,6 @@ async function checkAndSendNewCodes(client) {
 
         // Prepare message sending tasks as lazy functions (not yet executing)
         const messageTasks = new Map();
-        const targetsByGame = new Map();
         let skippedNotInGuild = 0;
         let skippedAutoSendOff = 0;
         // Filter configs that have autoSend enabled
@@ -540,14 +471,6 @@ async function checkAndSendNewCodes(client) {
 
                 const codes = newCodesForGames[game];
                 const deliveryTargets = getCodeDeliveryTargets(config, settings, game, botId);
-                if (!targetsByGame.has(game)) {
-                    targetsByGame.set(game, new Map());
-                }
-                const gameTargets = targetsByGame.get(game);
-                for (const target of deliveryTargets) {
-                    gameTargets.set(target.id, target);
-                }
-
                 for (const target of deliveryTargets) {
                     const pendingCodes = getPendingCodesForTarget(
                         codes,
@@ -635,14 +558,8 @@ async function checkAndSendNewCodes(client) {
             console.log(`Code notifications delivered to ${successCount}/${queuedTasks.length} targets`);
         }
 
-        await clearCompletedNotificationPendingBots(
-            botId,
-            newCodesForGames,
-            targetsByGame
-        );
-        
         const elapsed = Date.now() - startTime;
-        console.log(`Code check process completed in ${elapsed}ms. Found ${codesToSave.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Queued ${queuedTasks.length} targets.`);
+        console.log(`Code check process completed in ${elapsed}ms. Found ${insertedCodes.length} new codes, ${expiredCodes.length} expired codes, ${reactivatedCodes.length} reactivated codes. Queued ${queuedTasks.length} targets.`);
     } catch (error) {
         console.error('Error in checkAndSendNewCodes:', error);
     } finally {
@@ -859,8 +776,8 @@ async function notifyGuildOwnerMissingPermissions(client, guild, config, permiss
 module.exports = {
     checkAndSendNewCodes,
     getCodesToNotify,
+    insertCodeIfMissing,
     getCodeNotificationTargetId,
     getPendingCodesForTarget,
-    getCodeDeliveryTargets,
-    hasCodeReachedAllTargets
+    getCodeDeliveryTargets
 };
