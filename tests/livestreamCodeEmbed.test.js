@@ -17,8 +17,10 @@ test('livestream rewards use vertical fields and the centralized footer', async 
   const data = embed.toJSON();
 
   assert.strictEqual(data.fields[0].inline, false);
-  assert.match(data.fields[0].value, /• Denny ×30,000/);
-  assert.match(data.fields[0].value, /• Senior Investigator Log ×2/);
+  assert.match(
+    data.fields[0].value,
+    /Reward: Denny ×30,000; Senior Investigator Log ×2/
+  );
   assert.strictEqual(
     data.footer.text,
     'Support: github.com/sponsors/chiraitori | chiraitori.dev'

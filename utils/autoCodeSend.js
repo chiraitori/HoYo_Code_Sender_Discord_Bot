@@ -586,7 +586,7 @@ async function buildEmbedForGameAndLang(game, lang, codes) {
                 await languageManager.getRewardString(code.rewards, fakeGuildId) : 
                 await languageManager.getString('commands.listcodes.noReward', fakeGuildId);
             
-            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n${rewardString}`;
+            return `**${code.code}**\n[${redeemText}](${redeemUrls[game]}?code=${code.code})\n└ ${rewardString}`;
         });
 
         const descriptions = await Promise.all(descriptionPromises);

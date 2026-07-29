@@ -88,13 +88,13 @@ class LanguageManager {
             const rewardTemplate = await this.getString('commands.listcodes.reward', guildId);
 
             if (rewardTemplate.startsWith('Translation missing:')) {
-                return `Reward:\n${translatedReward}`;
+                return `Reward: ${translatedReward}`;
             }
 
             return rewardTemplate.replace('{reward}', translatedReward);
         } catch (error) {
             console.error('Error translating reward:', error);
-            return `Reward:\n• ${reward}`;
+            return `Reward: ${reward}`;
         }
     }
 

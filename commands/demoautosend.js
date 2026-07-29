@@ -150,7 +150,7 @@ module.exports = {
                     descriptions.push(
                         `**${code.code}** (DEMO)\n` +
                         `[${redeemText}](${redeemUrls[game]}?code=${code.code})\n` +
-                        rewardString
+                        `└ ${rewardString}`
                     );
                 }
                 

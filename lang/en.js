@@ -29,7 +29,7 @@ module.exports = {
         listcodes: {
             title: 'Active Codes for {game}',
             noCodes: 'No active codes found for {game}',
-            reward: 'Reward:\n{reward}',
+            reward: 'Reward: {reward}',
             status: 'Status: {status}',
             redeemButton: 'Click to Redeem',
             redeemHeader: 'Redeem Here',

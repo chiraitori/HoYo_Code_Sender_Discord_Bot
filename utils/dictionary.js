@@ -212,8 +212,8 @@ function formatQuantity(quantity) {
 function formatRewardItems(items) {
     return items.map(item => {
         const quantity = formatQuantity(item.quantity);
-        return `• ${item.name}${quantity ? ` ×${quantity}` : ''}`;
-    }).join('\n');
+        return `${item.name}${quantity ? ` ×${quantity}` : ''}`;
+    }).join('; ');
 }
 
 function translateReward(reward, language = 'en') {
@@ -224,7 +224,7 @@ function translateReward(reward, language = 'en') {
     return translatedItems.map(item => {
         const quantity = formatQuantity(item.quantity);
         return `${item.name}${quantity ? ` ×${quantity}` : ''}`;
-    }).join(', ');
+    }).join('; ');
 }
 
 module.exports = {

@@ -54,7 +54,7 @@ test('getGuildLanguage defaults to en for DMs (null guildId)', async () => {
 
 test('getRewardString translates rewards and applies the template', async () => {
   const result = await languageManager.getRewardString('100 primogems', null);
-  assert.strictEqual(result, 'Reward:\n• Primogems ×100');
+  assert.strictEqual(result, 'Reward: Primogems ×100');
 });
 
 test('getRewardString uses a plain fallback when the template is missing', async () => {

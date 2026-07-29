@@ -10,7 +10,7 @@ const {
   translateRewardWithAi
 } = require('../utils/aiRewardTranslator');
 
-test('semicolon rewards become separate Discord-friendly lines', () => {
+test('semicolon rewards keep the compact Discord style', () => {
   const items = parseRewardItems(
     "Mora10000;adventurer's experience10;Mystic Enhancement Ore5"
   ).map(item => ({
@@ -20,9 +20,7 @@ test('semicolon rewards become separate Discord-friendly lines', () => {
 
   assert.strictEqual(
     formatRewardItems(items),
-    '• Mora ×10,000\n'
-      + '• EXP Nhà Mạo Hiểm ×10\n'
-      + '• Quặng Cường Hóa Thần Bí ×5'
+    'Mora ×10,000; EXP Nhà Mạo Hiểm ×10; Quặng Cường Hóa Thần Bí ×5'
   );
 });
 
@@ -72,11 +70,11 @@ test('AI translates only unknown item names and preserves quantities', async () 
   try {
     assert.strictEqual(
       await translateRewardWithAi('Mystery Token2', 'vi', httpClient),
-      '• Vé Bí Ẩn ×2'
+      'Vé Bí Ẩn ×2'
     );
     assert.strictEqual(
       await translateRewardWithAi('Mystery Token2', 'vi', httpClient),
-      '• Vé Bí Ẩn ×2'
+      'Vé Bí Ẩn ×2'
     );
     assert.strictEqual(requestCount, 1);
   } finally {
@@ -97,7 +95,7 @@ test('missing AI configuration keeps the dictionary fallback usable', async () =
   try {
     assert.strictEqual(
       await translateRewardWithAi('Unknown Material3', 'vi'),
-      '• Unknown Material ×3'
+      'Unknown Material ×3'
     );
   } finally {
     if (previousApiKey !== undefined) {

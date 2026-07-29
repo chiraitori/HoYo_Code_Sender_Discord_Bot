@@ -35,7 +35,7 @@ module.exports = {
         listcodes: {
             title: '{game}のアクティブコード',
             noCodes: '{game}のアクティブコードが見つかりません',
-            reward: '報酬:\n{reward}',
+            reward: '報酬: {reward}',
             status: 'ステータス: {status}',
             redeemButton: '受け取る',
             redeemHeader: '受け取り方法',

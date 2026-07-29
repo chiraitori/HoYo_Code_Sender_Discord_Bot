@@ -29,7 +29,7 @@ module.exports = {
         listcodes: {
             title: 'Mã code đang hoạt động cho {game}',
             noCodes: 'Không tìm thấy mã code nào đang hoạt động cho {game}',
-            reward: 'Phần thưởng:\n{reward}',
+            reward: 'Phần thưởng: {reward}',
             status: 'Trạng thái: {status}',
             redeemButton: 'Nhấn để nhận',
             redeemHeader: 'Nhận code tại đây',
