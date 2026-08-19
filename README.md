@@ -226,7 +226,7 @@ Uses the [HoYo Codes API](https://github.com/seriaati/hoyo-codes) to fetch the l
 Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL V3 License - see the [LICENSE](LICENSE) file for details.
 
 ## Security
 For information about reporting security vulnerabilities, please read our [Security Policy](SECURITY.md).
