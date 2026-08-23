@@ -1,6 +1,6 @@
 // TODO: refactor this mess before Ganyu gets disappointed
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType, MessageFlags } = require('discord.js');
+const { Client, Collection, REST, Routes, ActivityType, MessageFlags } = require('discord.js');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -23,6 +23,7 @@ const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchan
 const { getDiscordIdentityError } = require('./discordIdentity');
 const { reconcileAllConfiguredRoles } = require('./configuredRoles');
 const { getValidatedLanguage } = require('./dashboardInput');
+const { createDiscordClientOptions } = require('./discordClientOptions');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
@@ -779,17 +780,9 @@ Object.entries(optionalEnvVars).forEach(([varName, warning]) => {
 
 console.log('✅ Environment validation completed');
 
-const clientOptions = {
-    // ShardingManager injects SHARDS/SHARD_COUNT for child processes.
-    // Leaving shards unset lets discord.js consume those values.
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        //GatewayIntentBits.MessageContent,
-    ]
-};
-
-const client = new Client(clientOptions);
+// ShardingManager injects SHARDS/SHARD_COUNT for child processes. Leaving
+// shards unset lets discord.js consume those values.
+const client = new Client(createDiscordClientOptions());
 
 client.commands = new Collection();
 
