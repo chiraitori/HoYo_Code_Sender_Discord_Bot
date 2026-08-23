@@ -59,6 +59,31 @@ test('waits until ShardingManager finishes spawning', async () => {
   assert.deepStrictEqual([...guildIds], ['guild-a']);
 });
 
+test('waits when broadcast returns fewer clients than the configured shard count', async () => {
+  let attempts = 0;
+  const client = {
+    shard: {
+      count: 2,
+      broadcastEval: async callback => {
+        attempts += 1;
+        const clients = [
+          { guilds: { cache: new Map([['guild-a', {}]]) } },
+          { guilds: { cache: new Map([['guild-b', {}]]) } }
+        ];
+        return clients.slice(0, attempts).map(callback);
+      }
+    }
+  };
+
+  const guildIds = await getKnownGuildIds(client, {
+    maxAttempts: 2,
+    retryDelayMs: 0
+  });
+
+  assert.strictEqual(attempts, 2);
+  assert.deepStrictEqual([...guildIds].sort(), ['guild-a', 'guild-b']);
+});
+
 test('does not retry unrelated broadcast errors', async () => {
   let attempts = 0;
   const client = {
