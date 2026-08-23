@@ -24,6 +24,7 @@ const { getDiscordIdentityError } = require('./discordIdentity');
 const { reconcileAllConfiguredRoles } = require('./configuredRoles');
 const { getValidatedLanguage } = require('./dashboardInput');
 const { createDiscordClientOptions } = require('./discordClientOptions');
+const { createSelfMaintenance, shouldRunConfigRecovery } = require('./selfMaintenance');
 
 // Only shard 0 runs Express, cron jobs, and other singleton services.
 // When launched by ShardingManager, SHARDS env is set automatically.
@@ -35,6 +36,7 @@ const runsPrimaryServices = shardIds.includes(0);
 const app = express();
 const PORT = process.env.PORT || 3000;
 let httpServer = null;
+let selfMaintenance = null;
 
 // Trust proxy configuration for proper rate limiting behind reverse proxies
 // This allows express-rate-limit to correctly identify users via X-Forwarded-For headers
@@ -94,6 +96,23 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public'))); // Serve static files from project root
+
+// Public, non-sensitive endpoint for uptime monitors and load balancers.
+app.get('/health', (req, res) => {
+    const snapshot = selfMaintenance?.getSnapshot();
+    if (!snapshot) {
+        return res.status(503).json({
+            status: 'starting',
+            healthy: false,
+            version: process.env.VERSION || null
+        });
+    }
+
+    return res.status(snapshot.healthy ? 200 : 503).json({
+        ...snapshot,
+        version: process.env.VERSION || null
+    });
+});
 
 // Authentication middleware for protected bot API routes
 app.use('/api/bot', authMiddleware);
@@ -826,13 +845,20 @@ async function registerCommands() {
     }
 }
 
-// Connect to MongoDB and start bot
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
+// Connect to MongoDB and start bot. A failed initial connection exits this
+// shard so ShardingManager can respawn it instead of leaving a zombie process.
+async function connectServices() {
+    try {
+        await mongoose.connect(process.env.MONGODB_URI);
         console.log('Connected to MongoDB');
-        client.login(process.env.DISCORD_TOKEN);
-    })
-    .catch(err => console.error('MongoDB connection error:', err));
+        await client.login(process.env.DISCORD_TOKEN);
+    } catch (error) {
+        console.error('[Startup] MongoDB or Discord connection failed:', error);
+        await shutdown('STARTUP_CONNECTION_ERROR', 1);
+    }
+}
+
+void connectServices();
 
 client.once('clientReady', async () => {
     const wsShardIds = Array.from(client.ws.shards.keys());
@@ -844,6 +870,13 @@ client.once('clientReady', async () => {
         await shutdown('CONFIG_ERROR', 1);
         return;
     }
+
+    selfMaintenance = createSelfMaintenance({
+        client,
+        shardIds: wsShardIds,
+        getMongoReadyState: () => mongoose.connection.readyState,
+        onUnhealthy: () => shutdown('SELF_MAINTENANCE', 1)
+    });
 
     try {
         // Only register commands from one shard to avoid rate limits
@@ -881,10 +914,7 @@ client.once('clientReady', async () => {
             console.error('[Config Audit] Startup audit failed:', error.message);
         }
 
-        if (
-            configAudit?.missingConfigGuildIds?.length > 0
-            && process.env.CONFIG_AUTO_RECOVERY !== 'false'
-        ) {
+        if (shouldRunConfigRecovery(configAudit)) {
             try {
                 const recovery = await recoverMissingGuildConfigurations(
                     client,
@@ -936,27 +966,6 @@ client.once('clientReady', async () => {
         console.log(`[Shard ${wsShardIds.join(',')}] Running as worker (no singleton services)`);
     }
 });
-
-// Memory monitoring (optional)
-if (process.env.NODE_ENV === 'production') {
-    setInterval(() => {
-        const memUsage = process.memoryUsage();
-        const memUsageMB = {
-            rss: Math.round(memUsage.rss / 1024 / 1024 * 100) / 100,
-            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024 * 100) / 100,
-            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100
-        };
-
-        // Log memory usage every 30 minutes
-        console.log(`Memory usage: RSS: ${memUsageMB.rss}MB, Heap: ${memUsageMB.heapUsed}/${memUsageMB.heapTotal}MB`);
-
-        // Warn if memory usage is high
-        if (memUsageMB.heapUsed > 200) {
-            console.warn('High memory usage detected');
-        }
-    }, 30 * 60 * 1000); // Every 30 minutes
-}
-
 
 // Add event listeners for guild join/leave
 client.on('guildCreate', async (guild) => {
@@ -1023,10 +1032,12 @@ client.on('interactionCreate', async interaction => {
 // Error handling for uncaught exceptions
 process.on('uncaughtException', error => {
     console.error('Uncaught Exception:', error);
+    void shutdown('UNCAUGHT_EXCEPTION', 1);
 });
 
 process.on('unhandledRejection', error => {
     console.error('Unhandled Rejection:', error);
+    void shutdown('UNHANDLED_REJECTION', 1);
 });
 
 let shuttingDown = false;
@@ -1038,12 +1049,21 @@ async function shutdown(signal, exitCode = 0) {
     shuttingDown = true;
     console.log(`Received ${signal}; shutting down bot...`);
 
+    // Do not let a stuck HTTP socket or database disconnect prevent the shard
+    // manager from replacing an unhealthy process.
+    const forceExitTimer = setTimeout(() => process.exit(exitCode), 10_000);
+    forceExitTimer.unref();
+
+    selfMaintenance?.stop();
+
     if (httpServer) {
+        httpServer.closeIdleConnections?.();
         await new Promise(resolve => httpServer.close(resolve));
     }
 
     client.destroy();
     await mongoose.disconnect().catch(() => {});
+    clearTimeout(forceExitTimer);
     process.exit(exitCode);
 }
 

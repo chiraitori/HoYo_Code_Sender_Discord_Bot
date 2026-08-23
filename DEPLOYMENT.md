@@ -144,10 +144,15 @@ module.exports = {
 ## Monitoring
 
 ### Health Checks
-The bot provides basic health monitoring through:
-- Console logging of major events
-- Error tracking and recovery
-- MongoDB connection monitoring
+The bot exposes `GET /health` without authentication for uptime monitors. Each
+shard also runs a watchdog for Discord readiness, MongoDB connectivity, event
+loop lag, and memory usage. A persistently unhealthy shard exits so
+ShardingManager can replace it automatically.
+
+Configuration recovery is intentionally opt-in because it scans every guild.
+Set `CONFIG_AUTO_RECOVERY=true` only for a planned recovery run. Watchdog limits
+can be adjusted with `SELF_MAINTENANCE_*` environment variables; the defaults
+are suitable for normal production use.
 
 ### Recommended Monitoring Tools
 - **PM2 Monitoring**: Built-in process monitoring
