@@ -23,11 +23,30 @@ async function broadcastEvalWhenReady(
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
+            const expectedShardCount = Number(client.shard.count);
+
+            if (Number.isInteger(expectedShardCount) && expectedShardCount > 0) {
+                const readyStates = await client.shard.broadcastEval(
+                    shardClient => shardClient.isReady()
+                );
+
+                if (
+                    readyStates.length < expectedShardCount
+                    || readyStates.some(isReady => !isReady)
+                ) {
+                    const readyCount = readyStates.filter(Boolean).length;
+                    const error = new Error(
+                        `Only ${readyCount}/${expectedShardCount} shards are ready`
+                    );
+                    error.code = 'ShardingInProcess';
+                    throw error;
+                }
+            }
+
             const results = await client.shard.broadcastEval(
                 evaluator,
                 context === undefined ? undefined : { context }
             );
-            const expectedShardCount = Number(client.shard.count);
 
             if (
                 Number.isInteger(expectedShardCount)
