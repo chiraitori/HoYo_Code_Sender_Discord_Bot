@@ -36,11 +36,18 @@ test('falls back to the external code API when the bot is unreachable', async ()
   const calls = [];
   global.fetch = async url => {
     calls.push(url);
-    if (url.startsWith('https://bot.example')) throw new Error('Offline');
+    if (new URL(url).origin === 'https://bot.example') throw new Error('Offline');
     return Response.json({ codes: [{ code: 'ACTIVE', status: 'OK' }] });
   };
   assert.equal((await loadGameCodes('hsr'))[0].code, 'ACTIVE');
   assert.equal(calls[1], 'https://hoyo-codes.seria.moe/codes?game=hkrpg');
+  for (const url of [
+    'https://bot.example.evil.test/api/codes/hsr',
+    'https://bot.example@evil.test/api/codes/hsr',
+    'https://bot.example:8443/api/codes/hsr'
+  ]) {
+    assert.equal((await global.fetch(url)).ok, true, `Different origin: ${url}`);
+  }
 });
 
 test('a malformed or failed external response is not reported as an empty successful list', async () => {
