@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createBotApiUrl, createBotApiOptions } from '@/utils/botApiUrl';
+import { createBotApiUrl, createBotApiOptions, createBotApiResponse } from '@/utils/botApiUrl';
 
 export async function GET() {
   try {
@@ -17,7 +17,7 @@ export async function GET() {
 
     const data = await response.json();
     
-    return NextResponse.json(data);
+    return createBotApiResponse(data);
   } catch (error) {
     console.error('Error fetching bot commands:', error);
     return NextResponse.json(

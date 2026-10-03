@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createBotApiUrl, createBotApiOptions } from '@/utils/botApiUrl';
+import { createBotApiUrl, createBotApiOptions, createBotApiResponse } from '@/utils/botApiUrl';
+import { authorizeGuild } from '@/lib/discordAuth';
 
 export async function GET(
   request: NextRequest,
@@ -7,6 +8,8 @@ export async function GET(
 ) {
   try {
     const { guildId } = await params;
+    const denied = await authorizeGuild(request, guildId);
+    if (denied) return denied;
 
     // Fetch specific guild info from main bot API with authentication
     const guildResponse = await fetch(createBotApiUrl(`/api/bot/guild/${guildId}`), createBotApiOptions());
@@ -16,7 +19,7 @@ export async function GET(
     }
 
     const guild = await guildResponse.json();
-    return NextResponse.json(guild);
+    return createBotApiResponse(guild);
 
   } catch (error) {
     console.error('Error fetching guild info:', error);

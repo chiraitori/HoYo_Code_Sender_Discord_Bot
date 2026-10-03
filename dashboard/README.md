@@ -14,7 +14,7 @@ A modern Next.js dashboard for displaying HoYoverse game redemption codes, desig
 
 ## Tech Stack
 
-- **Framework**: Next.js 15.4.6 with App Router
+- **Framework**: Next.js 15 with App Router
 - **Styling**: Tailwind CSS v4
 - **Language**: TypeScript
 - **Deployment**: Optimized for Vercel
@@ -77,6 +77,14 @@ vercel
 ### Environment Variables
 
 No environment variables are required for basic functionality. The dashboard uses public APIs for fetching code data.
+
+For bot statistics and server management, configure the variables in `.env.example` on the dashboard server. `MAIN_BOT_API_URL`, `AUTH_BOT_SECRET`, and `DISCORD_CLIENT_SECRET` are private server settings. Never prefix them with `NEXT_PUBLIC_`, put them in `next.config.ts`'s `env` option, or expose them through client components. Browser requests must use the dashboard's same-origin `/api/...` routes. These proxies do not forward upstream headers or internal error messages.
+
+Discord login begins at `/auth/login` and requires the `/auth/callback` URL on `NEXT_PUBLIC_APP_URL` to be registered with Discord. Server configuration, reset, and test routes require a validated Discord session and guild management permissions.
+
+Hiding the bot address in the web is not a firewall. For a private deployment, restrict the bot API port to the dashboard host or a private network; do not publish its address in public DNS, repository files, or status pages. Keep `AUTH_BOT_SECRET` enabled on the bot even on a private network.
+
+Run `npm test`, `npm run lint`, and `npm run build` before deployment, then `npm run test:privacy` with the private environment variables set to check that browser artifacts contain none of those values. Security dependency checks for production use `npm audit --omit=dev`.
 
 ## Project Structure
 

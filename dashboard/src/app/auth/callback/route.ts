@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -15,6 +16,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/?error=no_code', request.url));
   }
 
+  const state = searchParams.get('state');
+  const expectedState = request.cookies.get('discord_oauth_state')?.value;
+  if (!state || !expectedState || !/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(expectedState)
+    || !timingSafeEqual(Buffer.from(state), Buffer.from(expectedState))) {
+    return NextResponse.redirect(new URL('/?error=invalid_oauth_state', request.url));
+  }
+
   try {
     // Exchange authorization code for access token
     const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -27,8 +35,9 @@ export async function GET(request: NextRequest) {
         client_secret: process.env.DISCORD_CLIENT_SECRET!,
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+        redirect_uri: new URL('/auth/callback', process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin).toString(),
       }),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!tokenResponse.ok) {
@@ -42,6 +51,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
       },
+      cache: 'no-store', signal: AbortSignal.timeout(10000),
     });
 
     if (!userResponse.ok) {
@@ -55,17 +65,21 @@ export async function GET(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
       },
+      cache: 'no-store', signal: AbortSignal.timeout(10000),
     });
 
     const guildsData = guildsResponse.ok ? await guildsResponse.json() : [];
 
     // Store authentication data and redirect directly to server management
     const response = NextResponse.redirect(new URL('/servers?auth=success', request.url));
+    response.cookies.delete('discord_oauth_state');
     
     // Set secure cookies with user data
     response.cookies.set('discord_access_token', tokenData.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
       maxAge: tokenData.expires_in,
     });
 
@@ -74,10 +88,11 @@ export async function GET(request: NextRequest) {
       username: userData.username,
       avatar: userData.avatar,
       guilds: guildsData.length,
-      access_token: tokenData.access_token, // Store access token for API calls
     }), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
       maxAge: tokenData.expires_in,
     });
 

@@ -1,25 +1,5 @@
 import { NextResponse } from 'next/server';
-
-type GameId = 'genshin' | 'hsr' | 'zzz';
-
-interface ExternalCode {
-  code: string;
-  isExpired?: boolean;
-  timestamp?: string;
-}
-
-interface GameCode {
-  code: string;
-  isExpired: boolean;
-  timestamp: string;
-}
-
-const games: GameId[] = ['genshin', 'hsr', 'zzz'];
-const gameMapping: Record<GameId, string> = {
-  genshin: 'genshin',
-  hsr: 'hkrpg',
-  zzz: 'nap'
-};
+import { games, loadGameCodes } from '@/lib/gameCodes';
 
 const CACHE_HEADERS = {
   'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
@@ -30,25 +10,7 @@ export async function GET() {
     // Fetch codes for all games in parallel
     const promises = games.map(async (game) => {
       try {
-        const apiGame = gameMapping[game];
-        const response = await fetch(`https://hoyo-codes.seria.moe/codes?game=${apiGame}`, {
-          next: { revalidate: 300 }, // Cache for 5 minutes
-          headers: {
-            'User-Agent': 'HoYo-Code-Sender-Dashboard/1.0'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ${game} codes`);
-        }
-
-        const data = await response.json() as { codes?: ExternalCode[] };
-        const generatedAt = new Date().toISOString();
-        const codes: GameCode[] = (data.codes || []).map(code => ({
-          code: code.code,
-          isExpired: code.isExpired ?? false,
-          timestamp: code.timestamp || generatedAt
-        }));
+        const codes = await loadGameCodes(game);
 
         return {
           game,
@@ -65,7 +27,7 @@ export async function GET() {
           total: 0,
           active: 0,
           expired: 0,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: 'Failed to fetch codes'
         };
       }
     });
@@ -94,7 +56,6 @@ export async function GET() {
     return NextResponse.json(
       {
         error: 'Failed to fetch codes',
-        message: error instanceof Error ? error.message : 'Unknown error',
         games: [],
         summary: { totalCodes: 0, totalActive: 0, totalExpired: 0 },
         lastUpdated: new Date().toISOString()

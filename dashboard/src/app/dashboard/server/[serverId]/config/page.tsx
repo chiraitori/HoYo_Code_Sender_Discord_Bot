@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import CustomSelect from '../../../../../components/CustomSelect';
+import ServerDataError from '@/components/ServerDataError';
 
 interface ServerConfig {
     guildId: string;
@@ -35,7 +36,6 @@ interface Guild {
 
 export default function ServerConfiguration() {
     const params = useParams();
-    const router = useRouter();
     const serverId = params.serverId as string;
 
     const [guild, setGuild] = useState<Guild | null>(null);
@@ -52,12 +52,13 @@ export default function ServerConfiguration() {
                     fetch(`/api/server/${serverId}/config`)
                 ]);
 
-                if (guildRes.ok) setGuild(await guildRes.json());
-                if (configRes.ok) setConfig(await configRes.json());
+                if (!guildRes.ok || !configRes.ok) throw new Error('Server data unavailable');
+                setGuild(await guildRes.json());
+                setConfig(await configRes.json());
 
             } catch (err) {
                 console.error('Error fetching server data:', err);
-                setError('Failed to load server data');
+                setError('Check your Discord session, server permissions, and bot availability.');
             } finally {
                 setLoading(false);
             }
@@ -108,12 +109,12 @@ export default function ServerConfiguration() {
                 body: JSON.stringify({ [roleField]: roleId }),
             });
 
-            if (response.ok) {
-                setConfig({ ...config!, [roleField]: roleId });
-                showToast('Role updated successfully');
-            }
+            if (!response.ok) throw new Error('Update rejected');
+            setConfig(await response.json());
+            showToast('Role updated successfully');
         } catch (error) {
             console.error(`Failed to update ${gameType} role:`, error);
+            showToast('Failed to update role');
         }
     };
 
@@ -126,12 +127,12 @@ export default function ServerConfiguration() {
                 body: JSON.stringify({ [field]: channelId }),
             });
 
-            if (response.ok) {
-                setConfig({ ...config!, [field]: channelId });
-                showToast(`${type === 'main' ? 'Main' : 'Livestream'} channel updated`);
-            }
+            if (!response.ok) throw new Error('Update rejected');
+            setConfig(await response.json());
+            showToast(`${type === 'main' ? 'Main' : 'Livestream'} channel updated`);
         } catch (error) {
             console.error('Failed to update notification channel:', error);
+            showToast('Failed to update notification channel');
         }
     };
 
@@ -145,6 +146,8 @@ export default function ServerConfiguration() {
             </div>
         );
     }
+
+    if (error) return <ServerDataError message={error} />;
 
     // Format channels for CustomSelect
     const channelOptions = guild?.channels?.map(c => ({ value: c.id, label: `#${c.name}` })) || [];

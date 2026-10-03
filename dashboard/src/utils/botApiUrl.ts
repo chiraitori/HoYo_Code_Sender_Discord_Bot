@@ -6,11 +6,10 @@ export function getBotApiUrl(): string {
   const apiUrl = process.env.MAIN_BOT_API_URL;
   
   if (!apiUrl) {
-    console.warn('MAIN_BOT_API_URL environment variable is not set, falling back to localhost:3000');
-    return 'http://localhost:3000';
+    throw new Error('Bot API is not configured');
   }
   
-  return apiUrl;
+  return apiUrl.replace(/\/+$/, '');
 }
 
 /**
@@ -52,10 +51,31 @@ export function createBotApiOptions(options: RequestInit = {}): RequestInit {
   const authHeaders = getBotApiHeaders();
   
   return {
+    ...(options.next ? {} : { cache: 'no-store' as const }),
+    signal: AbortSignal.timeout(15000),
     ...options,
     headers: {
       ...authHeaders,
       ...options.headers,
     },
   };
+}
+import 'server-only';
+import { NextResponse } from 'next/server';
+
+
+export function createBotApiResponse(data: unknown, init?: ResponseInit): NextResponse {
+  const privateValues = [process.env.MAIN_BOT_API_URL, process.env.AUTH_BOT_SECRET];
+  if (process.env.MAIN_BOT_API_URL) {
+    const url = new URL(process.env.MAIN_BOT_API_URL);
+    privateValues.push(url.origin, url.hostname);
+  }
+  // Upstream metadata must not reveal internal addresses or credentials.
+  const body = JSON.stringify(data, (_key, value: unknown) => {
+    if (typeof value !== 'string') return value;
+    return privateValues.some(secret => secret && value.includes(secret)) ? '[redacted]' : value;
+  });
+  const headers = new Headers(init?.headers);
+  headers.set('Content-Type', 'application/json');
+  return new NextResponse(body, { ...init, headers });
 }

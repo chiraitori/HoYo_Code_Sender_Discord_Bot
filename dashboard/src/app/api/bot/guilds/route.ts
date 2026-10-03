@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createBotApiUrl, createBotApiOptions } from '@/utils/botApiUrl';
+import { createBotApiUrl, createBotApiOptions, createBotApiResponse } from '@/utils/botApiUrl';
+import { getUserGuilds, canManageGuild } from '@/lib/discordAuth';
 
 // Discord API Guild interface
 interface DiscordGuild {
@@ -24,30 +25,8 @@ interface EnhancedGuild extends DiscordGuild {
 
 export async function GET(request: NextRequest) {
   try {
-    const userCookie = request.cookies.get('discord_user');
-    
-    if (!userCookie) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const userData = JSON.parse(userCookie.value);
-    
-    if (!userData.access_token) {
-      return NextResponse.json({ error: 'No access token available' }, { status: 401 });
-    }
-
-    // Fetch user's guilds from Discord API
-    const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
-      headers: {
-        'Authorization': `Bearer ${userData.access_token}`,
-      },
-    });
-
-    if (!guildsResponse.ok) {
-      throw new Error('Failed to fetch guilds from Discord');
-    }
-
-    const userGuilds = await guildsResponse.json();
+    const userGuilds = await getUserGuilds(request);
+    if (userGuilds instanceof NextResponse) return userGuilds;
     
     // Fetch bot guilds from our bot API
     let botGuilds = [];
@@ -62,17 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter user guilds where the user has management permissions
-    const managementGuilds = userGuilds.filter((guild: DiscordGuild) => {
-      const permissions = BigInt(guild.permissions);
-      const ADMINISTRATOR = BigInt(8); // 1 << 3
-      const MANAGE_GUILD = BigInt(32); // 1 << 5
-      const MANAGE_CHANNELS = BigInt(16); // 1 << 4
-      
-      return guild.owner || 
-             (permissions & ADMINISTRATOR) === ADMINISTRATOR || 
-             (permissions & MANAGE_GUILD) === MANAGE_GUILD || 
-             (permissions & MANAGE_CHANNELS) === MANAGE_CHANNELS;
-    });
+    const managementGuilds = userGuilds.filter(canManageGuild);
 
     // Combine data to show bot presence
     const enhancedGuilds = managementGuilds.map((guild: DiscordGuild): EnhancedGuild => {
@@ -84,7 +53,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    return createBotApiResponse({
       guilds: enhancedGuilds,
       total: enhancedGuilds.length,
     });

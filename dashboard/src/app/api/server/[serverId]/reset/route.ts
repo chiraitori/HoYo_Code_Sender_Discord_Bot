@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createBotApiUrl, createBotApiOptions } from '@/utils/botApiUrl';
+import { createBotApiUrl, createBotApiOptions, createBotApiResponse } from '@/utils/botApiUrl';
+import { authorizeGuild } from '@/lib/discordAuth';
 
 export async function POST(
   request: NextRequest,
@@ -8,6 +9,8 @@ export async function POST(
   try {
     const resolvedParams = await params;
     const { serverId } = resolvedParams;
+    const denied = await authorizeGuild(request, serverId);
+    if (denied) return denied;
 
     // Forward the request to the main bot API with authentication
     const response = await fetch(createBotApiUrl(`/api/server/${serverId}/reset`), createBotApiOptions({
@@ -22,7 +25,7 @@ export async function POST(
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return createBotApiResponse(data);
   } catch (error) {
     console.error('Failed to reset configuration:', error);
     return NextResponse.json(

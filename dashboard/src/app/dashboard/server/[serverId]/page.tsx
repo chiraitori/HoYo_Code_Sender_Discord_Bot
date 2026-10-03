@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { HOYO_GAME_ICONS } from '../../../../utils/discordGameIcons';
+import ServerDataError from '@/components/ServerDataError';
 
 interface Guild {
   id: string;
@@ -30,6 +31,7 @@ export default function ServerOverview() {
   const [guild, setGuild] = useState<Guild | null>(null);
   const [settings, setSettings] = useState<ServerSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,10 +41,12 @@ export default function ServerOverview() {
           fetch(`/api/server/${serverId}/settings`)
         ]);
 
-        if (guildRes.ok) setGuild(await guildRes.json());
-        if (settingsRes.ok) setSettings(await settingsRes.json());
+        if (!guildRes.ok || !settingsRes.ok) throw new Error('Server data unavailable');
+        setGuild(await guildRes.json());
+        setSettings(await settingsRes.json());
       } catch (error) {
         console.error("Failed to fetch overview data", error);
+        setError('Check your Discord session, server permissions, and bot availability.');
       } finally {
         setLoading(false);
       }
@@ -72,6 +76,9 @@ export default function ServerOverview() {
   };
 
   const activeGames = getActiveGames();
+
+  if (loading) return <p className="p-6 text-white/60">Loading server...</p>;
+  if (error) return <ServerDataError message={error} />;
 
   return (
     <div className="animate-fade-in space-y-8">

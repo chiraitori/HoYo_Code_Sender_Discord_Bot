@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@top-gg/sdk": "^3.1.6",
-    "axios": "1.18.1",
+    "axios": "1.20.0",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
     "discord.js": "14.27.0",
     "dotenv": "^16.4.5",
-    "express": "4.22.2",
+    "express": "4.22.3",
     "express-rate-limit": "^7.5.0",
     "mongoose": "8.24.1",
     "topgg-autoposter": "^2.0.2"
@@ -25,7 +25,7 @@
     "nodemon": "^3.1.14"
   },
   "overrides": {
-    "undici": "6.28.0"
+    "undici": "6.29.0"
   },
   "engines": {
     "node": ">=16.9.0"

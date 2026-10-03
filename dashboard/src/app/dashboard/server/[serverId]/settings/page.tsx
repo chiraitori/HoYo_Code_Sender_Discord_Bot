@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { HOYO_GAME_ICONS } from '../../../../../utils/discordGameIcons';
+import ServerDataError from '@/components/ServerDataError';
 
 interface ServerSettings {
     guildId: string;
@@ -25,13 +26,13 @@ interface Guild {
 
 export default function ServerSettingsPage() {
     const params = useParams();
-    const router = useRouter();
     const serverId = params.serverId as string;
 
     const [guild, setGuild] = useState<Guild | null>(null);
     const [settings, setSettings] = useState<ServerSettings | null>(null);
     const [language, setLanguage] = useState<string>('en');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
     useEffect(() => {
@@ -43,14 +44,14 @@ export default function ServerSettingsPage() {
                     fetch(`/api/server/${serverId}/language`)
                 ]);
 
-                if (guildRes.ok) setGuild(await guildRes.json());
-                if (settingsRes.ok) setSettings(await settingsRes.json());
-                if (langRes.ok) {
-                    const langData = await langRes.json();
-                    setLanguage(langData.language);
-                }
+                if (!guildRes.ok || !settingsRes.ok || !langRes.ok) throw new Error('Server data unavailable');
+                setGuild(await guildRes.json());
+                setSettings(await settingsRes.json());
+                const langData = await langRes.json();
+                setLanguage(langData.language);
             } catch (err) {
                 console.error('Error fetching settings:', err);
+                setError('Check your Discord session, server permissions, and bot availability.');
             } finally {
                 setLoading(false);
             }
@@ -81,12 +82,13 @@ export default function ServerSettingsPage() {
                 body: JSON.stringify({ language: newLang }),
             });
 
-            if (response.ok) {
-                setLanguage(newLang);
-                showToast(`Language set to ${newLang.toUpperCase()}`);
-            }
+            if (!response.ok) throw new Error('Update rejected');
+            const data = await response.json();
+            setLanguage(data.language);
+            showToast(`Language set to ${data.language.toUpperCase()}`);
         } catch (error) {
             console.error('Failed to update language:', error);
+            showToast('Failed to update language');
         }
     };
 
@@ -101,12 +103,12 @@ export default function ServerSettingsPage() {
                 body: JSON.stringify({ autoSendEnabled: newAutoSendState }),
             });
 
-            if (response.ok) {
-                setSettings({ ...settings, autoSendEnabled: newAutoSendState });
-                showToast(newAutoSendState ? 'Auto-send enabled!' : 'Auto-send disabled');
-            }
+            if (!response.ok) throw new Error('Update rejected');
+            setSettings(await response.json());
+            showToast(newAutoSendState ? 'Auto-send enabled!' : 'Auto-send disabled');
         } catch (error) {
             console.error('Failed to update auto-send setting:', error);
+            showToast('Failed to update auto-send setting');
         }
     };
 
@@ -126,15 +128,12 @@ export default function ServerSettingsPage() {
                 }),
             });
 
-            if (response.ok) {
-                setSettings({
-                    ...settings,
-                    favoriteGames: { ...settings.favoriteGames, enabled: newFavoriteGamesState }
-                });
-                showToast(newFavoriteGamesState ? 'Game filtering enabled' : 'Game filtering disabled');
-            }
+            if (!response.ok) throw new Error('Update rejected');
+            setSettings(await response.json());
+            showToast(newFavoriteGamesState ? 'Game filtering enabled' : 'Game filtering disabled');
         } catch (error) {
             console.error('Failed to update favorite games setting:', error);
+            showToast('Failed to update game filtering');
         }
     };
 
@@ -157,20 +156,11 @@ export default function ServerSettingsPage() {
                 }),
             });
 
-            if (response.ok) {
-                setSettings({
-                    ...settings,
-                    favoriteGames: {
-                        ...settings.favoriteGames,
-                        games: {
-                            ...settings.favoriteGames.games,
-                            [game]: newGameState
-                        }
-                    }
-                });
-            }
+            if (!response.ok) throw new Error('Update rejected');
+            setSettings(await response.json());
         } catch (error) {
             console.error(`Failed to update ${game} preference:`, error);
+            showToast('Failed to update game preference');
         }
     };
 
@@ -191,6 +181,7 @@ export default function ServerSettingsPage() {
             }
         } catch (error) {
             console.error('Failed to reset configuration:', error);
+            showToast('Failed to reset configuration');
         }
     };
 
@@ -204,6 +195,8 @@ export default function ServerSettingsPage() {
             </div>
         );
     }
+
+    if (error) return <ServerDataError message={error} />;
 
     return (
         <div className="animate-fade-in">

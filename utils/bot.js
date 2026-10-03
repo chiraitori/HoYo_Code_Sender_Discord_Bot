@@ -22,7 +22,10 @@ const { getShardIdsFromEnv } = require('./shards');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { getDiscordIdentityError } = require('./discordIdentity');
 const { reconcileAllConfiguredRoles } = require('./configuredRoles');
-const { getValidatedLanguage } = require('./dashboardInput');
+const {
+    getValidatedLanguage, getValidatedConfigPatch,
+    configPatchBelongsToGuild, getValidatedSettingsPatch
+} = require('./dashboardInput');
 const { createDiscordClientOptions } = require('./discordClientOptions');
 const { createSelfMaintenance, shouldRunConfigRecovery } = require('./selfMaintenance');
 
@@ -163,7 +166,7 @@ function serializeGuild(guild, includeDetails = false) {
             .sort((a, b) => b.position - a.position),
         channels: guild.channels.cache
             .filter(channel =>
-                channel.type === 0
+                (channel.type === 0 || channel.type === 5)
                 && guild.members.me
                 && channel.permissionsFor(guild.members.me)?.has('SendMessages')
             )
@@ -254,7 +257,7 @@ async function getGuildAcrossShards(guildId) {
                 .sort((a, b) => b.position - a.position),
             channels: guild.channels.cache
                 .filter(channel =>
-                    channel.type === 0
+                    (channel.type === 0 || channel.type === 5)
                     && guild.members.me
                     && channel.permissionsFor(guild.members.me)?.has('SendMessages')
                 )
@@ -497,7 +500,13 @@ app.put('/api/server/:serverId/config', async (req, res) => {
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
-        const updateData = req.body;
+        const updateData = getValidatedConfigPatch(req.body);
+        if (!updateData) return res.status(400).json({ error: 'Invalid channel or role configuration' });
+        const guild = await getGuildAcrossShards(serverId);
+        if (!guild) return res.status(404).json({ error: 'Server not found' });
+        if (!configPatchBelongsToGuild(updateData, guild)) {
+            return res.status(400).json({ error: 'Channel and roles must belong to this server' });
+        }
 
         const Config = require('../models/Config');
 
@@ -516,19 +525,19 @@ app.put('/api/server/:serverId/config', async (req, res) => {
         }
 
         // Update fields that are provided
-        if (updateData.hasOwnProperty('genshinRole')) {
+        if (Object.hasOwn(updateData, 'genshinRole')) {
             config.genshinRole = updateData.genshinRole;
         }
-        if (updateData.hasOwnProperty('hsrRole')) {
+        if (Object.hasOwn(updateData, 'hsrRole')) {
             config.hsrRole = updateData.hsrRole;
         }
-        if (updateData.hasOwnProperty('zzzRole')) {
+        if (Object.hasOwn(updateData, 'zzzRole')) {
             config.zzzRole = updateData.zzzRole;
         }
-        if (updateData.hasOwnProperty('channel')) {
+        if (Object.hasOwn(updateData, 'channel')) {
             config.channel = updateData.channel;
         }
-        if (updateData.hasOwnProperty('livestreamChannel')) {
+        if (Object.hasOwn(updateData, 'livestreamChannel')) {
             config.livestreamChannel = updateData.livestreamChannel;
         }
 
@@ -609,6 +618,8 @@ app.get('/api/server/:serverId/settings', async (req, res) => {
             return res.json({
                 guildId: serverId,
                 autoSendEnabled: true,
+                autoSendOptions: { channel: true, threads: true },
+                livestreamAnnouncementsEnabled: true,
                 favoriteGames: {
                     enabled: false,
                     games: {
@@ -623,6 +634,8 @@ app.get('/api/server/:serverId/settings', async (req, res) => {
         res.json({
             guildId: settings.guildId,
             autoSendEnabled: settings.autoSendEnabled,
+            autoSendOptions: settings.autoSendOptions,
+            livestreamAnnouncementsEnabled: settings.livestreamAnnouncementsEnabled,
             favoriteGames: settings.favoriteGames
         });
     } catch (error) {
@@ -638,7 +651,8 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
-        const updateData = req.body;
+        const updateData = getValidatedSettingsPatch(req.body);
+        if (!updateData) return res.status(400).json({ error: 'Settings must use boolean values' });
 
         const Settings = require('../models/Settings');
 
@@ -649,25 +663,15 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
             settings = new Settings({ guildId: serverId });
         }
 
-        // Update fields that are provided
-        if (updateData.hasOwnProperty('autoSendEnabled')) {
-            settings.autoSendEnabled = updateData.autoSendEnabled;
-        }
-
-        if (updateData.favoriteGames) {
-            if (updateData.favoriteGames.hasOwnProperty('enabled')) {
-                settings.favoriteGames.enabled = updateData.favoriteGames.enabled;
-            }
-            if (updateData.favoriteGames.games) {
-                Object.assign(settings.favoriteGames.games, updateData.favoriteGames.games);
-            }
-        }
+        for (const [field, value] of Object.entries(updateData)) settings.set(field, value);
 
         await settings.save();
 
         res.json({
             guildId: settings.guildId,
             autoSendEnabled: settings.autoSendEnabled,
+            autoSendOptions: settings.autoSendOptions,
+            livestreamAnnouncementsEnabled: settings.livestreamAnnouncementsEnabled,
             favoriteGames: settings.favoriteGames
         });
     } catch (error) {

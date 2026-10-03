@@ -10,7 +10,9 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  { ignores: ['.next/**', 'tests/**', 'next-env.d.ts'] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  { files: ['*.js', '*.cjs'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",

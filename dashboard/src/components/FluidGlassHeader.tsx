@@ -38,11 +38,7 @@ export default function FluidGlassHeader() {
   };
 
   const handleLogin = () => {
-    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
-    const redirectUri = encodeURIComponent(window.location.origin + '/auth/callback');
-    const scope = encodeURIComponent('identify guilds');
-    const discordOAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
-    window.location.href = discordOAuthUrl;
+    window.location.href = '/auth/login';
   };
 
   const handleLogout = async () => {

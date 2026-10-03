@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createBotApiUrl, createBotApiOptions } from '@/utils/botApiUrl';
+import { createBotApiUrl, createBotApiOptions, createBotApiResponse } from '@/utils/botApiUrl';
+import { authorizeGuild } from '@/lib/discordAuth';
 
 export async function GET(
     request: NextRequest,
@@ -7,6 +8,8 @@ export async function GET(
 ) {
     try {
         const { serverId } = await params;
+        const denied = await authorizeGuild(request, serverId);
+        if (denied) return denied;
 
         // Fetch server language from main bot API with authentication
         const response = await fetch(createBotApiUrl(`/api/server/${serverId}/language`), createBotApiOptions());
@@ -16,7 +19,7 @@ export async function GET(
         }
 
         const data = await response.json();
-        return NextResponse.json(data);
+        return createBotApiResponse(data);
 
     } catch (error) {
         console.error('Error fetching server language:', error);
@@ -31,6 +34,8 @@ export async function PUT(
     try {
         const resolvedParams = await params;
         const { serverId } = resolvedParams;
+        const denied = await authorizeGuild(request, serverId);
+        if (denied) return denied;
         const body = await request.json();
 
         // Forward the request to the main bot API with authentication
@@ -47,7 +52,7 @@ export async function PUT(
         }
 
         const data = await response.json();
-        return NextResponse.json(data);
+        return createBotApiResponse(data);
     } catch (error) {
         console.error('Failed to update server language:', error);
         return NextResponse.json(
