@@ -11,7 +11,7 @@ on:
 
 jobs:
   security-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     permissions:
       contents: read
@@ -19,15 +19,18 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: '24.x'
     
     - name: Install dependencies
       run: npm install
+
+    - name: Install dashboard dependencies
+      run: npm ci --prefix dashboard
     
     - name: Run npm audit
       run: npm audit --audit-level moderate
@@ -36,33 +39,37 @@ jobs:
     - name: Run npm audit (JSON output)
       run: npm audit --json > audit-results.json
       continue-on-error: true
+
+    - name: Run dashboard production audit
+      run: npm audit --prefix dashboard --omit=dev --json > dashboard-audit-results.json
+      continue-on-error: true
     
     - name: Upload audit results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: security-audit-results
-        path: audit-results.json
+        path: |
+          audit-results.json
+          dashboard-audit-results.json
         retention-days: 30
     
     - name: Check for high/critical vulnerabilities
       run: |
-        HIGH_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.high // 0')
-        CRITICAL_VULNS=$(npm audit --json | jq '.metadata.vulnerabilities.critical // 0')
-        
-        echo "High severity vulnerabilities: $HIGH_VULNS"
-        echo "Critical severity vulnerabilities: $CRITICAL_VULNS"
-        
-        if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
-          echo "❌ High or critical vulnerabilities found!"
-          echo "::error::Security audit failed due to high/critical vulnerabilities"
-          exit 1
-        else
-          echo "✅ No high or critical vulnerabilities found"
-        fi
+        for REPORT in audit-results.json dashboard-audit-results.json; do
+          jq -e '.metadata.vulnerabilities | (.high | type == "number") and (.critical | type == "number")' "$REPORT" > /dev/null
+          HIGH_VULNS=$(jq '.metadata.vulnerabilities.high' "$REPORT")
+          CRITICAL_VULNS=$(jq '.metadata.vulnerabilities.critical' "$REPORT")
+          echo "$REPORT: high=$HIGH_VULNS critical=$CRITICAL_VULNS"
+
+          if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
+            echo "::error::Security audit failed due to high/critical vulnerabilities in $REPORT"
+            exit 1
+          fi
+        done
     
     - name: Comment PR with audit results (if PR)
       if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const fs = require('fs');
