@@ -50,6 +50,15 @@ const livestreamTrackingSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    codeMessages: {
+        type: Map,
+        of: new mongoose.Schema({
+            channelId: String,
+            messageId: String,
+            summarySignature: String
+        }, { _id: false }),
+        default: () => new Map()
+    },
     codes: [{
         code: String,
         title: String,

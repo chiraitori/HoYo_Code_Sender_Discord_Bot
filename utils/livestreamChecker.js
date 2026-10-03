@@ -2,11 +2,12 @@ const { EmbedBuilder } = require('discord.js');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const Code = require('../models/Code');
 const { getState, fetchLivestreamCodes, parseAndSaveCodes, getStateName } = require('./hoyolabAPI');
-const { distributeIfReady } = require('./livestreamDistribution');
+const { distributeIfReady, summarizeIfReady } = require('./livestreamDistribution');
 const { sendAnnouncement, wasAnnouncementSentForBot } = require('./livestreamAnnouncement');
 const {
     getDistributionWindowSeconds,
-    isTrackingPastDistributionWindow
+    isTrackingPastDistributionWindow,
+    getActiveLivestreamCodes
 } = require('./livestreamWindow');
 
 /**
@@ -126,7 +127,7 @@ async function checkGame(client, game) {
 
     // Continue polling after a delivered code so later codes can be discovered.
     const withinSearchWindow = tracking.streamTime >= currentTime - maxSearchAge;
-    if (state === 4 || (state === 3 && withinSearchWindow)) {
+    if ((state === 4 || state === 5 || state === 3) && withinSearchWindow) {
         const response = await fetchLivestreamCodes(game);
 
         if (response) {
@@ -139,7 +140,7 @@ async function checkGame(client, game) {
                 // Save codes to database for distribution
                 const updatedTracking = await LivestreamTracking.findOne({ game, version });
                 if (updatedTracking && updatedTracking.codes) {
-                    const distributionCodes = updatedTracking.codes.filter(codeData => codeData.code);
+                    const distributionCodes = getActiveLivestreamCodes(updatedTracking.codes, currentTime);
 
                     if (distributionCodes.length === 0) {
                         return;
@@ -162,14 +163,12 @@ async function checkGame(client, game) {
                             upsert: true
                         }
                     })));
-
-                    // Send each newly discovered code immediately.
-                    console.log(`[Livestream Checker] 🚀 Triggering auto-distribution for ${game}...`);
-                    await distributeIfReady(client, game, version, distributionCodes);
                 }
             }
         }
-    } else if (state === 5) {
+    }
+    // Retry pending targets even when the API is empty or temporarily unavailable.
+    if (await getState(game, version, botId) === 5) {
         console.log(`[Livestream Checker] ${game} codes found but not distributed; triggering distribution...`);
         await distributeIfReady(client, game, version);
     }
@@ -177,6 +176,12 @@ async function checkGame(client, game) {
     // Update tracking message
     const latestState = await getState(game, version, botId);
     const latestTracking = await LivestreamTracking.findOne({ game, version });
+    if (latestTracking) {
+        const summaryTracking = typeof latestTracking.toObject === 'function'
+            ? latestTracking.toObject()
+            : latestTracking;
+        await summarizeIfReady(client, summaryTracking);
+    }
     await updateTrackingMessage(client, game, latestState, latestTracking || tracking);
 }
 
@@ -257,7 +262,7 @@ async function updateTrackingMessage(client, game, state, tracking) {
         }
 
         // Add codes if found
-        if (state === 5 && tracking.codes && tracking.codes.length > 0) {
+        if ((state === 5 || state === 3) && tracking.codes && tracking.codes.length > 0) {
             const codeList = tracking.codes.map(c => `\`${c.code}\``).join('\n');
             embed.addFields({
                 name: `✅ Codes Found (${tracking.codes.length})`,

@@ -4,7 +4,7 @@ const Settings = require('../models/Settings');
 const Code = require('../models/Code');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { getState } = require('./hoyolabAPI');
-const { sendChannelMessage } = require('./discordMessageSender');
+const { sendChannelMessage, editChannelMessage } = require('./discordMessageSender');
 const { getKnownGuildIds } = require('./clusterGuilds');
 const { shouldSendGameNotifications } = require('./notificationPreferences');
 const { getRoleMention } = require('./roleMention');
@@ -12,6 +12,7 @@ const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
 const languageManager = require('./language');
+const { getSummarySignature, isReadyForLivestreamSummary } = require('./livestreamSummaryState');
 const {
     isTrackingPastDistributionWindow,
     getActiveLivestreamCodes
@@ -296,11 +297,28 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     const batchSize = 25;
     for (let index = 0; index < pendingDeliveries.length; index += batchSize) {
         const batchDeliveries = pendingDeliveries.slice(index, index + batchSize);
-        const batchResults = await Promise.allSettled(batchDeliveries.map(delivery => (
-            delivery.target.type === 'channel'
-                ? sendToChannel(client, delivery.target.config, game, delivery.embed)
-                : sendToThread(client, delivery.target.config, game, delivery.embed)
-        )));
+        const batchResults = await Promise.allSettled(batchDeliveries.map(async delivery => {
+            const send = delivery.target.type === 'channel' ? sendToChannel : sendToThread;
+            const messageId = await send(client, delivery.target.config, game, delivery.embed, {
+                returnMessageId: true
+            });
+            if (!messageId) return false;
+
+            const channelId = delivery.target.id.split(':').at(-1);
+            try {
+                await LivestreamTracking.updateOne(
+                    { game, version: trackingVersion },
+                    { $set: { [`codeMessages.${delivery.target.id}`]: {
+                        channelId,
+                        messageId,
+                        summarySignature: getSummarySignature(delivery.codes)
+                    } } }
+                );
+            } catch (error) {
+                console.error(`[Auto-Distribution] Could not record message ${messageId}:`, error.message);
+            }
+            return true;
+        }));
         results.push(...batchResults);
 
         const successfulBatchCodeTargetIds = batchResults.flatMap((result, resultIndex) => (
@@ -450,7 +468,7 @@ async function fetchEventsBanner(accountId, game) {
  * @param {string} game - Game identifier
  * @param {EmbedBuilder} embed - Pre-built livestream code embed
  */
-async function sendToChannel(client, config, game, embed) {
+async function sendToChannel(client, config, game, embed, options = {}) {
     // Use livestreamChannel if configured, otherwise fall back to regular channel
     const channelId = config.livestreamChannel || config.channel;
 
@@ -469,12 +487,11 @@ async function sendToChannel(client, config, game, embed) {
     const roleId = config[roleField];
     const roleMention = getRoleMention(roleId);
 
-    await sendChannelMessage(client, channelId, {
+    return sendChannelMessage(client, channelId, {
         content: `${roleMention.content}${roleMention.content ? ' ' : ''}${GAME_EMOJIS[game]} **New ${GAME_NAMES[game]} Livestream Codes!**`,
         embeds: [embed],
         allowedMentions: roleMention.allowedMentions
-    });
-    return true;
+    }, options);
 }
 
 /**
@@ -484,7 +501,7 @@ async function sendToChannel(client, config, game, embed) {
  * @param {string} game - Game identifier
  * @param {EmbedBuilder} embed - Pre-built livestream code embed
  */
-async function sendToThread(client, config, game, embed) {
+async function sendToThread(client, config, game, embed, options = {}) {
     const threadMapping = {
         'genshin': config.forumThreads?.genshin,
         'hkrpg': config.forumThreads?.hsr,
@@ -507,12 +524,56 @@ async function sendToThread(client, config, game, embed) {
     const roleId = config[roleField];
     const roleMention = getRoleMention(roleId);
 
-    await sendChannelMessage(client, threadId, {
+    return sendChannelMessage(client, threadId, {
         content: `${roleMention.content}${roleMention.content ? ' ' : ''}${GAME_EMOJIS[game]} **New ${GAME_NAMES[game]} Livestream Codes!**`,
         embeds: [embed],
         allowedMentions: roleMention.allowedMentions
-    });
-    return true;
+    }, options);
+}
+
+async function summarizeIfReady(client, tracking) {
+    if (!client.user?.id || !isReadyForLivestreamSummary(tracking)) return;
+    const messages = tracking.codeMessages instanceof Map
+        ? tracking.codeMessages
+        : new Map(Object.entries(tracking.codeMessages || {}));
+    if (messages.size === 0) return;
+
+    const [configs, settings, knownGuildIds] = await Promise.all([
+        Config.find({}).sort({ _id: 1 }).lean(),
+        Settings.find({}).sort({ _id: 1 }).lean(),
+        getKnownGuildIds(client)
+    ]);
+    const targets = getDeliveryTargets(configs, settings, tracking.game, client.user.id, knownGuildIds);
+    const codes = getActiveLivestreamCodes(tracking.codes);
+    const signature = getSummarySignature(codes);
+    const delivered = new Set(tracking.distributedCodeTargets || []);
+    const embeds = new Map();
+
+    for (const target of targets) {
+        const message = messages.get(target.id);
+        if (!message?.messageId || message.summarySignature === signature
+            || !codes.every(code => delivered.has(getCodeDeliveryId(target.id, code)))) {
+            continue;
+        }
+        try {
+            const guildId = target.config.guildId;
+            const language = await languageManager.getGuildLanguage(guildId);
+            if (!embeds.has(language)) {
+                embeds.set(language, await buildCodesEmbed(tracking.game, { ...tracking, codes }, guildId, {
+                    fetchEventsBanner: async () => null
+                }));
+            }
+            await editChannelMessage(client, message.channelId, message.messageId, {
+                embeds: [embeds.get(language)]
+            });
+            await LivestreamTracking.updateOne(
+                { game: tracking.game, version: tracking.version },
+                { $set: { [`codeMessages.${target.id}.summarySignature`]: signature } }
+            );
+        } catch (error) {
+            console.error(`[Livestream Summary] Failed to update ${target.id}:`, error.message);
+        }
+    }
 }
 
 /**
@@ -641,6 +702,7 @@ async function buildCodesEmbed(game, tracking, guildId = null, options = {}) {
 module.exports = {
     checkAndDistribute,
     distributeIfReady,
+    summarizeIfReady,
     buildCodesEmbed,
     getDeliveryTargets,
     getPendingDeliveryTargets,

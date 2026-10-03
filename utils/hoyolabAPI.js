@@ -171,6 +171,21 @@ async function parseAndSaveCodes(responseData, game, version) {
     }
 
     const existing = await LivestreamTracking.findOne({ game, version });
+    // Keep codes already seen during this program even if the API stops listing them.
+    const mergedCodes = new Map((existing?.codes || []).map(codeData => [
+        codeData.code,
+        typeof codeData.toObject === 'function' ? codeData.toObject() : codeData
+    ]));
+    for (const codeData of codes) {
+        const previous = mergedCodes.get(codeData.code);
+        mergedCodes.set(codeData.code, {
+            ...previous,
+            ...codeData,
+            title: codeData.title || previous?.title || '',
+            expireAt: codeData.expireAt || previous?.expireAt || 0,
+            discoveredAt: previous?.discoveredAt || codeData.discoveredAt
+        });
+    }
     const existingCodes = (existing?.codes || [])
         .map(codeData => codeData.code)
         .filter(Boolean)
@@ -191,7 +206,7 @@ async function parseAndSaveCodes(responseData, game, version) {
     // from being replayed when the API reveals codes one at a time.
     const update = {
         $set: {
-            codes,
+            codes: [...mergedCodes.values()],
             lastChecked: new Date(),
             found: true
         }

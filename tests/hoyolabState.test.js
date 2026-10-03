@@ -260,3 +260,16 @@ test('repeated complete livestream responses preserve delivery progress', async 
   assert.strictEqual(savedUpdate.update.$set.distributedBots, undefined);
   assert.strictEqual(savedUpdate.update.$set.distributedTargets, undefined);
 });
+
+test('later HoYoLAB responses retain earlier live codes and their discovery time', async () => {
+  trackingDocument = {
+    found: true,
+    codes: [{ code: 'LIVE1', title: 'first reward', expireAt: 9999999999, discoveredAt: 100 }]
+  };
+  await parseAndSaveCodes({ data: { modules: [{ exchange_group: {
+    bonuses: [{ exchange_code: 'LIVE2', icon_bonuses: [] }]
+  } }] } }, 'genshin', '7.0');
+  assert.deepStrictEqual(savedUpdate.update.$set.codes.map(c => c.code), ['LIVE1', 'LIVE2']);
+  assert.strictEqual(savedUpdate.update.$set.codes[0].discoveredAt, 100);
+  assert.strictEqual(savedUpdate.update.$set.codes[0].title, 'first reward');
+});

@@ -17,6 +17,7 @@ A Discord bot that automatically fetches and sends redemption codes for HoYovers
 
 - **Web Dashboard**: Intuitive web interface for easy configuration and management.
 - **Automatic Code Detection**: Checks for new redemption codes every 5 minutes.
+- **Livestream Code Summary**: Sends each new HoYoLAB livestream code immediately, then updates the latest code message with the full set when all codes are available or the stream ends. ZZZ currently expects one livestream code; Genshin and HSR expect three. Summaries do not send a new message or ping roles again.
 - **Forum Thread Support**: Configure dedicated permanent threads for each game in forum channels.
 - **Flexible Code Delivery**: Send codes to main channel, forum threads, or both.
 - **Manual Code Listing**: Use `/listcodes` command to view all active codes for a specific game.

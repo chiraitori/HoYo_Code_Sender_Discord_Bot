@@ -20,11 +20,11 @@ function serializeMessagePayload(payload) {
     };
 }
 
-async function sendChannelMessage(client, channelId, payload) {
+async function sendChannelMessage(client, channelId, payload, options = {}) {
     const cachedChannel = client.channels.cache.get(channelId);
     if (cachedChannel && typeof cachedChannel.send === 'function') {
-        await cachedChannel.send(payload);
-        return true;
+        const message = await cachedChannel.send(payload);
+        return options.returnMessageId ? message.id : true;
     }
 
     if (client.shard?.broadcastEval) {
@@ -45,8 +45,8 @@ async function sendChannelMessage(client, channelId, payload) {
                 }
 
                 try {
-                    await channel.send(context.payload);
-                    return { handled: true, sent: true };
+                    const message = await channel.send(context.payload);
+                    return { handled: true, sent: true, messageId: message?.id };
                 } catch (error) {
                     return {
                         handled: true,
@@ -66,7 +66,7 @@ async function sendChannelMessage(client, channelId, payload) {
 
         const owningShardResult = shardResults.find(result => result?.handled);
         if (owningShardResult?.sent) {
-            return true;
+            return options.returnMessageId ? owningShardResult.messageId : true;
         }
         if (owningShardResult) {
             const error = new Error(
@@ -79,11 +79,21 @@ async function sendChannelMessage(client, channelId, payload) {
         }
     }
 
-    await client.rest.post(Routes.channelMessages(channelId), {
+    const message = await client.rest.post(Routes.channelMessages(channelId), {
         body: {
             content: serializeMessagePayload(payload).content,
             embeds: serializeMessagePayload(payload).embeds,
             allowed_mentions: serializeAllowedMentions(payload.allowedMentions)
+        }
+    });
+    return options.returnMessageId ? message.id : true;
+}
+
+async function editChannelMessage(client, channelId, messageId, payload) {
+    await client.rest.patch(Routes.channelMessage(channelId, messageId), {
+        body: {
+            embeds: serializeMessagePayload(payload).embeds,
+            allowed_mentions: { parse: [], roles: [], users: [], replied_user: false }
         }
     });
     return true;
@@ -91,5 +101,6 @@ async function sendChannelMessage(client, channelId, payload) {
 
 module.exports = {
     sendChannelMessage,
+    editChannelMessage,
     serializeMessagePayload
 };
