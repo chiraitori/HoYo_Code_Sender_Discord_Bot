@@ -2,6 +2,10 @@ const { isTrackingPastDistributionWindow, getActiveLivestreamCodes } = require('
 
 const EXPECTED_LIVE_CODES = { genshin: 3, hkrpg: 3, nap: 1 };
 
+function getExpectedLivestreamCodeCount(game) {
+    return EXPECTED_LIVE_CODES[game] || 3;
+}
+
 function getSummarySignature(codes) {
     return JSON.stringify((codes || []).map(({ code, title, expireAt }) => ({
         code,
@@ -17,11 +21,16 @@ function isReadyForLivestreamSummary(tracking, now = Math.floor(Date.now() / 100
     }
     const codes = getActiveLivestreamCodes(tracking.codes, now);
     if (codes.length === 0) return false;
-    if (codes.length >= EXPECTED_LIVE_CODES[tracking.game]) return true;
+    if (codes.length >= getExpectedLivestreamCodeCount(tracking.game)) return true;
 
     const statuses = [tracking.youtubeStatus, ...(tracking.youtubeStreams || []).map(s => s.status)];
     if (statuses.includes('live') || statuses.includes('upcoming')) return false;
     return statuses.includes('completed') || now - tracking.streamTime >= 2 * 60 * 60;
 }
 
-module.exports = { EXPECTED_LIVE_CODES, getSummarySignature, isReadyForLivestreamSummary };
+module.exports = {
+    EXPECTED_LIVE_CODES,
+    getExpectedLivestreamCodeCount,
+    getSummarySignature,
+    isReadyForLivestreamSummary
+};

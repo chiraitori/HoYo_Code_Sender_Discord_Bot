@@ -3,6 +3,10 @@ const LivestreamTracking = require('../models/LivestreamTracking');
 const { parseIconBonuses } = require('./rewardIconParser');
 const { getLegacyCodeDeliveryIds } = require('./livestreamDeliveryState');
 const { isTrackingPastDistributionWindow } = require('./livestreamWindow');
+const {
+    EXPECTED_LIVE_CODES,
+    getExpectedLivestreamCodeCount
+} = require('./livestreamSummaryState');
 
 /**
  * Hoyolab API Client for Livestream Codes
@@ -61,7 +65,8 @@ async function getState(game, version, botId = null) {
     }
 
     // CHECK 4: Already distributed?
-    const hasCodes = tracking.codes?.length > 0;
+    const expectedCount = getExpectedLivestreamCodeCount(game);
+    const hasCodes = (tracking.codes?.length || 0) >= expectedCount;
     const distributedForBot = botId
         ? tracking.distributedBots?.includes(botId)
         : tracking.distributed;
@@ -69,7 +74,7 @@ async function getState(game, version, botId = null) {
         return 3; // Distributed
     }
 
-    // CHECK 5: Found at least one code that still needs delivery?
+    // CHECK 5: Found all expected codes for this game?
     if (tracking.found && hasCodes) {
         return 5; // Found
     }
@@ -133,10 +138,19 @@ async function parseAndSaveCodes(responseData, game, version) {
 
     // STEP 1: Parse codes from ALL modules with exchange_group (improved logic)
     const codes = [];
+    let expectedCount = getExpectedLivestreamCodeCount(game);
+
     for (const module of modules) {
         // Check if module has exchange_group with bonuses
         if (module.exchange_group && module.exchange_group.bonuses) {
             const bonuses = module.exchange_group.bonuses;
+
+            if (module.exchange_group.bonuses_summary?.code_count) {
+                expectedCount = Math.max(
+                    expectedCount,
+                    module.exchange_group.bonuses_summary.code_count
+                );
+            }
 
             console.log(`[Hoyolab API] Module type ${module.module_type || 'unknown'}: ${bonuses.length} bonuses`);
 
@@ -186,11 +200,20 @@ async function parseAndSaveCodes(responseData, game, version) {
             discoveredAt: previous?.discoveredAt || codeData.discoveredAt
         });
     }
+    const mergedCodeList = [...mergedCodes.values()];
+    const allCodesFound = mergedCodeList.length >= expectedCount;
+    if (!allCodesFound) {
+        console.log(
+            `[Hoyolab API] Waiting for livestream set: ${mergedCodeList.length}/${expectedCount} `
+            + `codes for ${game} v${version}`
+        );
+    }
+
     const existingCodes = (existing?.codes || [])
         .map(codeData => codeData.code)
         .filter(Boolean)
         .sort();
-    const incomingCodes = codes.map(codeData => codeData.code).sort();
+    const incomingCodes = mergedCodeList.map(codeData => codeData.code).sort();
     const existingCodeSet = new Set(existingCodes);
     const newlyDiscoveredCodes = incomingCodes.filter(code => !existingCodeSet.has(code));
 
@@ -201,17 +224,16 @@ async function parseAndSaveCodes(responseData, game, version) {
         existing?.codes
     ).filter(deliveryId => !existingCodeDeliveryIdSet.has(deliveryId));
 
-    // STEP 2: Save every active code immediately. Existing target-level progress is
-    // migrated to per-code progress before adding new codes, preventing old codes
-    // from being replayed when the API reveals codes one at a time.
+    // STEP 2: Save active codes and mark found only once the expected livestream
+    // code count for the game is reached (3 for Genshin/HSR, 1 for ZZZ).
     const update = {
         $set: {
-            codes: [...mergedCodes.values()],
+            codes: mergedCodeList,
             lastChecked: new Date(),
-            found: true
+            found: allCodesFound
         }
     };
-    if (newlyDiscoveredCodes.length > 0 || !existing?.found) {
+    if (allCodesFound && (newlyDiscoveredCodes.length > 0 || !existing?.found)) {
         update.$set.distributed = false;
         update.$set.distributedBots = [];
     }
@@ -227,7 +249,7 @@ async function parseAndSaveCodes(responseData, game, version) {
         { upsert: true, new: true }
     );
 
-    return true;
+    return allCodesFound;
 }
 
 /**
@@ -244,5 +266,7 @@ module.exports = {
     fetchLivestreamCodes,
     parseAndSaveCodes,
     getStateName,
-    STATE_NAMES
+    STATE_NAMES,
+    EXPECTED_LIVE_CODES,
+    getExpectedLivestreamCodeCount
 };

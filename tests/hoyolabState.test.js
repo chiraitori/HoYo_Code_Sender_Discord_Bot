@@ -263,13 +263,74 @@ test('repeated complete livestream responses preserve delivery progress', async 
 
 test('later HoYoLAB responses retain earlier live codes and their discovery time', async () => {
   trackingDocument = {
-    found: true,
+    found: false,
     codes: [{ code: 'LIVE1', title: 'first reward', expireAt: 9999999999, discoveredAt: 100 }]
   };
-  await parseAndSaveCodes({ data: { modules: [{ exchange_group: {
+  const found = await parseAndSaveCodes({ data: { modules: [{ exchange_group: {
     bonuses: [{ exchange_code: 'LIVE2', icon_bonuses: [] }]
   } }] } }, 'genshin', '7.0');
+  assert.strictEqual(found, false);
+  assert.strictEqual(savedUpdate.update.$set.found, false);
   assert.deepStrictEqual(savedUpdate.update.$set.codes.map(c => c.code), ['LIVE1', 'LIVE2']);
   assert.strictEqual(savedUpdate.update.$set.codes[0].discoveredAt, 100);
   assert.strictEqual(savedUpdate.update.$set.codes[0].title, 'first reward');
+});
+
+test('Genshin and HSR wait for 3 livestream codes before entering Found state', async () => {
+  for (const game of ['genshin', 'hkrpg']) {
+    trackingDocument = {
+      game,
+      version: '7.0',
+      streamTime: Math.floor(Date.now() / 1000) - 60,
+      disabled: false,
+      found: true,
+      distributed: false,
+      codes: [{ code: 'LIVE1' }, { code: 'LIVE2' }]
+    };
+    assert.strictEqual(await getState(game, '7.0', 'production-bot'), 4);
+
+    trackingDocument.codes.push({ code: 'LIVE3' });
+    assert.strictEqual(await getState(game, '7.0', 'production-bot'), 5);
+  }
+});
+
+test('parseAndSaveCodes waits for 3 codes for Genshin and HSR before marking found', async () => {
+  for (const game of ['genshin', 'hkrpg']) {
+    trackingDocument = null;
+    const first = await parseAndSaveCodes({
+      data: {
+        modules: [{
+          exchange_group: {
+            bonuses_summary: { code_count: 1 },
+            bonuses: [{ exchange_code: 'LIVE1', icon_bonuses: [] }]
+          }
+        }]
+      }
+    }, game, '7.0');
+    assert.strictEqual(first, false);
+    assert.strictEqual(savedUpdate.update.$set.found, false);
+
+    trackingDocument = {
+      game,
+      version: '7.0',
+      found: false,
+      codes: savedUpdate.update.$set.codes
+    };
+    const second = await parseAndSaveCodes({
+      data: {
+        modules: [{
+          exchange_group: {
+            bonuses: [
+              { exchange_code: 'LIVE1', icon_bonuses: [] },
+              { exchange_code: 'LIVE2', icon_bonuses: [] },
+              { exchange_code: 'LIVE3', icon_bonuses: [] }
+            ]
+          }
+        }]
+      }
+    }, game, '7.0');
+    assert.strictEqual(second, true);
+    assert.strictEqual(savedUpdate.update.$set.found, true);
+    assert.strictEqual(savedUpdate.update.$set.distributed, false);
+  }
 });

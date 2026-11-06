@@ -12,7 +12,11 @@ const { reconcileConfiguredRoles } = require('./configuredRoles');
 const { getLatestGuildRecords, countDuplicateGuildRecords } = require('./guildRecords');
 const { GAME_EMOJIS, formatGameTitle } = require('./gameEmojis');
 const languageManager = require('./language');
-const { getSummarySignature, isReadyForLivestreamSummary } = require('./livestreamSummaryState');
+const {
+    getExpectedLivestreamCodeCount,
+    getSummarySignature,
+    isReadyForLivestreamSummary
+} = require('./livestreamSummaryState');
 const {
     isTrackingPastDistributionWindow,
     getActiveLivestreamCodes
@@ -20,7 +24,6 @@ const {
 const {
     getCodeDeliveryId,
     getLegacyCodeDeliveryIds,
-    getSharedCodeDeliveryIds,
     getPendingCodeDeliveries,
     getCodeDeliveryProgress
 } = require('./livestreamDeliveryState');
@@ -182,21 +185,32 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     const baseDistributionData = typeof tracking.toObject === 'function'
         ? tracking.toObject()
         : tracking;
+    const rawCodes = codes || baseDistributionData.codes || [];
     const distributionCodes = getActiveLivestreamCodes(
-        codes || baseDistributionData.codes,
+        rawCodes,
         nowSeconds
     );
     if (distributionCodes.length === 0) {
-        await LivestreamTracking.updateOne(
-            { game, version: trackingVersion },
-            {
-                $set: { distributed: true },
-                $addToSet: { distributedBots: botId }
-            }
-        );
+        if (rawCodes.length > 0) {
+            await LivestreamTracking.updateOne(
+                { game, version: trackingVersion },
+                {
+                    $set: { distributed: true },
+                    $addToSet: { distributedBots: botId }
+                }
+            );
+            console.log(
+                `[Auto-Distribution] Skipping ${game} ${trackingVersion}; `
+                + 'all livestream codes are expired'
+            );
+        }
+        return;
+    }
+    const expectedCount = getExpectedLivestreamCodeCount(game);
+    if (distributionCodes.length < expectedCount) {
         console.log(
-            `[Auto-Distribution] Skipping ${game} ${trackingVersion}; `
-            + 'all livestream codes are expired'
+            `[Auto-Distribution] Waiting for complete livestream set for ${game} ${trackingVersion}: `
+            + `${distributionCodes.length}/${expectedCount} active codes`
         );
         return;
     }
@@ -236,36 +250,37 @@ async function distributeIfReady(client, game, version = null, codes = null) {
         return;
     }
 
-    const regularCodeRows = await Code.find({
-        game,
-        code: { $in: distributionCodes.map(codeData => codeData.code) }
-    }).lean();
+    // Do not treat regular Code pool notifications as livestream deliveries:
+    // livestream codes are also stored in the Code pool, and must still be
+    // distributed in full by the livestream pipeline.
     const storedCodeDeliveryIds = tracking.distributedCodeTargets || [];
     const legacyCodeDeliveryIds = storedCodeDeliveryIds.length === 0
         ? getLegacyCodeDeliveryIds(tracking.distributedTargets, distributionCodes)
         : [];
-    const sharedCodeDeliveryIds = getSharedCodeDeliveryIds(targets, regularCodeRows);
     const deliveredCodeTargetIds = new Set([
         ...storedCodeDeliveryIds,
-        ...legacyCodeDeliveryIds,
-        ...sharedCodeDeliveryIds
+        ...legacyCodeDeliveryIds
     ]);
-    const synchronizedCodeDeliveryIds = [...new Set([
-        ...legacyCodeDeliveryIds,
-        ...sharedCodeDeliveryIds
-    ])];
-    if (synchronizedCodeDeliveryIds.length > 0) {
+    if (legacyCodeDeliveryIds.length > 0) {
         await LivestreamTracking.updateOne(
             { game, version: trackingVersion },
-            { $addToSet: { distributedCodeTargets: { $each: synchronizedCodeDeliveryIds } } }
+            { $addToSet: { distributedCodeTargets: { $each: legacyCodeDeliveryIds } } }
         );
     }
 
+    const existingMessages = tracking.codeMessages instanceof Map
+        ? tracking.codeMessages
+        : new Map(Object.entries(tracking.codeMessages || {}));
+    const legacyTargets = new Set(tracking.distributedTargets || []);
     const pendingDeliveries = getPendingCodeDeliveries(
         targets,
         distributionCodes,
         deliveredCodeTargetIds
-    );
+    ).map(delivery => (
+        existingMessages.get(delivery.target.id)?.messageId || legacyTargets.has(delivery.target.id)
+            ? delivery
+            : { ...delivery, codes: distributionCodes }
+    ));
     if (pendingDeliveries.length === 0) {
         await LivestreamTracking.findOneAndUpdate(
             { game, version: trackingVersion },
