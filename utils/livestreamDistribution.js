@@ -668,9 +668,10 @@ async function buildCodesEmbed(game, tracking, guildId = null, options = {}) {
                 { number: i + 1 }
             );
 
+            const directRedeemUrl = `${REDEEM_URLS[game]}?code=${codeData.code}`;
             embed.addFields({
                 name: codeFieldName,
-                value: `\`${codeData.code}\`${rewardText}\n**${expiresLabel}:** ${expireText}`,
+                value: `\`${codeData.code}\`\n[${redeemText}](${directRedeemUrl})${rewardText}\n**${expiresLabel}:** ${expireText}`,
                 inline: false
             });
         }

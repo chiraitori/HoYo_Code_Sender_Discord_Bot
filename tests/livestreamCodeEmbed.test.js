@@ -19,6 +19,10 @@ test('livestream rewards use vertical fields and the centralized footer', async 
   assert.strictEqual(data.fields[0].inline, false);
   assert.match(
     data.fields[0].value,
+    /\[Click to Redeem\]\(https:\/\/zenless\.hoyoverse\.com\/redemption\?code=ZZZTEST\)/
+  );
+  assert.match(
+    data.fields[0].value,
     /Reward: Denny ×30,000; Senior Investigator Log ×2/
   );
   assert.strictEqual(
