@@ -35,7 +35,10 @@ const { getDiscordIdentityError } = require('./discordIdentity');
 const { reconcileAllConfiguredRoles } = require('./configuredRoles');
 const {
     getValidatedLanguage, getValidatedConfigPatch,
-    configPatchBelongsToGuild, getValidatedSettingsPatch
+    configPatchBelongsToGuild,
+    getValidatedSettingsPatch,
+    getValidatedTestPayload,
+    getValidatedPostCodePayload
 } = require('./dashboardInput');
 const { createDiscordClientOptions } = require('./discordClientOptions');
 const { createSelfMaintenance, shouldRunConfigRecovery } = require('./selfMaintenance');
@@ -104,6 +107,7 @@ app.use('/api', edgeSecretMiddleware);
 
 // Public code feed rate limiting
 app.use('/api/codes', publicLimiter);
+app.use('/api/livestreams', publicLimiter);
 
 // Authentication + actor-keyed rate limiting for protected dashboard -> bot API routes
 app.use('/api/bot', authMiddleware, dashboardApiLimiter);
@@ -162,7 +166,8 @@ function serializeGuild(guild, includeDetails = false) {
                 id: channel.id,
                 name: channel.name,
                 type: channel.type,
-                position: channel.position
+                position: channel.position,
+                canEmbed: Boolean(guild.members.me && channel.permissionsFor(guild.members.me)?.has('EmbedLinks'))
             }))
             .sort((a, b) => a.position - b.position),
         threads: guild.channels.cache
@@ -269,7 +274,8 @@ async function getGuildAcrossShards(guildId) {
                     id: channel.id,
                     name: channel.name,
                     type: channel.type,
-                    position: channel.position
+                    position: channel.position,
+                    canEmbed: Boolean(guild.members.me && channel.permissionsFor(guild.members.me)?.has('EmbedLinks'))
                 }))
                 .sort((a, b) => a.position - b.position),
             threads: guild.channels.cache
@@ -401,6 +407,48 @@ app.get('/api/codes/zzz', async (req, res) => {
     } catch (error) {
         console.error('Error fetching ZZZ codes:', error);
         res.status(500).json({ error: 'Failed to fetch codes' });
+    }
+});
+
+// Public livestream tracker endpoint
+app.get('/api/livestreams', async (req, res) => {
+    try {
+        const LivestreamTracking = require('../models/LivestreamTracking');
+        const dbToGame = { genshin: 'genshin', hkrpg: 'hsr', nap: 'zzz' };
+        const latestDocs = await Promise.all(
+            Object.entries(dbToGame).map(async ([dbGame, game]) => {
+                const doc = await LivestreamTracking.findOne({ game: dbGame })
+                    .sort({ updatedAt: -1, createdAt: -1, _id: -1 })
+                    .lean();
+                if (!doc) {
+                    return {
+                        game,
+                        version: null,
+                        streamTime: 0,
+                        disabled: false,
+                        found: false,
+                        distributed: false,
+                        source: null,
+                        codeCount: 0
+                    };
+                }
+                return {
+                    game,
+                    version: doc.version || null,
+                    streamTime: Number(doc.streamTime || 0),
+                    disabled: Boolean(doc.disabled),
+                    found: Boolean(doc.found),
+                    distributed: Boolean(doc.distributed),
+                    source: doc.source || null,
+                    codeCount: Array.isArray(doc.codes) ? doc.codes.length : 0
+                };
+            })
+        );
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+        res.json({ livestreams: latestDocs, fetchedAt: new Date().toISOString() });
+    } catch (error) {
+        console.error('Error fetching livestream status:', error);
+        res.status(500).json({ error: 'Failed to fetch livestream status' });
     }
 });
 
@@ -553,6 +601,11 @@ function serializeServerSettings(serverId, settings) {
                     hkrpg: true,
                     nap: true
                 }
+            },
+            channelStatus: {
+                isInvalid: false,
+                lastError: null,
+                lastChecked: null
             }
         };
     }
@@ -561,7 +614,14 @@ function serializeServerSettings(serverId, settings) {
         autoSendEnabled: settings.autoSendEnabled,
         autoSendOptions: settings.autoSendOptions,
         livestreamAnnouncementsEnabled: settings.livestreamAnnouncementsEnabled,
-        favoriteGames: settings.favoriteGames
+        favoriteGames: settings.favoriteGames,
+        channelStatus: {
+            isInvalid: Boolean(settings.channelStatus?.isInvalid),
+            lastError: settings.channelStatus?.lastError || null,
+            lastChecked: settings.channelStatus?.lastChecked
+                ? new Date(settings.channelStatus.lastChecked).toISOString()
+                : null
+        }
     };
 }
 
@@ -907,12 +967,43 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
     }
 });
 
+const DASHBOARD_GAME_META = {
+    genshin: {
+        name: 'Genshin Impact',
+        color: '#8B5CF6',
+        roleField: 'genshinRole',
+        redeemBase: 'https://genshin.hoyoverse.com/en/gift?code=',
+        sampleCode: 'GENSHINDEMO123',
+        sampleRewards: 'Primogems ×60, Mora ×10000'
+    },
+    hsr: {
+        name: 'Honkai: Star Rail',
+        color: '#3B82F6',
+        roleField: 'hsrRole',
+        redeemBase: 'https://hsr.hoyoverse.com/gift?code=',
+        sampleCode: 'HSRDEMO123',
+        sampleRewards: 'Stellar Jade ×60, Credits ×10000'
+    },
+    zzz: {
+        name: 'Zenless Zone Zero',
+        color: '#FF5D1F',
+        roleField: 'zzzRole',
+        redeemBase: 'https://zenless.hoyoverse.com/redemption?code=',
+        sampleCode: 'ZZZDEMO123',
+        sampleRewards: 'Polychrome ×60, Denny ×10000'
+    }
+};
+
 // Test notification endpoint (rate-limited per server)
 app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res) => {
     try {
         const serverId = getValidatedGuildId(req.params.serverId);
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
+        }
+        const testPayload = getValidatedTestPayload(req.body);
+        if (!testPayload) {
+            return res.status(400).json({ error: 'Invalid test game selection' });
         }
 
         const Config = require('../models/Config');
@@ -933,6 +1024,31 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
         }
 
         const { EmbedBuilder } = require('discord.js');
+        if (testPayload.game) {
+            const meta = DASHBOARD_GAME_META[testPayload.game];
+            const roleId = config[meta.roleField] || null;
+            const roleValid = Boolean(roleId && guild.roles.some(role => role.id === roleId));
+            const embed = new EmbedBuilder()
+                .setColor(meta.color)
+                .setTitle(`🧪 ${meta.name} Demo Alert`)
+                .setDescription(`**${meta.sampleCode}** — ${meta.sampleRewards}\n[Redeem on HoYoLAB](${meta.redeemBase}${meta.sampleCode})`)
+                .addFields(
+                    { name: 'Channel', value: `<#${config.channel}>`, inline: true },
+                    { name: 'Mode', value: 'Dashboard test delivery', inline: true }
+                )
+                .setFooter({ text: 'Demo notification — sample code only' })
+                .setTimestamp();
+
+            await sendChannelMessage(client, config.channel, {
+                content: roleValid ? `<@&${roleId}>` : undefined,
+                embeds: [embed],
+                allowedMentions: { parse: [], roles: roleValid ? [roleId] : [] }
+            });
+
+            logDashboardAudit(req, 'server.test.demo', { serverId, channelId: config.channel, game: testPayload.game });
+            return res.json({ success: true, message: `Sent ${meta.name} demo alert to #${channel.name}.` });
+        }
+
         const embed = new EmbedBuilder()
             .setColor('#FFD700')
             .setTitle('🧪 Test Notification')
@@ -947,10 +1063,195 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
         await sendChannelMessage(client, config.channel, { embeds: [embed] });
 
         logDashboardAudit(req, 'server.test.sent', { serverId, channelId: config.channel });
-        res.json({ success: true, message: 'Test notification sent successfully!' });
+        res.json({ success: true, message: `Test notification sent to #${channel.name}!` });
     } catch (error) {
         console.error('Error sending test notification:', error);
         res.status(500).json({ error: 'Failed to send test notification' });
+    }
+});
+
+// Live channel & permission verification endpoint
+app.post('/api/server/:serverId/check-channels', async (req, res) => {
+    try {
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
+
+        const Config = require('../models/Config');
+        const Settings = require('../models/Settings');
+        const [guild, config] = await Promise.all([
+            getGuildAcrossShards(serverId),
+            Config.findOne({ guildId: serverId }).sort({ _id: -1 })
+        ]);
+        if (!guild) {
+            return res.status(404).json({ error: 'Server not found' });
+        }
+
+        const targets = [];
+        const checkTarget = (label, id, isThread = false) => {
+            if (!id) {
+                targets.push({ label, id: null, name: null, status: 'unset', canEmbed: null });
+                return;
+            }
+            if (isThread) {
+                const thread = guild.threads.find(item => item.id === id);
+                targets.push(thread
+                    ? { label, id, name: thread.name, status: 'ok', canEmbed: true }
+                    : { label, id, name: null, status: 'missing', canEmbed: false });
+                return;
+            }
+            const ch = guild.channels.find(item => item.id === id);
+            if (!ch) {
+                targets.push({ label, id, name: null, status: 'missing', canEmbed: false });
+                return;
+            }
+            targets.push({
+                label,
+                id,
+                name: ch.name,
+                status: ch.canEmbed === false ? 'missing_embed' : 'ok',
+                canEmbed: ch.canEmbed !== false
+            });
+        };
+
+        checkTarget('Main channel', config?.channel || null, false);
+        if (config?.livestreamChannel) {
+            checkTarget('Livestream channel', config.livestreamChannel, false);
+        }
+        for (const game of ['zzz', 'genshin', 'hsr']) {
+            if (config?.forumThreads?.[game]) {
+                checkTarget(`${DASHBOARD_GAME_META[game].name} thread`, config.forumThreads[game], true);
+            }
+        }
+
+        const mainTarget = targets[0];
+        const valid = Boolean(config?.channel && mainTarget?.status === 'ok');
+        const lastError = !config?.channel
+            ? 'No notification channel configured'
+            : mainTarget?.status === 'missing'
+                ? 'Configured channel not found or missing Send Messages permission'
+                : mainTarget?.status === 'missing_embed'
+                    ? 'Missing Embed Links permission in main channel'
+                    : null;
+        const checkedAt = new Date();
+
+        await Settings.findOneAndUpdate(
+            { guildId: serverId },
+            {
+                'channelStatus.isInvalid': !valid,
+                'channelStatus.lastError': lastError,
+                'channelStatus.lastChecked': checkedAt
+            },
+            { upsert: true, sort: { _id: -1 } }
+        );
+
+        logDashboardAudit(req, 'server.channels.checked', { serverId, valid });
+        return res.json({
+            valid,
+            error: lastError,
+            checkedAt: checkedAt.toISOString(),
+            targets
+        });
+    } catch (error) {
+        console.error('Error checking server channels:', error);
+        return res.status(500).json({ error: 'Failed to check channel permissions' });
+    }
+});
+
+// Manual code broadcast endpoint (dashboard equivalent of /postcode, rate-limited per server)
+app.post('/api/server/:serverId/post-code', testNotificationLimiter, async (req, res) => {
+    try {
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
+        const payload = getValidatedPostCodePayload(req.body);
+        if (!payload) {
+            return res.status(400).json({ error: 'Provide a valid game and 1-3 alphanumeric codes.' });
+        }
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
+
+        const Config = require('../models/Config');
+        const Settings = require('../models/Settings');
+        const [guild, config, settings] = await Promise.all([
+            getGuildAcrossShards(serverId),
+            Config.findOne({ guildId: serverId }).sort({ _id: -1 }),
+            Settings.findOne({ guildId: serverId }).sort({ _id: -1 })
+        ]);
+        if (!guild) {
+            return res.status(404).json({ error: 'Server not found' });
+        }
+
+        const meta = DASHBOARD_GAME_META[payload.game];
+        const threadId = config?.forumThreads?.[payload.game] || null;
+        const threadObj = threadId ? guild.threads.find(item => item.id === threadId) : null;
+        const liveObj = config?.livestreamChannel ? guild.channels.find(item => item.id === config.livestreamChannel) : null;
+        const mainObj = config?.channel ? guild.channels.find(item => item.id === config.channel) : null;
+
+        let chosenTarget = null;
+        if (payload.target === 'thread') chosenTarget = threadObj;
+        else if (payload.target === 'livestream') chosenTarget = liveObj || mainObj;
+        else if (payload.target === 'channel') chosenTarget = mainObj;
+        else chosenTarget = (settings?.autoSendOptions?.threads !== false && threadObj) ? threadObj : mainObj;
+
+        if (!chosenTarget) {
+            return res.status(400).json({ error: 'No valid configured channel or thread found for this destination.' });
+        }
+
+        const languageManager = require('./language');
+        const embedTitle = await languageManager.getString('commands.postcode.embedTitle', serverId, { game: meta.name })
+            || `${meta.name} Redemption Codes`;
+        const redeemLabel = await languageManager.getString('commands.postcode.postcodeButton', serverId)
+            || 'Redeem on HoYoLAB';
+        const messageLabel = await languageManager.getString('commands.postcode.messageLabel', serverId)
+            || 'Note';
+
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder()
+            .setColor(meta.color)
+            .setTitle(embedTitle)
+            .setDescription(
+                payload.codes
+                    .map(code => `**${code}**\n[${redeemLabel}](${meta.redeemBase}${code})`)
+                    .join('\n\n')
+            )
+            .setTimestamp();
+
+        if (payload.message) {
+            embed.addFields({ name: messageLabel, value: payload.message });
+        }
+
+        const roleId = payload.mentionRole ? (config?.[meta.roleField] || null) : null;
+        const roleValid = Boolean(roleId && guild.roles.some(role => role.id === roleId));
+
+        await sendChannelMessage(client, chosenTarget.id, {
+            content: roleValid ? `<@&${roleId}>` : undefined,
+            embeds: [embed],
+            allowedMentions: { parse: [], roles: roleValid ? [roleId] : [] }
+        });
+
+        logDashboardAudit(req, 'server.postcode.sent', {
+            serverId,
+            game: payload.game,
+            targetId: chosenTarget.id,
+            codeCount: payload.codes.length
+        });
+
+        return res.json({
+            success: true,
+            message: `Posted ${payload.codes.length} ${meta.name} code${payload.codes.length > 1 ? 's' : ''} to #${chosenTarget.name}.`,
+            targetId: chosenTarget.id,
+            targetName: chosenTarget.name
+        });
+    } catch (error) {
+        console.error('Error posting manual code from dashboard:', error);
+        return res.status(500).json({ error: 'Failed to post codes to Discord.' });
     }
 });
 

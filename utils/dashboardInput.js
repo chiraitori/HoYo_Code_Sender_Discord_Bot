@@ -94,9 +94,65 @@ function getValidatedSettingsPatch(body) {
     return patch;
 }
 
+function getValidatedTestPayload(body) {
+    if (body === undefined || body === null) return { game: null };
+    if (!isRecord(body)) return null;
+    if (!Object.hasOwn(body, 'game') || body.game === null || body.game === '') {
+        return { game: null };
+    }
+    if (body.game === 'genshin' || body.game === 'hsr' || body.game === 'zzz') {
+        return { game: body.game };
+    }
+    return null;
+}
+
+function getValidatedPostCodePayload(body) {
+    if (!isRecord(body)) return null;
+    const game = body.game;
+    if (game !== 'genshin' && game !== 'hsr' && game !== 'zzz') return null;
+
+    if (!Array.isArray(body.codes) || body.codes.length === 0 || body.codes.length > 3) {
+        return null;
+    }
+
+    const codes = [];
+    for (const rawCode of body.codes) {
+        if (typeof rawCode !== 'string') return null;
+        const normalized = rawCode.trim().toUpperCase();
+        if (!/^[A-Z0-9_-]{3,32}$/.test(normalized)) return null;
+        if (!codes.includes(normalized)) codes.push(normalized);
+    }
+    if (codes.length === 0) return null;
+
+    let message = '';
+    if (Object.hasOwn(body, 'message') && body.message !== null && body.message !== undefined) {
+        if (typeof body.message !== 'string') return null;
+        message = body.message.trim();
+        if (message.length > 500) return null;
+    }
+
+    let mentionRole = true;
+    if (Object.hasOwn(body, 'mentionRole') && body.mentionRole !== undefined) {
+        if (typeof body.mentionRole !== 'boolean') return null;
+        mentionRole = body.mentionRole;
+    }
+
+    let target = 'auto';
+    if (Object.hasOwn(body, 'target') && body.target !== undefined && body.target !== null && body.target !== '') {
+        if (body.target !== 'auto' && body.target !== 'channel' && body.target !== 'livestream' && body.target !== 'thread') {
+            return null;
+        }
+        target = body.target;
+    }
+
+    return { game, codes, message, mentionRole, target };
+}
+
 module.exports = {
     getValidatedLanguage,
     getValidatedConfigPatch,
     configPatchBelongsToGuild,
-    getValidatedSettingsPatch
+    getValidatedSettingsPatch,
+    getValidatedTestPayload,
+    getValidatedPostCodePayload
 };
