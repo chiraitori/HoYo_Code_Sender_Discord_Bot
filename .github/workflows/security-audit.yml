@@ -28,9 +28,6 @@ jobs:
     
     - name: Install dependencies
       run: npm install
-
-    - name: Install dashboard dependencies
-      run: npm ci --prefix dashboard
     
     - name: Run npm audit
       run: npm audit --audit-level moderate
@@ -39,33 +36,25 @@ jobs:
     - name: Run npm audit (JSON output)
       run: npm audit --json > audit-results.json
       continue-on-error: true
-
-    - name: Run dashboard production audit
-      run: npm audit --prefix dashboard --omit=dev --json > dashboard-audit-results.json
-      continue-on-error: true
     
     - name: Upload audit results
       uses: actions/upload-artifact@v7
       with:
         name: security-audit-results
-        path: |
-          audit-results.json
-          dashboard-audit-results.json
+        path: audit-results.json
         retention-days: 30
     
     - name: Check for high/critical vulnerabilities
       run: |
-        for REPORT in audit-results.json dashboard-audit-results.json; do
-          jq -e '.metadata.vulnerabilities | (.high | type == "number") and (.critical | type == "number")' "$REPORT" > /dev/null
-          HIGH_VULNS=$(jq '.metadata.vulnerabilities.high' "$REPORT")
-          CRITICAL_VULNS=$(jq '.metadata.vulnerabilities.critical' "$REPORT")
-          echo "$REPORT: high=$HIGH_VULNS critical=$CRITICAL_VULNS"
+        jq -e '.metadata.vulnerabilities | (.high | type == "number") and (.critical | type == "number")' audit-results.json > /dev/null
+        HIGH_VULNS=$(jq '.metadata.vulnerabilities.high' audit-results.json)
+        CRITICAL_VULNS=$(jq '.metadata.vulnerabilities.critical' audit-results.json)
+        echo "audit-results.json: high=$HIGH_VULNS critical=$CRITICAL_VULNS"
 
-          if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
-            echo "::error::Security audit failed due to high/critical vulnerabilities in $REPORT"
-            exit 1
-          fi
-        done
+        if [ "$HIGH_VULNS" -gt 0 ] || [ "$CRITICAL_VULNS" -gt 0 ]; then
+          echo "::error::Security audit failed due to high/critical vulnerabilities in audit-results.json"
+          exit 1
+        fi
     
     - name: Comment PR with audit results (if PR)
       if: github.event_name == 'pull_request'

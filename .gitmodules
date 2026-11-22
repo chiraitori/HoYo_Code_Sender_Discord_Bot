@@ -1,0 +1,3 @@
+[submodule "dashboard"]
+	path = dashboard
+	url = https://github.com/chiraitori/Hoyo-code-sender-dashboard.git
