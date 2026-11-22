@@ -980,27 +980,27 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
 const DASHBOARD_GAME_META = {
     genshin: {
         name: 'Genshin Impact',
+        apiKey: 'genshin',
+        apiUrl: 'https://hoyo-codes.seria.moe/codes?game=genshin',
         color: '#8B5CF6',
         roleField: 'genshinRole',
-        redeemBase: 'https://genshin.hoyoverse.com/en/gift?code=',
-        sampleCode: 'GENSHINDEMO123',
-        sampleRewards: 'Primogems ×60, Mora ×10000'
+        redeemBase: 'https://genshin.hoyoverse.com/en/gift?code='
     },
     hsr: {
         name: 'Honkai: Star Rail',
+        apiKey: 'hkrpg',
+        apiUrl: 'https://hoyo-codes.seria.moe/codes?game=hkrpg',
         color: '#3B82F6',
         roleField: 'hsrRole',
-        redeemBase: 'https://hsr.hoyoverse.com/gift?code=',
-        sampleCode: 'HSRDEMO123',
-        sampleRewards: 'Stellar Jade ×60, Credits ×10000'
+        redeemBase: 'https://hsr.hoyoverse.com/gift?code='
     },
     zzz: {
         name: 'Zenless Zone Zero',
+        apiKey: 'nap',
+        apiUrl: 'https://hoyo-codes.seria.moe/codes?game=nap',
         color: '#FF5D1F',
         roleField: 'zzzRole',
-        redeemBase: 'https://zenless.hoyoverse.com/redemption?code=',
-        sampleCode: 'ZZZDEMO123',
-        sampleRewards: 'Polychrome ×60, Denny ×10000'
+        redeemBase: 'https://zenless.hoyoverse.com/redemption?code='
     }
 };
 
@@ -1038,15 +1038,24 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
             const meta = DASHBOARD_GAME_META[testPayload.game];
             const roleId = config[meta.roleField] || null;
             const roleValid = Boolean(roleId && guild.roles.some(role => role.id === roleId));
+            const feed = await getCachedApiData(meta.apiKey, meta.apiUrl).catch(() => null);
+            const liveList = Array.isArray(feed?.codes) ? feed.codes : [];
+            const liveCode = liveList.find(c => !c.isExpired && c.code) || liveList[0] || null;
+
+            if (!liveCode) {
+                return res.status(404).json({ error: `No active ${meta.name} codes available right now to test delivery.` });
+            }
+
+            const rewardsText = liveCode.rewards ? String(liveCode.rewards).replace(/;/g, ' · ') : 'In-game rewards';
             const embed = new EmbedBuilder()
                 .setColor(meta.color)
-                .setTitle(`🧪 ${meta.name} Demo Alert`)
-                .setDescription(`**${meta.sampleCode}** — ${meta.sampleRewards}\n[Redeem on HoYoLAB](${meta.redeemBase}${meta.sampleCode})`)
+                .setTitle(`🧪 ${meta.name} Test Alert`)
+                .setDescription(`**${liveCode.code}** — ${rewardsText}\n[Redeem on HoYoLAB](${meta.redeemBase}${encodeURIComponent(liveCode.code)})`)
                 .addFields(
                     { name: 'Channel', value: `<#${config.channel}>`, inline: true },
-                    { name: 'Mode', value: 'Dashboard test delivery', inline: true }
+                    { name: 'Source', value: 'Live code feed', inline: true }
                 )
-                .setFooter({ text: 'Demo notification — sample code only' })
+                .setFooter({ text: 'Dashboard test delivery' })
                 .setTimestamp();
 
             await sendChannelMessage(client, config.channel, {
@@ -1055,8 +1064,8 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
                 allowedMentions: { parse: [], roles: roleValid ? [roleId] : [] }
             });
 
-            logDashboardAudit(req, 'server.test.demo', { serverId, channelId: config.channel, game: testPayload.game });
-            return res.json({ success: true, message: `Sent ${meta.name} demo alert to #${channel.name}.` });
+            logDashboardAudit(req, 'server.test.live', { serverId, channelId: config.channel, game: testPayload.game });
+            return res.json({ success: true, message: `Sent ${meta.name} test (${liveCode.code}) to #${channel.name}.` });
         }
 
         const embed = new EmbedBuilder()

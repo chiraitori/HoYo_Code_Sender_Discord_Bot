@@ -31,7 +31,7 @@ const roleMappings = {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('postcode')
-        .setDescription('Show post postcode codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero')
+        .setDescription('Post redemption codes manually to your server notification channel')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
