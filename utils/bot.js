@@ -413,12 +413,20 @@ app.get('/api/codes/zzz', async (req, res) => {
 // Public livestream tracker endpoint
 app.get('/api/livestreams', async (req, res) => {
     try {
+        const cached = apiCache.get('livestreams_status');
+        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+            return res.json(cached.data);
+        }
+
         const LivestreamTracking = require('../models/LivestreamTracking');
         const dbToGame = { genshin: 'genshin', hkrpg: 'hsr', nap: 'zzz' };
         const latestDocs = await Promise.all(
             Object.entries(dbToGame).map(async ([dbGame, game]) => {
                 const doc = await LivestreamTracking.findOne({ game: dbGame })
-                    .sort({ updatedAt: -1, createdAt: -1, _id: -1 })
+                    .sort({ streamTime: -1, _id: -1 })
+                    .select('game version streamTime disabled found distributed source codes')
+                    .maxTimeMS(3000)
                     .lean();
                 if (!doc) {
                     return {
@@ -444,11 +452,13 @@ app.get('/api/livestreams', async (req, res) => {
                 };
             })
         );
+        const payload = { livestreams: latestDocs, fetchedAt: new Date().toISOString() };
+        apiCache.set('livestreams_status', { data: payload, timestamp: Date.now() });
         res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
-        res.json({ livestreams: latestDocs, fetchedAt: new Date().toISOString() });
+        return res.json(payload);
     } catch (error) {
         console.error('Error fetching livestream status:', error);
-        res.status(500).json({ error: 'Failed to fetch livestream status' });
+        return res.status(500).json({ error: 'Failed to fetch livestream status' });
     }
 });
 
