@@ -5,7 +5,7 @@ const languageManager = require('../utils/language');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')
-        .setDescription('Shows how to setup the bot and provides usage tips'),
+        .setDescription('Show setup instructions and available commands'),
 
     async execute(interaction) {
         try {

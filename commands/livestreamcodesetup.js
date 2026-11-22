@@ -8,7 +8,7 @@ const { handleDMRestriction } = require('../utils/dmHandler');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('livestreamcodesetup')
-        .setDescription('Configure separate channel for livestream codes')
+        .setDescription('Configure a separate channel for livestream codes and announcements')
         .addStringOption(option =>
             option.setName('action')
                 .setDescription('Action to perform')

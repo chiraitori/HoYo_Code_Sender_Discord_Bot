@@ -70,3 +70,44 @@ test('support footer comes from the language folder', async () => {
     'Support: github.com/sponsors/chiraitori | chiraitori.dev'
   );
 });
+
+function collectLeafKeys(obj, prefix = '') {
+  const keys = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const next = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      keys.push(...collectLeafKeys(v, next));
+    } else {
+      keys.push(next);
+    }
+  }
+  return keys;
+}
+
+test('en, jp, and vi locale packs have complete key parity and no missing translation markers', () => {
+  const { en, jp, vi } = languageManager.languages;
+  const enKeys = collectLeafKeys(en);
+  for (const key of enKeys) {
+    for (const [langCode, dict] of [['en', en], ['jp', jp], ['vi', vi]]) {
+      const val = languageManager.getStringFromPath(key, dict, {
+        game: 'Zenless Zone Zero',
+        language: 'EN',
+        status: 'ENABLED',
+        count: '3',
+        version: '3.4',
+        number: '1',
+        channel: '#codes',
+        thread: 'zzz-codes',
+        role: '@ZZZ',
+        type: 'ZZZ',
+        command: '/setup',
+        user: 'Proxy',
+        reward: 'Polychrome ×60'
+      });
+      assert.strictEqual(typeof val, 'string', `missing ${key} in ${langCode}`);
+      assert.ok(val.trim().length > 0, `empty ${key} in ${langCode}`);
+      assert.ok(!val.includes('Translation missing:'), `fallback marker in ${langCode}:${key}`);
+      assert.ok(!val.includes('Hoyovers'), `typo Hoyovers in ${langCode}:${key}`);
+    }
+  }
+});

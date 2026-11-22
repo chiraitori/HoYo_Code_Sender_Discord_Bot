@@ -1,6 +1,3 @@
-const { set, version } = require("mongoose");
-const about = require("../commands/about");
-
 module.exports = {
     games: {
         genshin: 'Genshin Impact',
@@ -10,315 +7,320 @@ module.exports = {
     common: {
         enabled: 'BẬT',
         disabled: 'TẮT',
-        notYourButton: 'Nút này không dành cho bạn.',
+        notYourButton: 'Chỉ người dùng đã gọi lệnh mới có thể bấm nút này.',
         supportMsg: 'Hỗ trợ: github.com/sponsors/chiraitori | chiraitori.dev'
     },
     welcome: {
-        title: 'Cảm ơn đã thêm HoYo Code Sender!',
-        description: 'Cảm ơn đã thêm tôi vào máy chủ của bạn! Tôi sẽ giúp bạn nhận mã code game HoYoverse tự động.',
-        setupHeader: '🔧 Hướng dẫn cài đặt nhanh',
-        setupSteps: '1. Sử dụng lệnh `/setup` để cấu hình kênh thông báo & vai trò\n' +
-            '2. (Tùy chọn) Sử dụng `/favgames` để chọn game bạn muốn nhận mã code\n' +
-            '3. (Tùy chọn) Thay đổi ngôn ngữ với `/setlang`\n\n' +
-            'Chỉ vậy thôi! Tôi sẽ tự động gửi mã code game mới đến kênh đã cấu hình.',
-        helpTip: 'Để biết thêm thông tin và mẹo, hãy sử dụng lệnh `/help` bất kỳ lúc nào.',
-        footer: 'HoYo Code Sender - Nhận mã code game tự động!',
-        dmInfo: 'Tôi không thể tìm thấy kênh phù hợp để gửi tin nhắn chào mừng trong máy chủ của bạn, vì vậy tôi đang gửi trực tiếp cho bạn.'
+        title: 'Cảm ơn bạn đã thêm HoYo Code Sender',
+        description: 'HoYo Code Sender tự động gửi giftcode mới của Genshin Impact, Honkai: Star Rail và Zenless Zone Zero vào máy chủ của bạn.',
+        setupHeader: '🔧 Thiết lập nhanh',
+        setupSteps:
+            '1. Chạy `/setup` để chọn kênh thông báo và role ping cho từng game.\n' +
+            '2. (Tùy chọn) Chạy `/favgames` để chọn những game bạn muốn nhận code.\n' +
+            '3. (Tùy chọn) Chạy `/setlang` để đổi ngôn ngữ hiển thị (`en`, `jp`, `vi`).\n\n' +
+            'Sau khi hoàn tất, bot sẽ tự động đăng code mới ngay khi phát hành.',
+        helpTip: 'Gõ `/help` bất cứ lúc nào để xem toàn bộ danh sách lệnh.',
+        footer: 'HoYo Code Sender',
+        dmInfo: 'Bot không tìm thấy kênh văn bản nào có quyền gửi tin nhắn trong máy chủ, nên hướng dẫn thiết lập được gửi qua tin nhắn riêng.'
     },
     commands: {
+        setlang: {
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            success: 'Đã đổi ngôn ngữ của bot sang **{language}**.',
+            error: 'Không thể cập nhật ngôn ngữ cho máy chủ.',
+            description: 'Đổi ngôn ngữ hiển thị của bot trong máy chủ',
+            languageOption: 'Chọn ngôn ngữ'
+        },
+        checkchannels: {
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.'
+        },
         listcodes: {
-            title: 'Mã code đang hoạt động cho {game}',
-            noCodes: 'Không tìm thấy mã code nào đang hoạt động cho {game}',
+            title: 'Code đang hoạt động — {game}',
+            noCodes: 'Hiện không có code nào đang hoạt động cho {game}.',
             reward: 'Phần thưởng: {reward}',
             status: 'Trạng thái: {status}',
             redeemButton: 'Nhấn để nhận',
-            redeemHeader: 'Nhận code tại đây',
+            redeemHeader: 'Đổi code tại đây',
             error: {
-                fetch: 'Lỗi khi lấy mã code. Vui lòng thử lại sau.',
-                invalid: 'Phản hồi không hợp lệ từ API',
-                notFound: 'Không có mã code khả dụng'
+                fetch: 'Không thể tải danh sách code lúc này. Vui lòng thử lại sau.',
+                invalid: 'Phản hồi từ API code không hợp lệ.',
+                notFound: 'Hiện không có code nào.'
             },
-            loading: 'Đang tải mã code...',
+            loading: 'Đang tải danh sách code...',
             newCodes: 'Mã code mới cho {game}!',
-            noReward: 'Chưa có thông tin phần thưởng',
+            noReward: 'Chưa rõ phần thưởng',
             page: 'Trang'
         },
         setup: {
-            description: 'Thiết lập role và kênh cho thông báo code',
-            genshinRole: 'Role cho thông báo Genshin Impact',
-            hsrRole: 'Role cho thông báo Honkai: Star Rail',
-            zzzRole: 'Role cho thông báo Zenless Zone Zero',
-            forumThreadHeader: '🧵 Thread Diễn Đàn',
-            forumThreadSuccess: '✅ Code cũng sẽ được đăng lên thread này!',
-            forumThreadWarning: '⚠️ Thread diễn đàn đã được cung cấp nhưng bot không có quyền hoặc không phải là thread hợp lệ. Nó sẽ không được sử dụng.',
+            description: 'Thiết lập kênh thông báo và role ping cho từng game',
+            genshinRole: 'Role nhận thông báo Genshin Impact',
+            hsrRole: 'Role nhận thông báo Honkai: Star Rail',
+            zzzRole: 'Role nhận thông báo Zenless Zone Zero',
+            forumThreadHeader: '🧵 Chủ đề Forum (Thread)',
+            forumThreadSuccess: '✅ Code cũng sẽ được đăng vào thread này.',
+            forumThreadWarning: '⚠️ Thread đã chọn không hợp lệ hoặc bot thiếu quyền gửi tin nhắn nên đã được bỏ qua.',
             channel: 'Kênh nhận thông báo code',
-            success: 'Cài đặt máy chủ thành công!',
-            error: 'Cài đặt thất bại',
-            roleSetup: 'Đã thiết lập role {role} cho thông báo {type}',
+            success: 'Đã lưu cấu hình máy chủ',
+            roleSetup: 'Đã gán role {role} cho thông báo {type}',
             channelSetup: 'Kênh {channel} sẽ nhận thông báo code',
-            autoSendSetup: 'Tính năng tự động gửi: {status}',
-            noPermission: 'Bạn không có quyền sử dụng lệnh này',
-            channelValidation: '✅ Kênh đã được xác thực thành công! Bot có thể gửi tin nhắn tại đây.',
-            readyMessage: 'Máy chủ của bạn đã sẵn sàng nhận thông báo mã code!',
-            rolesHeader: '🎭 Vai Trò Thông Báo',
-            channelHeader: '📣 Kênh Thông Báo',
-            autoSendHeader: '⚙️ Tính Năng Tự Động Gửi',
-            demoTipHeader: '💡 Mẹo kiểm tra',
-            demoTipText: 'Bạn có thể kiểm tra cài đặt của mình ngay bằng cách sử dụng lệnh `/demoautosend` để gửi tin nhắn thông báo demo.',
+            autoSendSetup: 'Tự động gửi: {status}',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            channelValidation: '✅ Đã xác thực kênh. Bot có đủ quyền xem kênh, gửi tin nhắn và nhúng liên kết.',
+            readyMessage: 'Máy chủ của bạn đã sẵn sàng nhận thông báo giftcode tự động.',
+            rolesHeader: '🎭 Role thông báo',
+            channelHeader: '📣 Kênh thông báo',
+            autoSendHeader: '⚙️ Tự động gửi',
+            demoTipHeader: '💡 Kiểm tra nhanh',
+            demoTipText: 'Chạy `/demoautosend` để gửi thử một thông báo mẫu vào kênh vừa cài đặt.',
             error: {
                 channelValidation: 'Xác thực kênh thất bại'
             }
         },
         deletesetup: {
-            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
             loading: 'Đang xóa cấu hình máy chủ...',
-            success: 'Cấu hình máy chủ đã được xóa thành công.',
-            noConfig: 'Không tìm thấy cấu hình nào cho máy chủ này.',
-            error: 'Đã xảy ra lỗi khi xóa cấu hình máy chủ.',
+            success: 'Đã xóa toàn bộ cấu hình của máy chủ.',
+            noConfig: 'Máy chủ này chưa có cấu hình nào được lưu.',
+            error: 'Không thể xóa cấu hình máy chủ.',
             deletedItemsHeader: 'Các mục đã xóa:',
-            deletedConfig: 'Cài đặt kênh và vai trò',
-            deletedSettings: 'Cài đặt thông báo',
-            deletedLanguage: 'Cài đặt ngôn ngữ'
+            deletedItems: 'Các mục đã xóa:',
+            deletedConfig: 'Kênh thông báo, forum thread và role ping',
+            deletedSettings: 'Cài đặt tự động gửi và bộ lọc game',
+            deletedLanguage: 'Tùy chọn ngôn ngữ'
         },
         demoautosend: {
-            noPermission: 'Bạn cần quyền quản trị viên để sử dụng lệnh này.',
-            noConfig: 'Bot chưa được thiết lập! Vui lòng sử dụng lệnh `/setup` trước để cấu hình kênh.',
-            channelError: 'Không thể gửi tin nhắn đến kênh đã cấu hình:',
-            title: '🔔 Mã code demo cho {game}!',
-            notice: '⚠️ Thông báo demo',
-            noticeText: 'Đây là mã code demo chỉ dùng để kiểm tra. Chúng sẽ không hoạt động trong game.',
-            success: 'Đã gửi thành công mã code demo cho {count} game!',
-            error: 'Đã xảy ra lỗi khi gửi mã code demo.'
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            noConfig: 'Máy chủ chưa cấu hình kênh thông báo. Vui lòng chạy `/setup` trước.',
+            channelError: 'Không thể gửi tin nhắn vào kênh đã cấu hình:',
+            title: '🔔 Thông báo thử nghiệm — {game}',
+            notice: '⚠️ Mã thử nghiệm',
+            noticeText: 'Đây là mã mẫu dùng để kiểm tra kênh và role thông báo, không thể nhập trong game.',
+            success: 'Đã gửi thông báo thử nghiệm cho {count} game.',
+            error: 'Không thể gửi thông báo thử nghiệm.'
         },
         postcode: {
-            modalTitle: 'Thêm mã code',
+            modalTitle: 'Đăng giftcode thủ công',
             inputLabels: {
-                games: 'Chọn Game (genshin/hsr/zzz)',
+                games: 'Game (genshin / hsr / zzz)',
                 code1: 'Code 1 (Bắt buộc)',
                 code2: 'Code 2 (Tùy chọn)',
                 code3: 'Code 3 (Tùy chọn)',
-                message: 'Tin nhắn bổ sung (Tùy chọn)'
+                message: 'Ghi chú thêm (Tùy chọn)'
             },
-            description: 'Hiển thị hướng dẫn và mã đổi thưởng',
-            success: 'Đã đăng code thành công!',
-            error: 'Đã xảy ra lỗi khi xử lý lệnh',
-            noPermission: 'Bạn không có quyền sử dụng lệnh này',
-            embedTitle: 'Mã code mới đã được đổi',
-            embedDescription: 'Mã code mới đã được đổi cho {game}!',
-            messageLabel: 'Tin nhắn:',
+            description: 'Đăng giftcode thủ công vào kênh thông báo của máy chủ',
+            success: 'Đã đăng code vào kênh thông báo.',
+            error: 'Không thể đăng code.',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            embedTitle: 'Giftcode {game} mới',
+            embedDescription: 'Giftcode mới cho {game} vừa được đăng.',
+            messageLabel: 'Ghi chú',
             redeemButton: 'Nhấn để nhận',
-            invalidGame: 'Game không hợp lệ. Vui lòng sử dụng: genshin, hsr, hoặc zzz',
-            noCode: 'Cần ít nhất một mã code.'
+            postcodeButton: 'Nhấn để nhận',
+            invalidGame: 'Game không hợp lệ. Vui lòng nhập `genshin`, `hsr` hoặc `zzz`.',
+            noCode: 'Vui lòng nhập ít nhất một mã code.'
         },
         toggleautosend: {
-            loading: 'Đang cập nhật cài đặt tự động gửi...',
-            success: 'Tự động gửi hiện đang: **{status}**',
-            error: 'Không thể cập nhật cài đặt tự động gửi',
-            noPermission: 'Bạn không có quyền sử dụng lệnh này'
+            loading: 'Đang cập nhật chế độ tự động gửi...',
+            success: 'Tự động gửi code hiện đang: **{status}**.',
+            error: 'Không thể cập nhật chế độ tự động gửi.',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.'
         },
         autosendoptions: {
-            noPermission: 'Bạn cần quyền Quản trị viên để sử dụng lệnh này.',
-            success: '✅ Tùy chọn tự động gửi đã được cập nhật thành công!',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            success: '✅ Đã cập nhật nơi nhận code tự động.',
             warning: {
-                autoSendDisabled: '⚠️ Tự động gửi hiện đang **tắt**. Hãy bật nó trước với `/toggleautosend status:Enable`'
+                autoSendDisabled: '⚠️ Tự động gửi hiện đang **tắt**. Hãy bật trước bằng lệnh `/toggleautosend status:Enable`.'
             },
             error: {
-                bothDisabled: '⚠️ Bạn không thể tắt cả kênh và thread. Ít nhất một trong hai phải được bật.',
-                general: 'Đã xảy ra lỗi khi cập nhật tùy chọn tự động gửi.'
+                bothDisabled: '⚠️ Không thể tắt đồng thời cả kênh chính và forum thread. Vui lòng bật ít nhất một nơi nhận.',
+                general: 'Không thể cập nhật tùy chọn nơi nhận code.'
             }
         },
         favgames: {
-            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
-            loading: 'Đang thiết lập game yêu thích...',
-            success: 'Đã cấu hình game yêu thích thành công!',
-            error: 'Đã xảy ra lỗi khi thiết lập game yêu thích.',
-            filterStatus: 'Lọc game: **{status}**',
-            gameStatusHeader: 'Thông Báo Game:',
-            allGamesEnabled: 'Bạn sẽ nhận thông báo cho tất cả các game.'
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            loading: 'Đang cập nhật bộ lọc game...',
+            success: 'Đã lưu danh sách game nhận thông báo.',
+            error: 'Không thể cập nhật bộ lọc game.',
+            filterStatus: 'Lọc theo game: **{status}**',
+            gameStatusHeader: 'Trạng thái từng game:',
+            allGamesEnabled: 'Nhận thông báo cho tất cả các game.'
         },
         help: {
-            title: 'Trợ giúp HoYo Code Sender',
-            description: 'HoYo Code Sender tự động thông báo cho máy chủ của bạn về các mã đổi thưởng mới cho Genshin Impact, Honkai: Star Rail và Zenless Zone Zero.',
-            setupHeader: '📌 Cài đặt ban đầu',
-            setupSteps: '1. Sử dụng `/setup` để cấu hình:\n' +
-                '   • Chọn kênh thông báo\n' +
-                '   • Đặt vai trò cho mỗi game (để nhắc đến khi có mã mới)\n' +
-                '   • Bật/tắt tự động gửi mã\n\n' +
-                '2. Tùy chỉnh trải nghiệm của bạn:\n' +
-                '   • `/favgames` - Chọn game bạn muốn nhận mã\n' +
-                '   • `/setlang` - Thay đổi ngôn ngữ của bot\n' +
-                '   • `/toggleautosend` - Bật/tắt thông báo mã tự động',
-            commandsHeader: '📋 Các lệnh có sẵn',
-            commandsList: '• `/setup` - Cài đặt bot ban đầu\n' +
-                '• `/deletesetup` - Xóa cấu hình máy chủ\n' +
-                '• `/favgames` - Chọn game bạn muốn nhận mã\n' +
-                '• `/toggleautosend` - Bật/tắt thông báo tự động\n' +
-                '• `/autosendoptions` - Cấu hình tùy chọn tự động gửi\n' +
-                '• `/listcodes` - Hiển thị mã đang hoạt động cho một game\n' +
-                '• `/postcode` - Gửi mã cụ thể đến kênh của bạn\n' +
-                '• `/demoautosend` - Gửi mã code demo để kiểm tra thông báo\n' +
-                '• `/setupthread` - Thiết lập thread diễn đàn cho thông báo mã\n' +
-                '• `/checkchannels` - Kiểm tra các kênh thông báo đã cấu hình\n' +
-                '• `/livestreamcodesetup` - Cấu hình kênh mã livestream\n' +
-                '• `/setlang` - Thay đổi ngôn ngữ bot (Tiếng Anh/Tiếng Việt/Tiếng Nhật)\n' +
-                '• `/dashboard` - Mở bảng điều khiển web\n' +
-                '• `/vote` - Bình chọn cho bot trên Top.gg\n' +
-                '• `/help` - Hiển thị trợ giúp này\n' +
-                '• `/about` - Thông tin về bot',
-            tipsHeader: '💡 Mẹo & thủ thuật',
-            tipsList: '• Bot kiểm tra mã mới mỗi 5 phút\n' +
-                '• Bạn có thể đăng mã thủ công với `/postcode`\n' +
-                '• Sau khi thiết lập, sử dụng `/demoautosend` để kiểm tra hệ thống thông báo\n' +
-                '• Sử dụng `/favgames` để lọc thông báo theo game\n' +
-                '• Đặt vai trò khác nhau cho từng loại game\n' +
-                '• Sử dụng `/livestreamcodesetup` để đặt kênh riêng cho mã livestream\n' +
-                '• Quản trị viên máy chủ có thể chạy `/setup` lại để thay đổi cài đặt',
-            footer: 'HoYo Code Sender - Nhận mã game HoYoverse tự động!',
-            error: 'Đã xảy ra lỗi khi hiển thị trợ giúp.'
-        },
-        setlang: {
-            success: 'Ngôn ngữ của bot đã thành: **{language}**',
-            error: 'Không thể cài đặt ngôn ngữ cho máy chủ',
-            description: 'Cài đặt ngôn ngữ cho bot trong máy chủ',
-            languageOption: 'Chọn ngôn ngữ'
+            title: 'Hướng dẫn HoYo Code Sender',
+            description: 'Tự động gửi giftcode mới của Genshin Impact, Honkai: Star Rail và Zenless Zone Zero tới máy chủ Discord của bạn.',
+            setupHeader: '📌 Thiết lập cơ bản',
+            setupSteps:
+                '1. Chạy `/setup` để chọn kênh thông báo chính, role ping từng game và bật tự động gửi.\n' +
+                '2. Tùy chỉnh thêm khi cần:\n' +
+                '   • `/livestreamcodesetup` — Đặt kênh riêng cho code livestream Special Program\n' +
+                '   • `/setupthread` — Đăng code của từng game vào forum thread riêng\n' +
+                '   • `/favgames` — Chọn những game muốn nhận thông báo\n' +
+                '   • `/setlang` — Đổi ngôn ngữ (`English`, `Japanese`, `Vietnamese`)',
+            commandsHeader: '📋 Danh sách lệnh',
+            commandsList:
+                '• `/setup` — Thiết lập kênh thông báo, role và tự động gửi\n' +
+                '• `/livestreamcodesetup` — Cấu hình kênh riêng và thông báo lịch livestream\n' +
+                '• `/setupthread` — Gán forum thread riêng cho từng game\n' +
+                '• `/autosendoptions` — Chọn gửi vào kênh chính, forum thread hoặc cả hai\n' +
+                '• `/favgames` — Lọc những game muốn nhận code\n' +
+                '• `/toggleautosend` — Bật hoặc tắt tự động gửi code\n' +
+                '• `/listcodes` — Xem danh sách code đang còn hạn\n' +
+                '• `/postcode` — Đăng 1–3 code thủ công vào kênh\n' +
+                '• `/checkchannels` — Kiểm tra quyền của bot trong kênh đã cài\n' +
+                '• `/demoautosend` — Gửi thông báo mẫu để kiểm tra cài đặt\n' +
+                '• `/setlang` — Đổi ngôn ngữ hiển thị (`en`, `jp`, `vi`)\n' +
+                '• `/deletesetup` — Xóa toàn bộ cấu hình máy chủ\n' +
+                '• `/dashboard` — Mở bảng điều khiển web\n' +
+                '• `/vote` — Kiểm tra trạng thái bình chọn trên Top.gg\n' +
+                '• `/about` — Xem phiên bản bot và các liên kết hỗ trợ\n' +
+                '• `/help` — Hiển thị bảng hướng dẫn này',
+            tipsHeader: '💡 Lưu ý',
+            tipsList:
+                '• Bot tự động kiểm tra code mới mỗi 5 phút và theo dõi suốt thời gian livestream Special Program.\n' +
+                '• Liên kết đổi thưởng điền sẵn mã code trên trang HoYoLAB chính thức.\n' +
+                '• Nếu bot không gửi được tin, hãy dùng `/checkchannels` để kiểm tra quyền.',
+            footer: 'HoYo Code Sender',
+            error: 'Không thể tải nội dung hướng dẫn.'
         },
         vote: {
             title: 'Bình chọn cho HoYo Code Sender',
-            description: 'Hãy ủng hộ chúng tôi bằng cách bình chọn trên Top.gg! Phiếu bầu của bạn giúp chúng tôi phát triển và tiếp cận nhiều người dùng hơn.',
+            description: 'Ủng hộ HoYo Code Sender bằng cách bình chọn trên Top.gg.',
             status: 'Trạng thái bình chọn',
-            hasVoted: '✅ Cảm ơn bạn đã bình chọn! Bạn có thể bình chọn lại sau 12 giờ.',
-            hasNotVoted: '❌ Bạn chưa bình chọn hôm nay!',
-            link: 'Bình chọn tại đây',
-            error: 'Lỗi kiểm tra trạng thái bình chọn. Vui lòng thử lại.',
+            hasVoted: '✅ Bạn đã bình chọn trong 12 giờ qua. Cảm ơn bạn đã ủng hộ!',
+            hasNotVoted: '❌ Bạn chưa bình chọn trong 12 giờ qua.',
+            link: 'Bình chọn trên Top.gg',
+            error: 'Không thể kiểm tra trạng thái bình chọn.',
             thankTitle: 'Cảm ơn bạn đã bình chọn! 🎉',
-            thankMessage: 'Cảm ơn {user} đã ủng hộ bot bằng cách bình chọn trên Top.gg! Sự ủng hộ của bạn giúp chúng tôi phát triển.',
-            voteAgain: 'Bạn có thể bình chọn lại sau 12 giờ.',
+            thankMessage: 'Cảm ơn {user} đã bình chọn cho HoYo Code Sender trên Top.gg!',
+            voteAgain: 'Bạn có thể bình chọn lại sau mỗi 12 giờ.',
             dmThankTitle: 'Cảm ơn bạn đã bình chọn!',
-            dmThankMessage: 'Cảm ơn bạn đã bình chọn cho HoYo Code Sender trên Top.gg! Sự ủng hộ của bạn rất có ý nghĩa với chúng tôi.'
+            dmThankMessage: 'Cảm ơn bạn đã bình chọn cho HoYo Code Sender trên Top.gg!'
         },
         about: {
-            title: 'Về HoYo Code Sender',
-            description: 'HoYo Code Sender là bot Discord tự động thông báo mã code mới cho Genshin Impact, Honkai: Star Rail và Zenless Zone Zero của Hoyovers.',
-            version: 'Phiên bản:',
-            inviteLink: 'Link Mời',
-            supportServer: 'Server Hỗ Trợ',
-            vote: 'Bình chọn cho bot',
+            title: 'Giới thiệu HoYo Code Sender',
+            description: 'Bot Discord tự động gửi giftcode mới của Genshin Impact, Honkai: Star Rail và Zenless Zone Zero từ HoYoverse.',
+            version: 'Phiên bản',
+            sourceCode: 'Mã nguồn',
+            inviteLink: 'Liên kết mời bot',
+            supportServer: 'Máy chủ hỗ trợ',
+            vote: 'Bình chọn trên Top.gg',
             github: 'Kho mã nguồn GitHub',
-            devbio: 'Tiểu sử nhà phát triển',
-            donate: 'Ủng hộ tôi nếu trong nước thì có thể donate qua tiểu sử',
-            sponsor: 'GitHub Sponsors'
+            devbio: 'Trang nhà phát triển',
+            donate: 'Ủng hộ',
+            sponsor: 'GitHub Sponsors',
+            error: 'Không thể tải thông tin giới thiệu.'
         },
         dashboard: {
-            title: '🌐 Bảng Điều Khiển Web',
-            description: 'Truy cập bảng điều khiển web HoYo Code Sender để quản lý cài đặt máy chủ với giao diện thân thiện.',
-            webInterface: 'Giao Diện Web',
-            openDashboard: 'Mở Bảng Điều Khiển',
-            features: 'Tính Năng Bảng Điều Khiển',
-            featuresList: '• 📊 Thống kê máy chủ trực tiếp\n• ⚙️ Quản lý cấu hình trực quan\n• 🎮 Gán vai trò game\n• 📱 Giao diện thân thiện với mobile\n• 🔔 Kiểm tra thông báo\n• 🔄 Cập nhật thời gian thực',
-            requirements: 'Yêu Cầu',
-            requirementsList: '• Đăng nhập tài khoản Discord\n• Quyền quản trị viên máy chủ\n• Bot phải có trong máy chủ của bạn',
-            footer: 'Quản lý cài đặt bot dễ dàng với bảng điều khiển web!',
-            error: 'Lỗi khi tải thông tin bảng điều khiển.'
-        },
-        deletesetup: {
-            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
-            loading: 'Đang xóa cấu hình máy chủ...',
-            success: 'Cấu hình máy chủ đã được xóa thành công.',
-            noConfig: 'Không tìm thấy cấu hình nào cho máy chủ này.',
-            error: 'Đã xảy ra lỗi khi xóa cấu hình máy chủ.',
-            deletedItems: 'Các mục đã xóa:',
-            deletedConfig: 'Cài đặt kênh và vai trò',
-            deletedSettings: 'Cài đặt thông báo',
-            deletedLanguage: 'Cài đặt ngôn ngữ'
+            title: '🌐 Bảng điều khiển Web',
+            description: 'Quản lý kênh thông báo, forum thread, role ping, bộ lọc game và đăng code trực tiếp trên trình duyệt.',
+            webInterface: 'Địa chỉ truy cập',
+            openDashboard: 'Mở bảng điều khiển',
+            features: 'Tính năng hỗ trợ',
+            featuresList:
+                '• 📣 Chọn kênh thông báo chính và kênh livestream riêng\n' +
+                '• 🧵 Gán forum thread riêng cho từng game\n' +
+                '• 🎭 Chọn role ping theo từng game\n' +
+                '• 🎮 Bật/tắt game nhận code và đổi ngôn ngữ\n' +
+                '• 📝 Đăng code thủ công và kiểm tra quyền kênh trực tiếp',
+            requirements: 'Yêu cầu',
+            requirementsList:
+                '• Đăng nhập bằng tài khoản Discord\n' +
+                '• Có quyền Chủ sở hữu, Quản trị viên hoặc Quản lý Máy chủ / Quản lý Kênh\n' +
+                '• Máy chủ đã cài đặt HoYo Code Sender',
+            footer: 'HoYo Code Sender Dashboard',
+            error: 'Không thể tải thông tin bảng điều khiển.'
         },
         togglegame: {
-            noPermission: 'Bạn không có quyền sử dụng lệnh này.',
-            loading: 'Đang xử lý yêu cầu của bạn...',
-            enabledWithNewRole: '✅ Thông báo **{game}** đã được bật với vai trò {role}.',
-            enabledWithExistingRole: '✅ Thông báo **{game}** đã được bật với vai trò hiện có {role}.',
-            enabledNoRole: '⚠️ Thông báo **{game}** đã được bật, nhưng không có vai trò nào được đặt. Thêm vai trò với `{command}` hoặc thông báo sẽ được gửi mà không đề cập đến bất kỳ ai.',
-            disabled: '❌ Thông báo **{game}** đã bị tắt.',
-            error: 'Đã xảy ra lỗi khi chuyển đổi thông báo trò chơi.'
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            loading: 'Đang cập nhật cài đặt thông báo game...',
+            enabledWithNewRole: '✅ Đã bật thông báo **{game}** với role {role}.',
+            enabledWithExistingRole: '✅ Đã bật thông báo **{game}** với role {role}.',
+            enabledNoRole: '⚠️ Đã bật thông báo **{game}** nhưng chưa gán role ping. Dùng `{command}` để thêm role.',
+            disabled: '❌ Đã tắt thông báo **{game}**.',
+            error: 'Không thể cập nhật thông báo game.'
         },
         sendtothread: {
-            noPermission: 'Bạn cần quyền Quản trị viên để sử dụng lệnh này.',
-            noActiveCodes: 'Không tìm thấy code đang hoạt động cho {game}.',
-            success: '✅ Đã gửi thành công {count} code đang hoạt động cho {game} tới thread "{thread}"!',
-            instructions: '**Cách đổi code:**\n1. Nhấp vào liên kết bên trên\n2. Đăng nhập vào tài khoản của bạn\n3. Nhập code\n4. Nhận phần thưởng trong game!',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            noActiveCodes: 'Hiện không có code nào đang hoạt động cho {game}.',
+            success: '✅ Đã gửi {count} code {game} đang hoạt động vào thread "{thread}".',
+            instructions: '**Cách nhập code:**\n1. Mở liên kết đổi thưởng bên trên\n2. Đăng nhập tài khoản HoYoverse\n3. Xác nhận mã code và nhận thưởng trong hộp thư in-game',
             error: {
-                notThread: 'Kênh đã chọn không phải là thread. Vui lòng chọn một forum thread.',
-                noPermission: 'Tôi không có quyền gửi tin nhắn trong thread đó. Vui lòng kiểm tra quyền.',
-                general: 'Đã xảy ra lỗi khi gửi code đến thread.'
+                notThread: 'Kênh đã chọn không phải là forum thread.',
+                noPermission: 'Bot không có quyền gửi tin nhắn trong thread này.',
+                general: 'Không thể gửi code vào thread.'
             }
         },
         setupthread: {
-            noPermission: 'Bạn cần quyền Quản trị viên để sử dụng lệnh này.',
-            success: '✅ Các thread forum đã được cấu hình! Code sẽ được đăng vào thread cố định dành riêng cho từng game.',
+            noPermission: 'Bạn cần quyền Quản trị viên (Administrator) để dùng lệnh này.',
+            success: '✅ Đã lưu cấu hình forum thread. Code mới sẽ được đăng vào thread riêng của từng game.',
             error: {
-                notThread: 'Một trong các kênh đã chọn không phải là thread forum. Vui lòng chọn các thread forum.',
-                noPermission: 'Tôi không có quyền gửi tin nhắn trong một trong các thread. Vui lòng kiểm tra quyền của tôi.',
-                noSetup: 'Vui lòng chạy `/setup` trước để cấu hình kênh thông báo chính.',
-                general: 'Đã xảy ra lỗi khi thiết lập các thread forum.'
+                notThread: 'Một hoặc nhiều kênh đã chọn không phải là forum thread.',
+                noPermission: 'Bot thiếu quyền gửi tin nhắn hoặc nhúng liên kết trong một hoặc nhiều thread đã chọn.',
+                noSetup: 'Vui lòng chạy `/setup` trước để thiết lập kênh thông báo chính.',
+                general: 'Không thể lưu cấu hình forum thread.'
             }
         },
         livestreamcodesetup: {
-            setupRequiredTitle: '⚠️ Cần thiết lập trước',
-            setupRequired: 'Vui lòng chạy `/setup` trước để cấu hình máy chủ trước khi thiết lập kênh livestream.',
+            setupRequiredTitle: '⚠️ Cần thiết lập kênh chính trước',
+            setupRequired: 'Vui lòng chạy `/setup` để chọn kênh thông báo chính trước khi cài đặt kênh livestream.',
             title: '📺 Cấu hình kênh code livestream',
-            currentSetting: 'Cài đặt hiện tại',
-            usingMainChannel: 'Đang dùng kênh chính: {channel}',
-            notConfigured: 'Chưa cấu hình',
-            behavior: 'Cách hoạt động',
-            dedicatedBehavior: '✅ Code livestream sẽ được gửi vào kênh riêng',
-            mainBehavior: 'ℹ️ Code livestream sẽ được gửi cùng kênh với code thường',
-            announcementStatus: 'Announcement',
-            announcementEnabled: '✅ Thông báo Special Program đang bật',
-            announcementDisabled: '❌ Thông báo Special Program đang tắt',
-            removedTitle: '✅ Đã gỡ kênh livestream',
-            removedDescription: 'Code livestream giờ sẽ được gửi vào kênh chính cùng code thường.',
+            currentSetting: 'Kênh hiện tại',
+            usingMainChannel: 'Đang dùng chung kênh chính: {channel}',
+            notConfigured: 'Chưa thiết lập',
+            behavior: 'Cách gửi',
+            dedicatedBehavior: '✅ Code livestream được gửi vào kênh riêng.',
+            mainBehavior: 'ℹ️ Code livestream được gửi vào kênh thông báo chính.',
+            announcementStatus: 'Thông báo lịch Special Program',
+            announcementEnabled: '✅ Đang bật thông báo lịch livestream Special Program.',
+            announcementDisabled: '❌ Đang tắt thông báo lịch livestream Special Program.',
+            removedTitle: '✅ Đã gỡ kênh livestream riêng',
+            removedDescription: 'Code livestream từ giờ sẽ được gửi vào kênh thông báo chính.',
             mainChannel: 'Kênh chính',
-            channelRequiredTitle: '❌ Cần chọn kênh',
-            channelRequired: 'Vui lòng chọn kênh khi dùng hành động "Set Channel".',
-            insufficientPermissionsTitle: '⚠️ Thiếu quyền',
-            insufficientPermissions: 'Bot không có đủ quyền cần thiết trong {channel}',
+            channelRequiredTitle: '❌ Chưa chọn kênh',
+            channelRequired: 'Vui lòng chọn một kênh khi dùng tùy chọn **Set Channel**.',
+            insufficientPermissionsTitle: '⚠️ Thiếu quyền trong kênh',
+            insufficientPermissions: 'Bot chưa được cấp đủ quyền cần thiết trong {channel}.',
             requiredPermissions: 'Quyền cần thiết',
-            requiredPermissionsValue: '• Xem kênh\n• Gửi tin nhắn\n• Nhúng liên kết',
-            configuredTitle: '✅ Đã cấu hình kênh livestream',
-            configuredDescription: 'Code livestream sẽ được gửi vào kênh riêng!',
+            requiredPermissionsValue: '• Xem kênh (View Channel)\n• Gửi tin nhắn (Send Messages)\n• Nhúng liên kết (Embed Links)',
+            configuredTitle: '✅ Đã lưu kênh livestream',
+            configuredDescription: 'Code livestream Special Program sẽ được gửi vào kênh riêng này.',
             livestreamCodes: '📺 Code livestream',
             regularCodes: '📋 Code thường',
-            whatHappensNow: '💡 Sau đó thì sao?',
-            whatHappensNowValue: '• Code thường -> Kênh chính\n• Code livestream từ Special Program -> Kênh riêng\n• Thông báo Special Program cũng dùng cài đặt này',
-            announcementEnabledTitle: '✅ Đã bật livestream announcement',
-            announcementEnabledDescription: 'Thông báo Special Program sẽ được gửi trước các livestream sắp diễn ra.',
-            announcementDisabledTitle: '❌ Đã tắt livestream announcement',
-            announcementDisabledDescription: 'Thông báo Special Program đã tắt. Code livestream vẫn có thể được gửi khi có code.',
+            whatHappensNow: '💡 Tóm tắt luồng gửi',
+            whatHappensNowValue:
+                '• Code thường → Kênh chính (hoặc forum thread của từng game)\n' +
+                '• Code livestream → Kênh livestream riêng\n' +
+                '• Thông báo lịch Special Program → Kênh livestream riêng',
+            announcementEnabledTitle: '✅ Đã bật thông báo lịch livestream',
+            announcementEnabledDescription: 'Bot sẽ tự động thông báo trước khi buổi livestream Special Program diễn ra.',
+            announcementDisabledTitle: '❌ Đã tắt thông báo lịch livestream',
+            announcementDisabledDescription: 'Đã tắt thông báo lịch phát sóng. Code livestream vẫn sẽ được gửi tự động khi phát hành.',
             errorTitle: '❌ Lỗi',
-            errorDescription: 'Đã xảy ra lỗi khi cấu hình kênh livestream.',
-            errorFooter: 'Vui lòng thử lại hoặc liên hệ hỗ trợ nếu lỗi vẫn tiếp diễn.'
+            errorDescription: 'Không thể lưu cấu hình kênh livestream.',
+            errorFooter: 'Vui lòng kiểm tra lại quyền của bot và thử lại.'
         }
     },
     livestream: {
         codes: {
             title: 'Code livestream {game}',
-            description: 'Phiên bản {version} - Tìm thấy {count} code!',
+            description: 'Phiên bản {version} — {count} mã code',
             code: 'Code {number}',
-            expires: 'Hết hạn',
-            unknownExpiry: 'Không rõ',
-            redeemHere: 'Nhận code tại đây',
+            expires: 'Hạn dùng',
+            unknownExpiry: 'Chưa rõ',
+            redeemHere: 'Đổi code tại đây',
             redeem: 'Nhấn để nhận'
         },
         announcement: {
             content: '📢 **Thông báo livestream {game}**',
-            title: '📺 {game} đã công bố Special Program!',
-            description: 'Livestream **Phiên bản {version}** đã được lên lịch!',
-            streamTime: '📅 Thời gian stream',
-            estimatedStreamTime: '📅 Thời gian stream dự kiến',
-            whatToExpect: '🎁 Nội dung dự kiến',
-            whatToExpectValue: '• Xem trước phiên bản mới\n• Code đổi thưởng (sẽ có 3 code)\n• Hé lộ nhân vật/vũ khí',
+            title: '📺 Đã có lịch livestream {game} Special Program',
+            description: 'Buổi livestream giới thiệu **Phiên bản {version}** đã có lịch phát sóng.',
+            streamTime: '📅 Thời gian phát sóng',
+            estimatedStreamTime: '📅 Thời gian dự kiến',
+            whatToExpect: '🎁 Nội dung chính',
+            whatToExpectValue: '• Giới thiệu nội dung phiên bản mới\n• Phát giftcode giới hạn trong buổi stream\n• Hé lộ nhân vật, vũ khí và sự kiện mới',
             watchOnYoutube: '▶️ Xem trên YouTube',
             status: {
-                live: 'ĐANG LIVE',
+                live: 'ĐANG TRỰC TIẾP',
                 upcoming: 'Sắp diễn ra',
                 officialChannel: 'Kênh chính thức'
             }
@@ -326,19 +328,20 @@ module.exports = {
     },
     errors: {
         general: 'Đã xảy ra lỗi. Vui lòng thử lại.',
-        api: 'Lỗi kết nối tới API',
-        database: 'Đã xảy ra lỗi cơ sở dữ liệu',
-        invalidChannel: 'Lỗi: Không tìm thấy kênh đã cấu hình',
-        noConfig: 'Lỗi: Kênh chưa được cấu hình cho máy chủ này',
-        rateLimit: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
-        dmNotAllowed: '❌ Lệnh `/{command}` chỉ có thể được sử dụng trong máy chủ Discord, không phải trong tin nhắn riêng.\n\n' +
-            'Vui lòng sử dụng lệnh này trong máy chủ có cài đặt bot HoYo Code Sender.'
+        api: 'Không thể kết nối tới API bên ngoài.',
+        database: 'Đã xảy ra lỗi cơ sở dữ liệu.',
+        invalidChannel: 'Không tìm thấy kênh thông báo đã cấu hình.',
+        noConfig: 'Máy chủ này chưa cấu hình kênh thông báo. Vui lòng chạy `/setup` trước.',
+        rateLimit: 'Thao tác quá nhanh. Vui lòng đợi ít phút rồi thử lại.',
+        dmNotAllowed:
+            '❌ Lệnh `/{command}` chỉ dùng được trong máy chủ Discord, không dùng được trong tin nhắn riêng.\n\n' +
+            'Vui lòng chạy lệnh này trong máy chủ đã cài đặt HoYo Code Sender.'
     },
     system: {
         startup: 'Bot đang khởi động...',
-        ready: 'Bot đã sẵn sàng!',
+        ready: 'Bot đã trực tuyến.',
         checking: 'Đang kiểm tra code mới...',
-        connected: 'Đã kết nối tới cơ sở dữ liệu',
-        disconnected: 'Đã ngắt kết nối khỏi cơ sở dữ liệu'
+        connected: 'Đã kết nối cơ sở dữ liệu.',
+        disconnected: 'Đã ngắt kết nối cơ sở dữ liệu.'
     }
 };

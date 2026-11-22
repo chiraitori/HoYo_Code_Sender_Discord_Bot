@@ -7,7 +7,7 @@ const { hasAdminPermission } = require('../utils/permissions');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setupthread')
-        .setDescription('Setup forum threads for each game to post codes')
+        .setDescription('Configure forum threads for each game to post codes')
         .addChannelOption(option =>
             option.setName('genshin_thread')
                 .setDescription('Forum thread for Genshin Impact codes')

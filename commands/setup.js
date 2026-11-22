@@ -10,7 +10,7 @@ const { removeOtherGuildRecords } = require('../utils/guildRecords');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
-        .setDescription('Setup roles and channel for code notifications')
+        .setDescription('Configure roles and channel for code notifications')
         // Remove the default permissions restriction to make command visible to everyone
         // Admin permissions will be enforced in the execute function
         .addRoleOption(option => 

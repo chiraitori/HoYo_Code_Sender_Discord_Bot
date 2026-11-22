@@ -50,7 +50,7 @@ const demoCodes = {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('demoautosend')
-        .setDescription('Send demo code notifications to test the auto-send functionality')
+        .setDescription('Send sample code notifications to test your channel setup')
         .addStringOption(option =>
             option.setName('game')
                 .setDescription('Select game for demo codes')

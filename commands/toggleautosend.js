@@ -8,7 +8,7 @@ const { handleDMRestriction } = require('../utils/dmHandler');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('toggleautosend')
-        .setDescription('Enable/disable automatic code sending')
+        .setDescription('Enable or disable automatic code sending')
         // Remove the default permissions restriction to make command visible to everyone
         // Admin permissions will be enforced in the execute function
         .addStringOption(option =>

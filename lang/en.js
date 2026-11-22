@@ -1,6 +1,3 @@
-const { version } = require("mongoose");
-const about = require("../commands/about");
-
 module.exports = {
     games: {
         genshin: 'Genshin Impact',
@@ -10,25 +7,36 @@ module.exports = {
     common: {
         enabled: 'ENABLED',
         disabled: 'DISABLED',
-        notYourButton: 'This button is not for you.',
+        notYourButton: 'This button is only for the user who ran the command.',
         supportMsg: 'Support: github.com/sponsors/chiraitori | chiraitori.dev'
     },
     welcome: {
-        title: 'Thanks for Adding HoYo Code Sender!',
-        description: 'Thanks for adding me to your server! I\'ll help you get HoYoverse game codes automatically.',
-        setupHeader: '🔧 Quick Setup Guide',
-        setupSteps: '1. Run `/setup` to configure notification channel & roles\n' +
-            '2. (Optional) Use `/favgames` to select which games to receive notifications for\n' +
-            '3. (Optional) Change the language with `/setlang`\n\n' +
-            'That\'s it! I\'ll now automatically send new game codes to your configured channel.',
-        helpTip: 'For more information and tips, run `/help` anytime.',
-        footer: 'HoYo Code Sender - Get your game codes automatically!',
-        dmInfo: 'I couldn\'t find a suitable channel to send the welcome message in your server, so I\'m sending it to you directly.'
+        title: 'Thanks for adding HoYo Code Sender',
+        description: 'HoYo Code Sender posts new HoYoverse redemption codes to your server automatically.',
+        setupHeader: '🔧 Quick setup',
+        setupSteps:
+            '1. Run `/setup` to choose your notification channel and ping roles.\n' +
+            '2. (Optional) Run `/favgames` to choose which games to receive.\n' +
+            '3. (Optional) Run `/setlang` to switch the bot language (`en`, `jp`, `vi`).\n\n' +
+            'New codes will be posted automatically as soon as they go live.',
+        helpTip: 'Run `/help` anytime for the full command list.',
+        footer: 'HoYo Code Sender',
+        dmInfo: 'No writable text channel was found in your server, so this setup guide was sent via direct message.'
     },
     commands: {
+        setlang: {
+            noPermission: 'You need Administrator permission to use this command.',
+            success: 'Server language set to **{language}**.',
+            error: 'Failed to update the server language.',
+            description: 'Set the bot language for this server',
+            languageOption: 'Select language'
+        },
+        checkchannels: {
+            noPermission: 'You need Administrator permission to use this command.'
+        },
         listcodes: {
             title: 'Active Codes for {game}',
-            noCodes: 'No active codes found for {game}',
+            noCodes: 'No active codes found for {game}.',
             reward: 'Reward: {reward}',
             status: 'Status: {status}',
             redeemButton: 'Click to Redeem',
@@ -36,267 +44,266 @@ module.exports = {
             newCodes: 'New {game} Codes!',
             noReward: 'No reward specified',
             error: {
-                fetch: 'Error fetching codes. Please try again later.',
-                invalid: 'Invalid response from API',
-                notFound: 'No codes available'
+                fetch: 'Could not fetch codes right now. Please try again shortly.',
+                invalid: 'Invalid response from the code API.',
+                notFound: 'No codes available.'
             },
             loading: 'Loading codes...',
             page: 'Page'
         },
         setup: {
-            description: 'Setup roles and channel for code notifications',
+            description: 'Configure roles and channel for code notifications',
             genshinRole: 'Role for Genshin Impact notifications',
             hsrRole: 'Role for Honkai: Star Rail notifications',
             zzzRole: 'Role for Zenless Zone Zero notifications',
             forumThreadHeader: '🧵 Forum Thread',
-            forumThreadSuccess: '✅ Codes will also be posted to this thread!',
-            forumThreadWarning: '⚠️ Forum thread was provided but I don\'t have permissions or it\'s not a valid thread. It will not be used.',
+            forumThreadSuccess: '✅ Codes will also be posted to this thread.',
+            forumThreadWarning: '⚠️ The selected forum thread is invalid or missing bot permissions, so it was skipped.',
             channel: 'Channel for code notifications',
-            success: 'Server configuration completed successfully!',
-            error: 'Setup failed',
-            roleSetup: 'Role {role} has been set for {type} notifications',
+            success: 'Server configuration saved',
+            roleSetup: 'Role {role} set for {type} notifications',
             channelSetup: 'Channel {channel} will receive code notifications',
-            autoSendSetup: 'Auto-send feature: {status}',
-            noPermission: 'You do not have permission to use this command',
-            channelValidation: '✅ Channel validated successfully! Bot can send messages here.',
-            readyMessage: 'Your server is now ready to receive code notifications!',
+            autoSendSetup: 'Auto-send: {status}',
+            noPermission: 'You need Administrator permission to use this command.',
+            channelValidation: '✅ Channel verified. The bot can view, send messages, and embed links here.',
+            readyMessage: 'Your server is configured to receive redemption code notifications.',
             rolesHeader: '🎭 Notification Roles',
             channelHeader: '📣 Notification Channel',
-            autoSendHeader: '⚙️ Auto-send Feature',
-            demoTipHeader: '💡 Testing Tip',
-            demoTipText: 'You can test your setup right away by using the `/demoautosend` command to send demo notification messages.',
+            autoSendHeader: '⚙️ Auto-Send',
+            demoTipHeader: '💡 Test Your Setup',
+            demoTipText: 'Run `/demoautosend` to send a sample notification to your configured channel.',
             error: {
                 channelValidation: 'Channel validation failed'
             }
         },
         demoautosend: {
-            noPermission: 'You need administrator permissions to use this command.',
-            noConfig: 'Bot is not set up yet! Please use `/setup` first to configure a channel.',
+            noPermission: 'You need Administrator permission to use this command.',
+            noConfig: 'No channel is configured yet. Run `/setup` first.',
             channelError: 'Cannot send messages to the configured channel:',
-            title: '🔔 Demo {game} Codes!',
-            notice: '⚠️ Demo Notice',
-            noticeText: 'These are demo codes for testing purposes only. They will not work in-game.',
-            success: 'Successfully sent demo codes for {count} game(s)!',
-            error: 'An error occurred while sending demo codes.'
+            title: '🔔 Sample {game} Codes',
+            notice: '⚠️ Sample Notification',
+            noticeText: 'These are sample codes for testing your channel and role setup. They cannot be redeemed in-game.',
+            success: 'Sent sample notifications for {count} game(s).',
+            error: 'Failed to send sample notifications.'
         },
         deletesetup: {
-            noPermission: 'You do not have permission to use this command.',
-            loading: 'Deleting server configuration...',
-            success: 'Server configuration has been successfully deleted.',
-            noConfig: 'No configuration found for this server.',
-            error: 'An error occurred while deleting server configuration.',
-            deletedItemsHeader: 'Deleted items:',
-            deletedConfig: 'Channel and role settings',
-            deletedSettings: 'Notification settings',
-            deletedLanguage: 'Language settings'
+            noPermission: 'You need Administrator permission to use this command.',
+            loading: 'Removing server configuration...',
+            success: 'Server configuration deleted.',
+            noConfig: 'No saved configuration was found for this server.',
+            error: 'Failed to delete server configuration.',
+            deletedItemsHeader: 'Removed settings:',
+            deletedItems: 'Removed settings:',
+            deletedConfig: 'Channels, threads, and role assignments',
+            deletedSettings: 'Auto-send and game filter settings',
+            deletedLanguage: 'Language preference'
         },
         postcode: {
-            modalTitle: 'Add Redemption Codes',
+            modalTitle: 'Post Redemption Codes',
             inputLabels: {
-                games: 'Select Game (genshin/hsr/zzz)',
+                games: 'Game (genshin / hsr / zzz)',
                 code1: 'Code 1 (Required)',
                 code2: 'Code 2 (Optional)',
                 code3: 'Code 3 (Optional)',
-                message: 'Additional Message (Optional)'
+                message: 'Note (Optional)'
             },
-            description: 'Show redeem instructions and codes',
-            success: 'Codes have been posted successfully!',
-            error: 'Error occurred while processing the command',
-            noPermission: 'You do not have permission to use this command',
-            embedTitle: 'New Code Redeemed',
-            invalidGame: 'Invalid game. Please use: genshin, hsr, or zzz',
-            noCode: 'At least one code is required.',
-            embedDescription: 'A new code has been redeemed for {game}!',
-            messageLabel: 'Message:',
-            redeemButton: 'Click to Redeem'
+            description: 'Post redemption codes manually to the configured channel',
+            success: 'Codes posted to the notification channel.',
+            error: 'Failed to post redemption codes.',
+            noPermission: 'You need Administrator permission to use this command.',
+            embedTitle: 'New {game} Redemption Codes',
+            embedDescription: 'New redemption codes posted for {game}.',
+            invalidGame: 'Invalid game. Use `genshin`, `hsr`, or `zzz`.',
+            noCode: 'Enter at least one code.',
+            messageLabel: 'Note',
+            redeemButton: 'Click to Redeem',
+            postcodeButton: 'Click to Redeem'
         },
         toggleautosend: {
             loading: 'Updating auto-send setting...',
-            success: 'Auto-send is now: **{status}**',
-            error: 'Failed to update auto-send setting',
-            noPermission: 'You do not have permission to use this command'
+            success: 'Auto-send is now **{status}**.',
+            error: 'Failed to update auto-send setting.',
+            noPermission: 'You need Administrator permission to use this command.'
         },
         autosendoptions: {
             noPermission: 'You need Administrator permission to use this command.',
-            success: '✅ Auto-send options have been updated successfully!',
+            success: '✅ Auto-send destinations updated.',
             warning: {
-                autoSendDisabled: '⚠️ Auto-send is currently **disabled**. Enable it first with `/toggleautosend status:Enable`'
+                autoSendDisabled: '⚠️ Auto-send is currently **disabled**. Enable it first with `/toggleautosend status:Enable`.'
             },
             error: {
-                bothDisabled: '⚠️ You cannot disable both channel and threads. At least one must be enabled.',
-                general: 'An error occurred while updating auto-send options.'
+                bothDisabled: '⚠️ You cannot disable both main channel and threads. Keep at least one enabled.',
+                general: 'Failed to update auto-send destinations.'
             }
         },
         favgames: {
-            noPermission: 'You do not have permission to use this command.',
-            loading: 'Setting up favorite games...',
-            success: 'Favorite games configured successfully!',
-            error: 'An error occurred while setting favorite games.',
+            noPermission: 'You need Administrator permission to use this command.',
+            loading: 'Updating game filter...',
+            success: 'Game filter updated.',
+            error: 'Failed to update game filter.',
             filterStatus: 'Game filtering: **{status}**',
-            gameStatusHeader: 'Game Notifications:',
-            allGamesEnabled: 'You will receive notifications for all games.'
+            gameStatusHeader: 'Enabled Games:',
+            allGamesEnabled: 'All games are enabled.'
         },
         help: {
             title: 'HoYo Code Sender Help',
-            description: 'HoYo Code Sender automatically notifies your server about new redemption codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero.',
-            setupHeader: '📌 Initial Setup',
-            setupSteps: '1. Run `/setup` to configure:\n' +
-                '   • Choose a notification channel\n' +
-                '   • Set roles for each game (to mention when codes arrive)\n' +
-                '   • Enable/disable automatic code sending\n\n' +
-                '2. Customize your experience:\n' +
-                '   • `/favgames` - Choose which games to receive codes for\n' +
-                '   • `/setlang` - Change the bot\'s language\n' +
-                '   • `/toggleautosend` - Enable/disable automatic code notifications',
-            commandsHeader: '📋 Available Commands',
-            commandsList: '• `/setup` - Initial bot setup\n' +
-                '• `/deletesetup` - Delete server configuration\n' +
-                '• `/favgames` - Choose which games to receive codes for\n' +
-                '• `/toggleautosend` - Turn automatic notifications on/off\n' +
-                '• `/autosendoptions` - Configure auto-send options\n' +
-                '• `/listcodes` - Show active codes for a game\n' +
-                '• `/postcode` - Send specific codes to your channel\n' +
-                '• `/demoautosend` - Send demo codes to test notifications\n' +
-                '• `/setupthread` - Setup forum threads for code notifications\n' +
-                '• `/checkchannels` - Check configured notification channels\n' +
-                '• `/livestreamcodesetup` - Configure livestream code channel\n' +
-                '• `/setlang` - Change bot language (English/Vietnamese/Japanese)\n' +
-                '• `/dashboard` - Open the web dashboard\n' +
-                '• `/vote` - Vote for the bot on Top.gg\n' +
-                '• `/help` - Show this help message\n' +
-                '• `/about` - Information about the bot',
-            tipsHeader: '💡 Tips & Tricks',
-            tipsList: '• The bot checks for new codes every 5 minutes\n' +
-                '• You can manually post codes with `/postcode`\n' +
-                '• After setup, use `/demoautosend` to test the notification system\n' +
-                '• Use `/favgames` to filter notifications by game\n' +
-                '• Set different roles for each game type\n' +
-                '• Use `/livestreamcodesetup` to set a separate channel for livestream codes\n' +
-                '• Server admins can run `/setup` again to change settings',
-            footer: 'HoYo Code Sender - Get HoYoverse game codes automatically!',
-            error: 'An error occurred while loading help information.'
+            description: 'Automatically delivers Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero redemption codes to your Discord server.',
+            setupHeader: '📌 Quick Setup',
+            setupSteps:
+                '1. Run `/setup` to choose a notification channel, game roles, and auto-send status.\n' +
+                '2. Optional customization:\n' +
+                '   • `/livestreamcodesetup` — Set a separate channel for Special Program livestream codes\n' +
+                '   • `/setupthread` — Route each game into its own forum thread\n' +
+                '   • `/favgames` — Choose which games to receive\n' +
+                '   • `/setlang` — Switch language (`English`, `Japanese`, `Vietnamese`)',
+            commandsHeader: '📋 Commands',
+            commandsList:
+                '• `/setup` — Configure main channel, roles, and auto-send\n' +
+                '• `/livestreamcodesetup` — Set a separate channel or toggle livestream announcements\n' +
+                '• `/setupthread` — Assign forum threads per game\n' +
+                '• `/autosendoptions` — Choose main channel, threads, or both\n' +
+                '• `/favgames` — Filter which games post to your server\n' +
+                '• `/toggleautosend` — Turn automatic delivery on or off\n' +
+                '• `/listcodes` — View active codes for a game\n' +
+                '• `/postcode` — Post 1–3 codes manually\n' +
+                '• `/checkchannels` — Verify bot permissions in your configured channel\n' +
+                '• `/demoautosend` — Send a sample notification to test your setup\n' +
+                '• `/setlang` — Change server language (`en`, `jp`, `vi`)\n' +
+                '• `/deletesetup` — Reset all server settings\n' +
+                '• `/dashboard` — Open the web dashboard\n' +
+                '• `/vote` — Check Top.gg vote status\n' +
+                '• `/about` — Bot version and links\n' +
+                '• `/help` — Show this guide',
+            tipsHeader: '💡 Notes',
+            tipsList:
+                '• New codes are checked every 5 minutes and during Special Program livestreams.\n' +
+                '• Direct HoYoLAB redemption links pre-fill the code automatically.\n' +
+                '• Run `/checkchannels` anytime to verify bot permissions.',
+            footer: 'HoYo Code Sender',
+            error: 'Could not load help information.'
         },
         about: {
             title: 'About HoYo Code Sender',
-            description: 'HoYo Code Sender is a Discord bot that automatically announces new codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero by Hoyovers.',
-            version: 'Version:',
+            description: 'Discord bot that automatically delivers new Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero redemption codes from HoYoverse.',
+            version: 'Version',
             sourceCode: 'Source Code',
             inviteLink: 'Invite Link',
             supportServer: 'Support Server',
-            vote: 'Vote for the bot',
+            vote: 'Vote on Top.gg',
             github: 'GitHub Repository',
-            devbio: 'Developer Bio',
+            devbio: 'Developer',
             donate: 'Donate',
-            sponsor: 'GitHub Sponsors'
+            sponsor: 'GitHub Sponsors',
+            error: 'Could not load bot information.'
         },
         dashboard: {
             title: '🌐 Web Dashboard',
-            description: 'Access the HoYo Code Sender web dashboard to manage your server settings with a user-friendly interface.',
-            webInterface: 'Web Interface',
+            description: 'Configure notification channels, forum threads, roles, game filters, and manual code posts from the web dashboard.',
+            webInterface: 'Dashboard URL',
             openDashboard: 'Open Dashboard',
-            features: 'Dashboard Features',
-            featuresList: '• 📊 Live server statistics\n• ⚙️ Visual configuration management\n• 🎮 Game role assignment\n• 📱 Mobile-friendly interface\n• 🔔 Test notifications\n• 🔄 Real-time updates',
+            features: 'What You Can Manage',
+            featuresList:
+                '• 📣 Main and livestream notification channels\n' +
+                '• 🧵 Per-game forum threads\n' +
+                '• 🎭 Game notification roles\n' +
+                '• 🎮 Game filters and server language\n' +
+                '• 📝 Manual code posting and channel permission checks',
             requirements: 'Requirements',
-            requirementsList: '• Discord account login\n• Server administrator permissions\n• Bot must be in your server',
-            footer: 'Manage your bot settings easily with our web dashboard!',
-            error: 'Error loading dashboard information.'
+            requirementsList:
+                '• Sign in with Discord\n' +
+                '• Owner, Administrator, or Manage Server / Manage Channels permission\n' +
+                '• HoYo Code Sender installed in the server',
+            footer: 'HoYo Code Sender Dashboard',
+            error: 'Could not load dashboard link.'
         },
         vote: {
             title: 'Vote for HoYo Code Sender',
-            description: 'Support the bot by voting on Top.gg! Your vote helps us reach more servers and improve the bot.',
+            description: 'Support HoYo Code Sender by voting on Top.gg.',
             status: 'Vote Status',
-            hasVoted: '✅ You have voted recently! Thank you for your support.',
-            hasNotVoted: '❌ You haven\'t voted in the last 12 hours.',
+            hasVoted: '✅ You voted within the last 12 hours. Thank you!',
+            hasNotVoted: '❌ You have not voted in the last 12 hours.',
             link: 'Vote on Top.gg',
-            error: 'Error checking vote status.',
-            voteAgain: 'You can vote again in 12 hours.',
-            thankTitle: 'Thank You for Your Vote! 🎉',
-            thankMessage: 'Thank you for supporting HoYo Code Sender on Top.gg! Your vote helps us grow and reach more users.',
-            dmThankTitle: 'Thank You for Your Vote!',
-            dmThankMessage: 'Thank you for voting for HoYo Code Sender on Top.gg! Your support means a lot to us.'
-        },
-        deletesetup: {
-            noPermission: 'You do not have permission to use this command.',
-            loading: 'Deleting server configuration...',
-            success: 'Server configuration has been successfully deleted.',
-            noConfig: 'No configuration found for this server.',
-            error: 'An error occurred while deleting server configuration.',
-            deletedItems: 'Deleted items:',
-            deletedConfig: 'Channel and role settings',
-            deletedSettings: 'Notification settings',
-            deletedLanguage: 'Language settings'
+            error: 'Could not check vote status.',
+            voteAgain: 'You can vote again every 12 hours.',
+            thankTitle: 'Thanks for Voting! 🎉',
+            thankMessage: 'Thanks for voting for HoYo Code Sender on Top.gg, {user}!',
+            dmThankTitle: 'Thanks for Voting!',
+            dmThankMessage: 'Thanks for voting for HoYo Code Sender on Top.gg!'
         },
         togglegame: {
-            noPermission: 'You do not have permission to use this command.',
-            loading: 'Processing your request...',
-            enabledWithNewRole: '✅ **{game}** notifications have been enabled with role {role}.',
-            enabledWithExistingRole: '✅ **{game}** notifications have been enabled with existing role {role}.',
-            enabledNoRole: '⚠️ **{game}** notifications have been enabled, but no role is set. Add a role with `{command}` or notifications will be sent without mentioning anyone.',
-            disabled: '❌ **{game}** notifications have been disabled.',
-            error: 'An error occurred while toggling game notifications.'
+            noPermission: 'You need Administrator permission to use this command.',
+            loading: 'Updating game notifications...',
+            enabledWithNewRole: '✅ **{game}** notifications enabled with role {role}.',
+            enabledWithExistingRole: '✅ **{game}** notifications enabled with role {role}.',
+            enabledNoRole: '⚠️ **{game}** notifications enabled without a ping role. Run `{command}` to assign a role.',
+            disabled: '❌ **{game}** notifications disabled.',
+            error: 'Failed to toggle game notifications.'
         },
         sendtothread: {
             noPermission: 'You need Administrator permission to use this command.',
             noActiveCodes: 'No active codes found for {game}.',
-            success: '✅ Successfully sent {count} active codes for {game} to thread "{thread}"!',
-            instructions: '**How to redeem:**\n1. Click the link above\n2. Log in to your account\n3. Enter the code\n4. Claim your rewards in-game!',
+            success: '✅ Sent {count} active {game} code(s) to thread "{thread}".',
+            instructions: '**How to redeem:**\n1. Open the redemption link above\n2. Sign in to your HoYoverse account\n3. Confirm the code and claim rewards via in-game mail',
             error: {
-                notThread: 'The selected channel is not a thread. Please select a forum thread.',
-                noPermission: 'I don\'t have permission to send messages in that thread. Please check my permissions.',
-                general: 'An error occurred while sending codes to the thread.'
+                notThread: 'The selected channel is not a forum thread.',
+                noPermission: 'Missing permission to send messages in that thread.',
+                general: 'Failed to send codes to the thread.'
             }
         },
         setupthread: {
             noPermission: 'You need Administrator permission to use this command.',
-            success: '✅ Forum threads have been configured! Codes will be posted to dedicated permanent threads for each game.',
+            success: '✅ Forum threads configured. New codes will be posted to each game\'s dedicated thread.',
             error: {
-                notThread: 'One of the selected channels is not a forum thread. Please select forum threads.',
-                noPermission: 'I don\'t have permission to send messages in one of the threads. Please check my permissions.',
-                noSetup: 'Please run `/setup` first to configure the main notification channel.',
-                general: 'An error occurred while setting up the forum threads.'
+                notThread: 'One or more selected channels is not a forum thread.',
+                noPermission: 'Missing permission to send messages or embed links in one of the selected threads.',
+                noSetup: 'Run `/setup` first to configure a main notification channel.',
+                general: 'Failed to configure forum threads.'
             }
         },
         livestreamcodesetup: {
             setupRequiredTitle: '⚠️ Setup Required',
-            setupRequired: 'Please run `/setup` first to configure your server before setting up livestream channels.',
-            title: '📺 Livestream Code Channel Configuration',
-            currentSetting: 'Current Setting',
+            setupRequired: 'Run `/setup` to configure a main notification channel before setting a livestream channel.',
+            title: '📺 Livestream Channel Configuration',
+            currentSetting: 'Current Channel',
             usingMainChannel: 'Using main channel: {channel}',
             notConfigured: 'Not configured',
-            behavior: 'Behavior',
-            dedicatedBehavior: '✅ Livestream codes will be sent to the dedicated channel',
-            mainBehavior: 'ℹ️ Livestream codes will be sent to the same channel as regular codes',
-            announcementStatus: 'Announcement',
-            announcementEnabled: '✅ Special Program announcements are enabled',
-            announcementDisabled: '❌ Special Program announcements are disabled',
-            removedTitle: '✅ Livestream Channel Removed',
-            removedDescription: 'Livestream codes will now be sent to the main channel alongside regular codes.',
+            behavior: 'Routing',
+            dedicatedBehavior: '✅ Livestream codes are routed to the dedicated livestream channel.',
+            mainBehavior: 'ℹ️ Livestream codes are sent to the main notification channel.',
+            announcementStatus: 'Special Program Announcements',
+            announcementEnabled: '✅ Special Program schedule announcements are enabled.',
+            announcementDisabled: '❌ Special Program schedule announcements are disabled.',
+            removedTitle: '✅ Livestream Channel Cleared',
+            removedDescription: 'Livestream codes will now be posted to your main notification channel.',
             mainChannel: 'Main Channel',
             channelRequiredTitle: '❌ Channel Required',
-            channelRequired: 'Please select a channel when using the "Set Channel" action.',
-            insufficientPermissionsTitle: '⚠️ Insufficient Permissions',
-            insufficientPermissions: 'The bot does not have the required permissions in {channel}',
+            channelRequired: 'Select a text or announcement channel when using **Set Channel**.',
+            insufficientPermissionsTitle: '⚠️ Missing Permissions',
+            insufficientPermissions: 'The bot is missing required permissions in {channel}.',
             requiredPermissions: 'Required Permissions',
             requiredPermissionsValue: '• View Channel\n• Send Messages\n• Embed Links',
-            configuredTitle: '✅ Livestream Channel Configured',
-            configuredDescription: 'Livestream codes will now be sent to a separate channel!',
+            configuredTitle: '✅ Livestream Channel Saved',
+            configuredDescription: 'Special Program livestream codes will now be sent to this channel.',
             livestreamCodes: '📺 Livestream Codes',
             regularCodes: '📋 Regular Codes',
-            whatHappensNow: '💡 What happens now?',
-            whatHappensNowValue: '• Regular codes -> Main channel\n• Livestream codes from Special Programs -> Dedicated channel\n• Special Program announcements follow this setting too',
+            whatHappensNow: '💡 Routing Summary',
+            whatHappensNowValue:
+                '• Regular codes → Main channel (or game forum threads)\n' +
+                '• Livestream codes → Livestream channel\n' +
+                '• Special Program announcements → Livestream channel',
             announcementEnabledTitle: '✅ Livestream Announcements Enabled',
-            announcementEnabledDescription: 'Special Program announcements will be sent before upcoming livestreams.',
+            announcementEnabledDescription: 'Upcoming Special Program livestreams will be announced automatically.',
             announcementDisabledTitle: '❌ Livestream Announcements Disabled',
-            announcementDisabledDescription: 'Special Program announcements are now disabled. Livestream codes can still be sent when they are available.',
+            announcementDisabledDescription: 'Schedule announcements are off. Livestream redemption codes will still be delivered when released.',
             errorTitle: '❌ Error',
-            errorDescription: 'There was an error configuring the livestream channel.',
-            errorFooter: 'Please try again or contact support if the problem persists.'
+            errorDescription: 'Failed to update livestream channel configuration.',
+            errorFooter: 'Check bot permissions and try again.'
         }
     },
     livestream: {
         codes: {
             title: '{game} Livestream Codes',
-            description: 'Version {version} - Found {count} code(s)!',
+            description: 'Version {version} — {count} code(s) available',
             code: 'Code {number}',
             expires: 'Expires',
             unknownExpiry: 'Unknown',
@@ -305,12 +312,12 @@ module.exports = {
         },
         announcement: {
             content: '📢 **{game} Livestream Announcement**',
-            title: '📺 {game} Special Program Announced!',
-            description: '**Version {version}** livestream has been scheduled!',
+            title: '📺 {game} Special Program Scheduled',
+            description: 'The **Version {version}** Special Program livestream has been scheduled.',
             streamTime: '📅 Stream Time',
             estimatedStreamTime: '📅 Estimated Stream Time',
-            whatToExpect: '🎁 What to Expect',
-            whatToExpectValue: '• New version preview\n• Redemption codes (3 codes will be dropped)\n• Character/weapon reveals',
+            whatToExpect: '🎁 Overview',
+            whatToExpectValue: '• Version update preview\n• Livestream redemption codes\n• New character and event details',
             watchOnYoutube: '▶️ Watch on YouTube',
             status: {
                 live: 'LIVE',
@@ -321,19 +328,20 @@ module.exports = {
     },
     errors: {
         general: 'An error occurred. Please try again.',
-        api: 'Error connecting to API',
-        database: 'Database error occurred',
-        invalidChannel: 'Error: Could not find the configured channel',
-        noConfig: 'Error: Channel not configured for this server',
-        rateLimit: 'Too many requests. Please try again later.',
-        dmNotAllowed: '❌ The `/{command}` command can only be used in Discord servers, not in direct messages.\n\n' +
-            'Please use this command in a server where the HoYo Code Sender bot is installed.'
+        api: 'Could not reach the external API.',
+        database: 'A database error occurred.',
+        invalidChannel: 'Configured notification channel could not be found.',
+        noConfig: 'No notification channel is configured for this server. Run `/setup` first.',
+        rateLimit: 'Too many requests. Please wait a moment and try again.',
+        dmNotAllowed:
+            '❌ `/{command}` can only be used inside a Discord server, not in direct messages.\n\n' +
+            'Run this command in a server where HoYo Code Sender is installed.'
     },
     system: {
-        startup: 'Bot is starting up...',
-        ready: 'Bot is now online!',
+        startup: 'Starting bot...',
+        ready: 'Bot is online.',
         checking: 'Checking for new codes...',
-        connected: 'Connected to database',
-        disconnected: 'Disconnected from database'
+        connected: 'Connected to database.',
+        disconnected: 'Disconnected from database.'
     }
 };
