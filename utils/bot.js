@@ -7,7 +7,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const { checkAndSendNewCodes } = require('./autoCodeSend');
 const { checkAndSendYearChangeMessage } = require('./yearChangeCheck');
 const { setupTopggWebhook } = require('./topggWebhook');
@@ -15,6 +15,17 @@ const { auditGuildConfigurations } = require('./configAudit');
 const { recoverMissingGuildConfigurations } = require('./configRecovery');
 const { sendWelcomeMessage } = require('./welcome');
 const authMiddleware = require('./authMiddleware');
+const { createEdgeSecretMiddleware } = require('./dashboardBridge');
+const {
+    parseTrustProxy,
+    createCorsOptions,
+    securityHeadersMiddleware,
+    createPublicLimiter,
+    createDashboardApiLimiter,
+    createServerActionLimiter,
+    jsonBodyErrorHandler,
+    logDashboardAudit
+} = require('./httpSecurity');
 const { startLivestreamChecker } = require('./livestreamChecker');
 const { startPostTracker } = require('./hoyolabPostTracker');
 const { sendChannelMessage } = require('./discordMessageSender');
@@ -38,70 +49,41 @@ const runsPrimaryServices = shardIds.includes(0);
 // Express setup
 const app = express();
 const PORT = process.env.PORT || 3000;
+const API_BIND_HOST = process.env.API_BIND_HOST || '0.0.0.0';
 let httpServer = null;
 let selfMaintenance = null;
 
-// Trust proxy configuration for proper rate limiting behind reverse proxies
-// This allows express-rate-limit to correctly identify users via X-Forwarded-For headers
-// Required when deployed behind nginx, CloudFlare, load balancers, or other reverse proxies
-// Setting this to 'true' tells Express to trust the first hop proxy
-app.set('trust proxy', true);
+app.disable('x-powered-by');
+app.set('trust proxy', parseTrustProxy());
 
-// Rate limiting middleware
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // increased from 100
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes',
-    keyGenerator: (req) => req.ip,
-    skip: (req) => true // Bypass rate limiting for now (as requested)
+const publicLimiter = createPublicLimiter();
+const dashboardApiLimiter = createDashboardApiLimiter();
+const testNotificationLimiter = createServerActionLimiter({
+    windowMs: 5 * 60 * 1000,
+    max: 5,
+    message: 'Too many test notifications for this server. Please wait 5 minutes.'
 });
-
-// Apply rate limiting to all routes
-app.use(limiter);
-
-// API-specific stricter rate limiter
-const apiLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 1000,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: 'Too many API requests from this IP, please try again after 5 minutes',
-    keyGenerator: (req) => req.ip,
-    skip: (req) => true // Bypass rate limiting for now (as requested)
+const resetConfigLimiter = createServerActionLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 3,
+    message: 'Too many configuration reset requests for this server. Please wait 15 minutes.'
 });
+const edgeSecretMiddleware = createEdgeSecretMiddleware();
 
-// Apply the API-specific limiter to API routes
-app.use('/api/', apiLimiter);
-
-// Security middleware
-app.use((req, res, next) => {
-    // Content Security Policy
-    res.setHeader('Content-Security-Policy', [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
-        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
-        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
-        "img-src 'self' data: https: pic.re",
-        "connect-src 'self'"
-    ].join('; '));
-
-    // Other security headers
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-    next();
-});
-
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security headers, locked CORS, and bounded JSON parser with rawBody capture for HMAC verification
+app.use(securityHeadersMiddleware);
+app.use(cors(createCorsOptions()));
+app.use(express.json({
+    limit: '64kb',
+    verify: (req, _res, buf) => {
+        req.rawBody = buf;
+    }
+}));
+app.use(jsonBodyErrorHandler);
 app.use(express.static(path.join(__dirname, '..', 'public'))); // Serve static files from project root
 
 // Public, non-sensitive endpoint for uptime monitors and load balancers.
-app.get('/health', (req, res) => {
+app.get('/health', publicLimiter, (req, res) => {
     const snapshot = selfMaintenance?.getSnapshot();
     if (!snapshot) {
         return res.status(503).json({
@@ -117,9 +99,15 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Authentication middleware for protected bot API routes
-app.use('/api/bot', authMiddleware);
-app.use('/api/server', authMiddleware);
+// Optional edge gateway secret check for VPS deployments behind Cloudflare / reverse proxy
+app.use('/api', edgeSecretMiddleware);
+
+// Public code feed rate limiting
+app.use('/api/codes', publicLimiter);
+
+// Authentication + actor-keyed rate limiting for protected dashboard -> bot API routes
+app.use('/api/bot', authMiddleware, dashboardApiLimiter);
+app.use('/api/server', authMiddleware, dashboardApiLimiter);
 
 // Simple cache for API responses
 const apiCache = new Map();
@@ -176,7 +164,23 @@ function serializeGuild(guild, includeDetails = false) {
                 type: channel.type,
                 position: channel.position
             }))
-            .sort((a, b) => a.position - b.position)
+            .sort((a, b) => a.position - b.position),
+        threads: guild.channels.cache
+            .filter(channel =>
+                (channel.type === 11 || channel.type === 12)
+                && !channel.archived
+                && guild.members.me
+                && (channel.permissionsFor(guild.members.me)?.has('SendMessagesInThreads')
+                    || channel.permissionsFor(guild.members.me)?.has('SendMessages'))
+            )
+            .map(thread => ({
+                id: thread.id,
+                name: thread.name,
+                type: thread.type,
+                parentId: thread.parentId || null,
+                parentName: thread.parent?.name || null
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name))
     };
 }
 
@@ -267,7 +271,23 @@ async function getGuildAcrossShards(guildId) {
                     type: channel.type,
                     position: channel.position
                 }))
-                .sort((a, b) => a.position - b.position)
+                .sort((a, b) => a.position - b.position),
+            threads: guild.channels.cache
+                .filter(channel =>
+                    (channel.type === 11 || channel.type === 12)
+                    && !channel.archived
+                    && guild.members.me
+                    && (channel.permissionsFor(guild.members.me)?.has('SendMessagesInThreads')
+                        || channel.permissionsFor(guild.members.me)?.has('SendMessages'))
+                )
+                .map(thread => ({
+                    id: thread.id,
+                    name: thread.name,
+                    type: thread.type,
+                    parentId: thread.parentId || null,
+                    parentName: thread.parent?.name || null
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name))
         };
     }, { context: { guildId } });
 
@@ -319,9 +339,42 @@ async function getCachedApiData(game, apiUrl) {
     }
 }
 
+// Unified public codes endpoint (1 Vercel -> VPS round trip with ETag & SWR caching)
+app.get('/api/codes', async (req, res) => {
+    try {
+        const [genshinRes, hsrRes, zzzRes] = await Promise.allSettled([
+            getCachedApiData('genshin', 'https://hoyo-codes.seria.moe/codes?game=genshin'),
+            getCachedApiData('hkrpg', 'https://hoyo-codes.seria.moe/codes?game=hkrpg'),
+            getCachedApiData('nap', 'https://hoyo-codes.seria.moe/codes?game=nap')
+        ]);
+
+        const payload = {
+            games: {
+                genshin: genshinRes.status === 'fulfilled' ? genshinRes.value : { codes: [], error: true },
+                hsr: hsrRes.status === 'fulfilled' ? hsrRes.value : { codes: [], error: true },
+                zzz: zzzRes.status === 'fulfilled' ? zzzRes.value : { codes: [], error: true }
+            },
+            fetchedAt: new Date().toISOString()
+        };
+
+        const etag = 'W/"' + crypto.createHash('sha1').update(JSON.stringify(payload.games)).digest('hex') + '"';
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+        res.setHeader('ETag', etag);
+
+        if (req.headers['if-none-match'] === etag) {
+            return res.status(304).end();
+        }
+        return res.json(payload);
+    } catch (error) {
+        console.error('Error fetching unified codes:', error);
+        return res.status(500).json({ error: 'Failed to fetch codes' });
+    }
+});
+
 app.get('/api/codes/genshin', async (req, res) => {
     try {
         const data = await getCachedApiData('genshin', 'https://hoyo-codes.seria.moe/codes?game=genshin');
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
         res.json(data);
     } catch (error) {
         console.error('Error fetching Genshin codes:', error);
@@ -332,6 +385,7 @@ app.get('/api/codes/genshin', async (req, res) => {
 app.get('/api/codes/hsr', async (req, res) => {
     try {
         const data = await getCachedApiData('hkrpg', 'https://hoyo-codes.seria.moe/codes?game=hkrpg');
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
         res.json(data);
     } catch (error) {
         console.error('Error fetching HSR codes:', error);
@@ -339,15 +393,27 @@ app.get('/api/codes/hsr', async (req, res) => {
     }
 });
 
-// API Routes
 app.get('/api/codes/zzz', async (req, res) => {
     try {
         const data = await getCachedApiData('nap', 'https://hoyo-codes.seria.moe/codes?game=nap');
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
         res.json(data);
     } catch (error) {
         console.error('Error fetching ZZZ codes:', error);
         res.status(500).json({ error: 'Failed to fetch codes' });
     }
+});
+
+// Authenticated bridge handshake & latency probe for Vercel dashboard
+app.get('/api/bot/ping', (req, res) => {
+    res.json({
+        ok: true,
+        botReady: Boolean(client && client.isReady()),
+        shardCount: client?.shard ? client.shard.count : 1,
+        authMode: req.dashboardAuth?.mode || 'unknown',
+        serverTime: Date.now(),
+        requestId: req.requestId || null
+    });
 });
 
 // Discord Bot Stats API Endpoints
@@ -457,6 +523,235 @@ app.get('/api/bot/guild/:guildId', async (req, res) => {
     }
 });
 
+function serializeServerConfig(serverId, config) {
+    return {
+        guildId: config?.guildId || serverId,
+        genshinRole: config?.genshinRole || null,
+        hsrRole: config?.hsrRole || null,
+        zzzRole: config?.zzzRole || null,
+        channel: config?.channel || null,
+        livestreamChannel: config?.livestreamChannel || null,
+        forumThreads: {
+            genshin: config?.forumThreads?.genshin || null,
+            hsr: config?.forumThreads?.hsr || null,
+            zzz: config?.forumThreads?.zzz || null
+        }
+    };
+}
+
+function serializeServerSettings(serverId, settings) {
+    if (!settings) {
+        return {
+            guildId: serverId,
+            autoSendEnabled: true,
+            autoSendOptions: { channel: true, threads: true },
+            livestreamAnnouncementsEnabled: true,
+            favoriteGames: {
+                enabled: false,
+                games: {
+                    genshin: true,
+                    hkrpg: true,
+                    nap: true
+                }
+            }
+        };
+    }
+    return {
+        guildId: settings.guildId,
+        autoSendEnabled: settings.autoSendEnabled,
+        autoSendOptions: settings.autoSendOptions,
+        livestreamAnnouncementsEnabled: settings.livestreamAnnouncementsEnabled,
+        favoriteGames: settings.favoriteGames
+    };
+}
+
+function applyConfigPatch(config, updateData) {
+    if (Object.hasOwn(updateData, 'genshinRole')) {
+        config.genshinRole = updateData.genshinRole;
+    }
+    if (Object.hasOwn(updateData, 'hsrRole')) {
+        config.hsrRole = updateData.hsrRole;
+    }
+    if (Object.hasOwn(updateData, 'zzzRole')) {
+        config.zzzRole = updateData.zzzRole;
+    }
+    if (Object.hasOwn(updateData, 'channel')) {
+        config.channel = updateData.channel;
+    }
+    if (Object.hasOwn(updateData, 'livestreamChannel')) {
+        config.livestreamChannel = updateData.livestreamChannel;
+    }
+    if (Object.hasOwn(updateData, 'forumThreads')) {
+        if (!config.forumThreads) {
+            config.forumThreads = {};
+        }
+        for (const game of ['genshin', 'hsr', 'zzz']) {
+            if (Object.hasOwn(updateData.forumThreads, game)) {
+                config.forumThreads[game] = updateData.forumThreads[game];
+            }
+        }
+    }
+}
+
+// Unified server snapshot endpoint (replaces 4 separate Vercel -> VPS requests with 1)
+app.get('/api/server/:serverId/snapshot', async (req, res) => {
+    try {
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
+
+        const Config = require('../models/Config');
+        const Settings = require('../models/Settings');
+        const Language = require('../models/Language');
+
+        const [guild, config, settings, langConfig] = await Promise.all([
+            getGuildAcrossShards(serverId),
+            Config.findOne({ guildId: serverId }).sort({ _id: -1 }),
+            Settings.findOne({ guildId: serverId }).sort({ _id: -1 }),
+            Language.findOne({ guildId: serverId })
+        ]);
+
+        if (!guild) {
+            return res.status(404).json({ error: 'Server not found' });
+        }
+
+        return res.json({
+            guild,
+            config: serializeServerConfig(serverId, config),
+            settings: serializeServerSettings(serverId, settings),
+            language: langConfig ? langConfig.language : 'en',
+            fetchedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching server snapshot:', error);
+        return res.status(500).json({ error: 'Failed to fetch server snapshot' });
+    }
+});
+
+// Unified atomic server update endpoint (saves config + settings + language in 1 signed request)
+app.put('/api/server/:serverId/snapshot', async (req, res) => {
+    try {
+        const serverId = getValidatedGuildId(req.params.serverId);
+        if (!serverId) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
+        if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+            return res.status(400).json({ error: 'Invalid snapshot payload' });
+        }
+
+        const hasConfig = Object.hasOwn(req.body, 'config');
+        const hasSettings = Object.hasOwn(req.body, 'settings');
+        const hasLanguage = Object.hasOwn(req.body, 'language');
+        if (!hasConfig && !hasSettings && !hasLanguage) {
+            return res.status(400).json({ error: 'At least one of config, settings, or language is required' });
+        }
+
+        const configPatch = hasConfig ? getValidatedConfigPatch(req.body.config) : null;
+        if (hasConfig && !configPatch) {
+            return res.status(400).json({ error: 'Invalid channel, thread, or role configuration' });
+        }
+
+        const settingsPatch = hasSettings ? getValidatedSettingsPatch(req.body.settings) : null;
+        if (hasSettings && !settingsPatch) {
+            return res.status(400).json({ error: 'Settings must use boolean values' });
+        }
+
+        const validatedLanguage = hasLanguage ? getValidatedLanguage(req.body.language) : null;
+        if (hasLanguage && !validatedLanguage) {
+            return res.status(400).json({ error: 'Invalid language code' });
+        }
+
+        const guild = await getGuildAcrossShards(serverId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Server not found' });
+        }
+        if (hasConfig && !configPatchBelongsToGuild(configPatch, guild)) {
+            return res.status(400).json({ error: 'Channel, threads, and roles must belong to this server' });
+        }
+
+        const Config = require('../models/Config');
+        const Settings = require('../models/Settings');
+        const Language = require('../models/Language');
+
+        const tasks = [];
+        let savedConfig = null;
+        let savedSettings = null;
+        let savedLanguage = null;
+
+        if (hasConfig) {
+            tasks.push((async () => {
+                let config = await Config.findOne({ guildId: serverId }).sort({ _id: -1 });
+                if (!config) {
+                    config = new Config({
+                        guildId: serverId,
+                        genshinRole: null,
+                        hsrRole: null,
+                        zzzRole: null,
+                        channel: null,
+                        livestreamChannel: null,
+                        forumThreads: { genshin: null, hsr: null, zzz: null }
+                    });
+                }
+                applyConfigPatch(config, configPatch);
+                await config.save();
+                savedConfig = config;
+            })());
+        } else {
+            tasks.push(Config.findOne({ guildId: serverId }).sort({ _id: -1 }).then(c => { savedConfig = c; }));
+        }
+
+        if (hasSettings) {
+            tasks.push((async () => {
+                let settings = await Settings.findOne({ guildId: serverId }).sort({ _id: -1 });
+                if (!settings) {
+                    settings = new Settings({ guildId: serverId });
+                }
+                for (const [field, value] of Object.entries(settingsPatch)) {
+                    settings.set(field, value);
+                }
+                await settings.save();
+                savedSettings = settings;
+            })());
+        } else {
+            tasks.push(Settings.findOne({ guildId: serverId }).sort({ _id: -1 }).then(s => { savedSettings = s; }));
+        }
+
+        if (hasLanguage) {
+            tasks.push(
+                Language.findOneAndUpdate(
+                    { guildId: serverId },
+                    { $set: { language: validatedLanguage } },
+                    { upsert: true, setDefaultsOnInsert: true, runValidators: true }
+                ).then(() => { savedLanguage = validatedLanguage; })
+            );
+        } else {
+            tasks.push(Language.findOne({ guildId: serverId }).then(l => { savedLanguage = l ? l.language : 'en'; }));
+        }
+
+        await Promise.all(tasks);
+
+        logDashboardAudit(req, 'server.snapshot.update', {
+            serverId,
+            sections: [hasConfig && 'config', hasSettings && 'settings', hasLanguage && 'language'].filter(Boolean)
+        });
+
+        return res.json({
+            guild,
+            config: serializeServerConfig(serverId, savedConfig),
+            settings: serializeServerSettings(serverId, savedSettings),
+            language: savedLanguage || 'en',
+            fetchedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error updating server snapshot:', error);
+        return res.status(500).json({ error: 'Failed to update server snapshot' });
+    }
+});
+
 // Server configuration endpoint
 app.get('/api/server/:serverId/config', async (req, res) => {
     try {
@@ -468,25 +763,7 @@ app.get('/api/server/:serverId/config', async (req, res) => {
         const Config = require('../models/Config');
         const config = await Config.findOne({ guildId: serverId }).sort({ _id: -1 });
 
-        if (!config) {
-            return res.json({
-                guildId: serverId,
-                genshinRole: null,
-                hsrRole: null,
-                zzzRole: null,
-                channel: null,
-                livestreamChannel: null
-            });
-        }
-
-        res.json({
-            guildId: config.guildId,
-            genshinRole: config.genshinRole,
-            hsrRole: config.hsrRole,
-            zzzRole: config.zzzRole,
-            channel: config.channel,
-            livestreamChannel: config.livestreamChannel || null
-        });
+        res.json(serializeServerConfig(serverId, config));
     } catch (error) {
         console.error('Error fetching server config:', error);
         res.status(500).json({ error: 'Failed to fetch server config' });
@@ -501,16 +778,15 @@ app.put('/api/server/:serverId/config', async (req, res) => {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
         const updateData = getValidatedConfigPatch(req.body);
-        if (!updateData) return res.status(400).json({ error: 'Invalid channel or role configuration' });
+        if (!updateData) return res.status(400).json({ error: 'Invalid channel, thread, or role configuration' });
         const guild = await getGuildAcrossShards(serverId);
         if (!guild) return res.status(404).json({ error: 'Server not found' });
         if (!configPatchBelongsToGuild(updateData, guild)) {
-            return res.status(400).json({ error: 'Channel and roles must belong to this server' });
+            return res.status(400).json({ error: 'Channel, threads, and roles must belong to this server' });
         }
 
         const Config = require('../models/Config');
 
-        // Find existing config or create new one
         let config = await Config.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!config) {
@@ -520,37 +796,16 @@ app.put('/api/server/:serverId/config', async (req, res) => {
                 hsrRole: null,
                 zzzRole: null,
                 channel: null,
-                livestreamChannel: null
+                livestreamChannel: null,
+                forumThreads: { genshin: null, hsr: null, zzz: null }
             });
         }
 
-        // Update fields that are provided
-        if (Object.hasOwn(updateData, 'genshinRole')) {
-            config.genshinRole = updateData.genshinRole;
-        }
-        if (Object.hasOwn(updateData, 'hsrRole')) {
-            config.hsrRole = updateData.hsrRole;
-        }
-        if (Object.hasOwn(updateData, 'zzzRole')) {
-            config.zzzRole = updateData.zzzRole;
-        }
-        if (Object.hasOwn(updateData, 'channel')) {
-            config.channel = updateData.channel;
-        }
-        if (Object.hasOwn(updateData, 'livestreamChannel')) {
-            config.livestreamChannel = updateData.livestreamChannel;
-        }
-
+        applyConfigPatch(config, updateData);
         await config.save();
 
-        res.json({
-            guildId: config.guildId,
-            genshinRole: config.genshinRole,
-            hsrRole: config.hsrRole,
-            zzzRole: config.zzzRole,
-            channel: config.channel,
-            livestreamChannel: config.livestreamChannel
-        });
+        logDashboardAudit(req, 'server.config.update', { serverId, fields: Object.keys(updateData) });
+        res.json(serializeServerConfig(serverId, config));
     } catch (error) {
         console.error('Error updating server config:', error);
         res.status(500).json({ error: 'Failed to update server config' });
@@ -596,6 +851,7 @@ app.put('/api/server/:serverId/language', async (req, res) => {
             { upsert: true, setDefaultsOnInsert: true, runValidators: true }
         );
 
+        logDashboardAudit(req, 'server.language.update', { serverId, language });
         res.json({ success: true, language });
     } catch (error) {
         console.error('Error updating server language:', error);
@@ -614,30 +870,7 @@ app.get('/api/server/:serverId/settings', async (req, res) => {
         const Settings = require('../models/Settings');
         const settings = await Settings.findOne({ guildId: serverId }).sort({ _id: -1 });
 
-        if (!settings) {
-            return res.json({
-                guildId: serverId,
-                autoSendEnabled: true,
-                autoSendOptions: { channel: true, threads: true },
-                livestreamAnnouncementsEnabled: true,
-                favoriteGames: {
-                    enabled: false,
-                    games: {
-                        genshin: true,
-                        hkrpg: true,
-                        nap: true
-                    }
-                }
-            });
-        }
-
-        res.json({
-            guildId: settings.guildId,
-            autoSendEnabled: settings.autoSendEnabled,
-            autoSendOptions: settings.autoSendOptions,
-            livestreamAnnouncementsEnabled: settings.livestreamAnnouncementsEnabled,
-            favoriteGames: settings.favoriteGames
-        });
+        res.json(serializeServerSettings(serverId, settings));
     } catch (error) {
         console.error('Error fetching server settings:', error);
         res.status(500).json({ error: 'Failed to fetch server settings' });
@@ -656,7 +889,6 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
 
         const Settings = require('../models/Settings');
 
-        // Find existing settings or create new one
         let settings = await Settings.findOne({ guildId: serverId }).sort({ _id: -1 });
 
         if (!settings) {
@@ -667,21 +899,16 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
 
         await settings.save();
 
-        res.json({
-            guildId: settings.guildId,
-            autoSendEnabled: settings.autoSendEnabled,
-            autoSendOptions: settings.autoSendOptions,
-            livestreamAnnouncementsEnabled: settings.livestreamAnnouncementsEnabled,
-            favoriteGames: settings.favoriteGames
-        });
+        logDashboardAudit(req, 'server.settings.update', { serverId, fields: Object.keys(updateData) });
+        res.json(serializeServerSettings(serverId, settings));
     } catch (error) {
         console.error('Error updating server settings:', error);
         res.status(500).json({ error: 'Failed to update server settings' });
     }
 });
 
-// Test notification endpoint
-app.post('/api/server/:serverId/test', async (req, res) => {
+// Test notification endpoint (rate-limited per server)
+app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res) => {
     try {
         const serverId = getValidatedGuildId(req.params.serverId);
         if (!serverId) {
@@ -719,6 +946,7 @@ app.post('/api/server/:serverId/test', async (req, res) => {
 
         await sendChannelMessage(client, config.channel, { embeds: [embed] });
 
+        logDashboardAudit(req, 'server.test.sent', { serverId, channelId: config.channel });
         res.json({ success: true, message: 'Test notification sent successfully!' });
     } catch (error) {
         console.error('Error sending test notification:', error);
@@ -726,8 +954,8 @@ app.post('/api/server/:serverId/test', async (req, res) => {
     }
 });
 
-// Reset configuration endpoint
-app.post('/api/server/:serverId/reset', async (req, res) => {
+// Reset configuration endpoint (rate-limited per server)
+app.post('/api/server/:serverId/reset', resetConfigLimiter, async (req, res) => {
     try {
         const serverId = getValidatedGuildId(req.params.serverId);
         if (!serverId) {
@@ -738,13 +966,13 @@ app.post('/api/server/:serverId/reset', async (req, res) => {
         const Settings = require('../models/Settings');
         const Language = require('../models/Language');
 
-        // Delete all configuration data for this server
         await Promise.all([
             Config.deleteMany({ guildId: serverId }),
             Settings.deleteMany({ guildId: serverId }),
             Language.deleteMany({ guildId: serverId })
         ]);
 
+        logDashboardAudit(req, 'server.config.reset', { serverId });
         res.json({ success: true, message: 'Configuration reset successfully!' });
     } catch (error) {
         console.error('Error resetting configuration:', error);
@@ -769,9 +997,16 @@ app.get('/', (req, res) => {
 
 // The single bot process owns HTTP, webhooks, and other singleton services.
 if (runsPrimaryServices) {
-    httpServer = app.listen(PORT, () => {
-        console.log(`Web server running on port ${PORT}`);
+    if (!process.env.AUTH_BOT_SECRET || process.env.AUTH_BOT_SECRET.trim().length < 32) {
+        console.warn('⚠️  AUTH_BOT_SECRET should be at least 32 random characters for secure Vercel <-> VPS communication.');
+    }
+    httpServer = app.listen(PORT, API_BIND_HOST, () => {
+        console.log(`Web server running on ${API_BIND_HOST}:${PORT}`);
     });
+    // Keep-alive timeouts tuned above common reverse proxy defaults (nginx / Cloudflare = 60s)
+    httpServer.keepAliveTimeout = 65_000;
+    httpServer.headersTimeout = 66_000;
+    httpServer.requestTimeout = 30_000;
 }
 
 // Discord bot setup - Enhanced environment validation

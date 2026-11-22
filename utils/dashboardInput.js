@@ -27,14 +27,36 @@ function getValidatedConfigPatch(body) {
         else if (typeof value === 'string' && /^\d{17,20}$/.test(value)) patch[field] = value;
         else return null;
     }
+    if (Object.hasOwn(body, 'forumThreads')) {
+        if (!isRecord(body.forumThreads)) return null;
+        const threadPatch = {};
+        for (const game of ['genshin', 'hsr', 'zzz']) {
+            if (!Object.hasOwn(body.forumThreads, game)) continue;
+            const value = body.forumThreads[game];
+            if (value === null || value === '') threadPatch[game] = null;
+            else if (typeof value === 'string' && /^\d{17,20}$/.test(value)) threadPatch[game] = value;
+            else return null;
+        }
+        patch.forumThreads = threadPatch;
+    }
     return patch;
 }
 
 function configPatchBelongsToGuild(patch, guild) {
-    return Object.entries(patch).every(([field, value]) => (
-        value === null || (field.endsWith('Role') ? guild.roles : guild.channels)
-            .some(item => item.id === value)
-    ));
+    const roles = Array.isArray(guild?.roles) ? guild.roles : [];
+    const channels = Array.isArray(guild?.channels) ? guild.channels : [];
+    const threads = Array.isArray(guild?.threads) ? guild.threads : [];
+
+    return Object.entries(patch).every(([field, value]) => {
+        if (field === 'forumThreads') {
+            if (!isRecord(value)) return false;
+            return Object.values(value).every(threadId =>
+                threadId === null || threads.some(item => item.id === threadId)
+            );
+        }
+        if (value === null) return true;
+        return (field.endsWith('Role') ? roles : channels).some(item => item.id === value);
+    });
 }
 
 function getValidatedSettingsPatch(body) {

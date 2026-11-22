@@ -49,3 +49,26 @@ test('rejects unsupported and non-string language input', () => {
   assert.strictEqual(getValidatedLanguage({ $ne: null }), null);
   assert.strictEqual(getValidatedLanguage(undefined), null);
 });
+
+test('validates forumThreads snowflakes and guild ownership', () => {
+  assert.deepStrictEqual(
+    getValidatedConfigPatch({ forumThreads: { genshin: '123456789012345678', hsr: '', zzz: null } }),
+    { forumThreads: { genshin: '123456789012345678', hsr: null, zzz: null } }
+  );
+  assert.strictEqual(getValidatedConfigPatch({ forumThreads: 'bad' }), null);
+  assert.strictEqual(getValidatedConfigPatch({ forumThreads: { zzz: 'not-a-snowflake' } }), null);
+
+  const guild = {
+    roles: [],
+    channels: [],
+    threads: [{ id: '123456789012345678' }]
+  };
+  assert.strictEqual(
+    configPatchBelongsToGuild({ forumThreads: { genshin: '123456789012345678', zzz: null } }, guild),
+    true
+  );
+  assert.strictEqual(
+    configPatchBelongsToGuild({ forumThreads: { genshin: '999999999999999999' } }, guild),
+    false
+  );
+});

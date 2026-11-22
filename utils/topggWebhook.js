@@ -2,7 +2,11 @@
 const { Webhook } = require('@top-gg/sdk');
 const { EmbedBuilder } = require('discord.js');
 const languageManager = require('./language');
+const rateLimit = require('express-rate-limit');
 const Config = require('../models/Config');
+const { timingSafeEqualString } = require('./dashboardBridge');
+
+const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 
 // Store information about where users initiated votes
 const voteChannelTracker = new Map();
@@ -58,12 +62,38 @@ async function trackVoteCommand(userId, channelId, guildId, client = null) {
 
 function setupTopggWebhook(app, client) {
     // Create webhook instance with your Top.gg webhook authorization (not bot token)
-    const webhook = new Webhook(process.env.WEBHOOK_PASSWORD);  // Replace "topggauth123" with your actual Top.gg webhook authorization
+    const webhookPassword = typeof process.env.WEBHOOK_PASSWORD === 'string'
+        ? process.env.WEBHOOK_PASSWORD.trim()
+        : '';
+    if (!webhookPassword) {
+        console.warn('[Top.gg Webhook] WEBHOOK_PASSWORD not configured; skipping /topgg/webhook route');
+        return;
+    }
+
+    // Create webhook instance with your Top.gg webhook authorization (not bot token)
+    const webhook = new Webhook(webhookPassword);
     
     // Apply the webhook listener middleware
-    app.post('/topgg/webhook', webhook.listener(async (voteData) => {
+    const webhookLimiter = rateLimit({
+        windowMs: 60 * 1000,
+        max: 60,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { error: 'Too Many Requests' },
+        validate: { xForwardedForHeader: false }
+    });
+
+    const verifyWebhookAuth = (req, res, next) => {
+        const provided = req.headers.authorization;
+        if (typeof provided !== 'string' || !timingSafeEqualString(provided, webhookPassword)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        return next();
+    };
+
+    app.post('/topgg/webhook', webhookLimiter, verifyWebhookAuth, webhook.listener(async (voteData) => {
         try {
-            if (!voteData || !voteData.user) {
+            if (!voteData || typeof voteData.user !== 'string' || !DISCORD_SNOWFLAKE_REGEX.test(voteData.user)) {
                 return;
             }
             
