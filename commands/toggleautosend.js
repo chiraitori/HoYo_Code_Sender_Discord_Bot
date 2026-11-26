@@ -1,16 +1,15 @@
 // commands/toggleautosend.js
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
 const { handleDMRestriction } = require('../utils/dmHandler');
+const { removeOtherGuildRecords } = require('../utils/guildRecords');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('toggleautosend')
         .setDescription('Enable or disable automatic code sending')
-        // Remove the default permissions restriction to make command visible to everyone
-        // Admin permissions will be enforced in the execute function
         .addStringOption(option =>
             option.setName('status')
                 .setDescription('Enable or disable auto-send')
@@ -22,49 +21,42 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            // Check if command is used in DMs
             if (await handleDMRestriction(interaction, 'toggleautosend')) {
                 return;
             }
 
-            // Check if user is admin or bot owner using our utility
             if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.toggleautosend.noPermission',
                     interaction.guildId
                 );
-                return interaction.reply({ content: noPermMessage, ephemeral: true });
+                return interaction.reply({ content: noPermMessage, flags: MessageFlags.Ephemeral });
             }
 
-            // Get translated loading message
             const loadingMessage = await languageManager.getString(
                 'commands.toggleautosend.loading',
                 interaction.guildId
             );
 
-            await interaction.reply({ 
-                content: loadingMessage, 
-                ephemeral: true 
+            await interaction.reply({
+                content: loadingMessage,
+                flags: MessageFlags.Ephemeral
             });
 
             const status = interaction.options.getString('status');
-            let settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
-            
-            if (!settings) {
-                settings = new Settings({ guildId: interaction.guildId });
-            }
+            const savedSettings = await Settings.findOneAndUpdate(
+                { guildId: interaction.guildId },
+                { autoSendEnabled: status === 'enable' },
+                { upsert: true, new: true, sort: { _id: -1 } }
+            );
+            await removeOtherGuildRecords(Settings, interaction.guildId, savedSettings?._id);
 
-            settings.autoSendEnabled = status === 'enable';
-            await settings.save();
-
-            // Get translated success message
             const successMessage = await languageManager.getString(
                 'commands.toggleautosend.success',
                 interaction.guildId,
                 { status: status.toUpperCase() }
             );
 
-            // Add helpful tip about autosendoptions
             let extraInfo = '';
             if (status === 'enable') {
                 extraInfo = '\n\n💡 **Tip:** Use `/autosendoptions` to control where codes are sent (channel, threads, or both).';
@@ -76,17 +68,16 @@ module.exports = {
 
         } catch (error) {
             console.error('Error setting auto-send:', error);
-            
-            // Get translated error message
+
             const errorMessage = await languageManager.getString(
                 'commands.toggleautosend.error',
                 interaction.guildId
             );
 
-            if (interaction.replied) {
+            if (interaction.replied || interaction.deferred) {
                 await interaction.editReply({ content: errorMessage });
             } else {
-                await interaction.reply({ content: errorMessage, ephemeral: true });
+                await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
             }
         }
     }

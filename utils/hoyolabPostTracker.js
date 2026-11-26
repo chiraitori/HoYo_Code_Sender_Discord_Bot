@@ -38,7 +38,7 @@ async function startPostTracker(client) {
     // Run immediately
     await checkAllAccounts(client);
 
-    // Then run every 30 minutes
+    // Then run every 10 minutes
     trackerInterval = setInterval(() => {
         checkAllAccounts(client).catch(error => {
             console.error('[Post Tracker] Scheduled check failed:', error.message);
@@ -141,14 +141,28 @@ async function checkAccount(game, accountId, client) {
         const youtubeTime = primaryStream?.scheduledStartTime
             || primaryStream?.actualStartTime
             || primaryStream?.publishedAt;
+        const parsedYoutubeTime = youtubeTime
+            ? Math.floor(new Date(youtubeTime).getTime() / 1000)
+            : NaN;
+        const youtubeTimestamp = Number.isFinite(parsedYoutubeTime)
+            ? parsedYoutubeTime
+            : Math.floor(Date.now() / 1000);
 
-        if (youtubeVersion && primaryStream && (!streamInfo || youtubeVersion !== streamInfo.version)) {
+        // Only replace a HoYoLAB post with a different YouTube version if the YouTube
+        // stream is strictly newer, preventing an older YouTube archive from overwriting
+        // a newly published HoYoLAB Special Program announcement.
+        const youtubeShouldReplace = !streamInfo
+            || (
+                youtubeVersion !== streamInfo.version
+                && Number.isFinite(parsedYoutubeTime)
+                && parsedYoutubeTime > (streamInfo.streamTime || 0)
+            );
+
+        if (youtubeVersion && primaryStream && youtubeShouldReplace) {
             streamInfo = {
                 game,
                 version: youtubeVersion,
-                streamTime: youtubeTime
-                    ? Math.floor(new Date(youtubeTime).getTime() / 1000)
-                    : Math.floor(Date.now() / 1000),
+                streamTime: youtubeTimestamp,
                 streamTimeEstimated: !primaryStream.scheduledStartTime,
                 bannerUrl: primaryStream.thumbnailUrl || null,
                 postId: null,
@@ -175,10 +189,13 @@ async function checkAccount(game, accountId, client) {
             streamInfo.source = streamInfo.source === 'youtube' ? 'youtube' : 'hoyolab+youtube';
 
             if (primaryStream.scheduledStartTime || primaryStream.actualStartTime) {
-                streamInfo.streamTime = Math.floor(new Date(
+                const exactTime = Math.floor(new Date(
                     primaryStream.scheduledStartTime || primaryStream.actualStartTime
                 ).getTime() / 1000);
-                streamInfo.streamTimeEstimated = false;
+                if (Number.isFinite(exactTime)) {
+                    streamInfo.streamTime = exactTime;
+                    streamInfo.streamTimeEstimated = false;
+                }
             }
         }
     }
@@ -272,7 +289,7 @@ function isSpecialProgramPost(post) {
     ];
 
     // Check for version number pattern
-    const hasVersion = /version\s+["\"]?[\w\s]+["\"]?/i.test(post.subject);
+    const hasVersion = /version\s+["']?[\w\s]+["']?/i.test(post.subject);
 
     // Must have "special program" or similar + mention redemption codes
     const hasKeywords = keywords.some(kw => subject.includes(kw) || content.includes(kw));
@@ -315,7 +332,7 @@ function parseStreamInfo(post, game) {
         // Extract timestamp from desc field
         // Genshin format: "01/02/2026 at 00:00 (UTC-5)"
         const contentText = post.desc || post.content || '';
-        const timestampMatch = contentText.match(/(\d{2}\/\d{2}\/\d{4})\s+at\s+(\d{2}:\d{2})\s+\(UTC([-+]?\d+)\)/);
+        const timestampMatch = contentText.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s+at\s+(\d{1,2}:\d{2})\s+\(UTC([-+]?\d+)\)/);
 
         let streamTime = null;
         if (timestampMatch) {
@@ -324,8 +341,8 @@ function parseStreamInfo(post, game) {
             const [hour, minute] = time.split(':');
 
             // Create date in UTC then adjust for offset
-            const utc = Date.UTC(year, month - 1, day, hour, minute);
-            const offset = parseInt(utcOffset) * 60 * 60 * 1000;
+            const utc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+            const offset = parseInt(utcOffset, 10) * 60 * 60 * 1000;
             streamTime = Math.floor((utc - offset) / 1000); // Unix timestamp
         }
 
@@ -378,40 +395,6 @@ function parseStreamInfo(post, game) {
 
     } catch (error) {
         console.error('[Post Tracker] Error parsing stream info:', error.message);
-        return null;
-    }
-}
-
-/**
- * Fetch Events Overview banner for better visuals
- * Special Program posts have simple banners, Events posts have better art
- */
-async function fetchEventsBanner(accountId, game) {
-    try {
-        const posts = await fetchLatestPosts(accountId);
-        if (!posts) return null;
-
-        // Look for "Events Overview" or "Event Preview" post (usually 2-3 posts after Special Program)
-        for (const postData of posts.slice(0, 10)) {
-            const post = postData.post;
-            const title = post.subject.toLowerCase();
-
-            // Check if it's an Events Overview post
-            if (title.includes('event') && (title.includes('overview') || title.includes('review'))) {
-                // Fetch full post to get banner
-                const fullPost = await fetchPostDetail(post.post_id);
-
-                if (fullPost && (fullPost.cover_list?.[0] || fullPost.image_list?.[0])) {
-                    const bannerUrl = fullPost.cover_list?.[0]?.url || fullPost.image_list?.[0]?.url;
-                    console.log(`[Post Tracker] 🎨 Found Events Overview banner for ${game}`);
-                    return bannerUrl;
-                }
-            }
-        }
-
-        return null;
-    } catch (error) {
-        console.error('[Post Tracker] Error fetching events banner:', error.message);
         return null;
     }
 }

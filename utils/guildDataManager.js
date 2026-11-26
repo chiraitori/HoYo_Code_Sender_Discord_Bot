@@ -1,6 +1,8 @@
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const Language = require('../models/Language');
+const languageManager = require('./language');
+const { removeOtherGuildRecords } = require('./guildRecords');
 
 /**
  * Optimized guild data fetcher that combines multiple database queries
@@ -16,15 +18,15 @@ async function getGuildData(guildId, options = {}) {
     } = options;
 
     const queries = [];
-    
+
     if (includeConfig) {
         queries.push(Config.findOne({ guildId }).sort({ _id: -1 }));
     }
-    
+
     if (includeSettings) {
         queries.push(Settings.findOne({ guildId }).sort({ _id: -1 }));
     }
-    
+
     if (includeLanguage) {
         queries.push(Language.findOne({ guildId }));
     }
@@ -32,7 +34,7 @@ async function getGuildData(guildId, options = {}) {
     try {
         const results = await Promise.all(queries);
         let index = 0;
-        
+
         return {
             config: includeConfig ? results[index++] : null,
             settings: includeSettings ? results[index++] : null,
@@ -63,7 +65,7 @@ async function updateGuildData(guildId, updates = {}) {
                 { guildId },
                 config,
                 { upsert: true, new: true, sort: { _id: -1 } }
-            )
+            ).then(doc => removeOtherGuildRecords(Config, guildId, doc?._id))
         );
     }
 
@@ -73,7 +75,7 @@ async function updateGuildData(guildId, updates = {}) {
                 { guildId },
                 settings,
                 { upsert: true, new: true, sort: { _id: -1 } }
-            )
+            ).then(doc => removeOtherGuildRecords(Settings, guildId, doc?._id))
         );
     }
 
@@ -83,7 +85,9 @@ async function updateGuildData(guildId, updates = {}) {
                 { guildId },
                 language,
                 { upsert: true, new: true }
-            )
+            ).then(() => {
+                languageManager.clearGuildCache(guildId);
+            })
         );
     }
 

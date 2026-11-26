@@ -62,3 +62,11 @@ test('parseIconBonuses reports Unknown Item for unrecognized icons', () => {
   const bonuses = [{ icon_url: 'https://x/ffffffffffffffffffffffffffffffff_.png', bonus_num: 5 }];
   assert.ok(parseIconBonuses(bonuses, 'genshin', 'en').includes('Unknown Item'));
 });
+
+test('rewardIconParser supports the bot jp language code alias for Japanese', () => {
+  const bonuses = [
+    { icon_url: 'https://x/150a941de99e21fc96dce97cde2dae22_.png', bonus_num: 300 },
+  ];
+  assert.ok(parseIconBonuses(bonuses, 'genshin', 'jp').includes('原石'));
+  assert.strictEqual(parseIconBonuses([], 'genshin', 'jp'), '不明な報酬');
+});

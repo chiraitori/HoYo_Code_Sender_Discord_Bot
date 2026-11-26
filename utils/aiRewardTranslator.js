@@ -13,7 +13,34 @@ const LANGUAGE_NAMES = {
 };
 
 const translationCache = new Map();
+const MAX_TRANSLATION_CACHE_SIZE = 2000;
+const FAILED_TRANSLATION_TTL_MS = 5 * 60 * 1000;
 let warnedUnavailable = false;
+
+function getCachedTranslation(cacheKey) {
+    const entry = translationCache.get(cacheKey);
+    if (!entry) {
+        return null;
+    }
+    if (entry.expiresAt && entry.expiresAt <= Date.now()) {
+        translationCache.delete(cacheKey);
+        return null;
+    }
+    return entry.value;
+}
+
+function setCachedTranslation(cacheKey, value, ttlMs = null) {
+    if (translationCache.size >= MAX_TRANSLATION_CACHE_SIZE && !translationCache.has(cacheKey)) {
+        const oldestKey = translationCache.keys().next().value;
+        if (oldestKey !== undefined) {
+            translationCache.delete(oldestKey);
+        }
+    }
+    translationCache.set(cacheKey, {
+        value,
+        expiresAt: ttlMs ? Date.now() + ttlMs : null
+    });
+}
 
 function getResponseText(responseData) {
     return (responseData?.candidates?.[0]?.content?.parts || [])
@@ -125,7 +152,7 @@ async function translateRewardWithAi(reward, language, httpClient = axios) {
             .map(item => item.sourceName)
     )];
     const uncachedNames = unknownNames.filter(name => (
-        !translationCache.has(`${language}:${normalizeRewardName(name)}`)
+        getCachedTranslation(`${language}:${normalizeRewardName(name)}`) === null
     ));
 
     if (uncachedNames.length > 0 && process.env.GEMINI_API_KEY && language !== 'en') {
@@ -137,16 +164,17 @@ async function translateRewardWithAi(reward, language, httpClient = axios) {
             );
             for (const name of uncachedNames) {
                 const normalizedName = normalizeRewardName(name);
-                translationCache.set(
+                setCachedTranslation(
                     `${language}:${normalizedName}`,
                     aiTranslations.get(normalizedName) || name
                 );
             }
         } catch (error) {
             for (const name of uncachedNames) {
-                translationCache.set(
+                setCachedTranslation(
                     `${language}:${normalizeRewardName(name)}`,
-                    name
+                    name,
+                    FAILED_TRANSLATION_TTL_MS
                 );
             }
             if (!warnedUnavailable) {
@@ -161,7 +189,7 @@ async function translateRewardWithAi(reward, language, httpClient = axios) {
 
     for (const item of translatedItems) {
         if (item.known) continue;
-        item.name = translationCache.get(
+        item.name = getCachedTranslation(
             `${language}:${normalizeRewardName(item.sourceName)}`
         ) || item.sourceName;
     }

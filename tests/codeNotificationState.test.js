@@ -2,11 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const {
+  buildEmbedForGameAndLang,
   getCodesToNotify,
   insertCodeIfMissing,
   getCodeNotificationTargetId,
   getPendingCodesForTarget,
-  getCodeDeliveryTargets
+  getCodeDeliveryTargets,
+  isDefiniteUnsentError
 } = require('../utils/autoCodeSend');
 
 const activeCode = {
@@ -311,4 +313,64 @@ test('legacy guild delivery markers suppress a deploy-time replay', () => {
     ),
     []
   );
+});
+
+test('case-insensitive codes and padded channel/thread IDs do not duplicate notifications', () => {
+  const existingCodes = new Map([['nap:ZZZY2ANNIV', activeCode]]);
+  assert.deepStrictEqual(
+    getCodesToNotify([{ game: 'nap', code: ' zzzy2anniv ', status: 'OK' }], existingCodes),
+    []
+  );
+
+  const targets = getCodeDeliveryTargets({
+    guildId: 'guild-a',
+    channel: ' 123456789012345678 ',
+    forumThreads: { zzz: '123456789012345678' }
+  }, {
+    autoSendOptions: { channel: true, threads: true }
+  }, 'nap', 'bot-a');
+  assert.deepStrictEqual(targets.map(target => target.id), ['bot-a:channel:123456789012345678']);
+});
+
+test('isDefiniteUnsentError keeps claims on ambiguous network or 5xx timeouts', () => {
+  assert.strictEqual(isDefiniteUnsentError({ code: 50013 }), true);
+  assert.strictEqual(isDefiniteUnsentError({ code: 10003 }), true);
+  assert.strictEqual(isDefiniteUnsentError({ code: 50083 }), true);
+  assert.strictEqual(isDefiniteUnsentError({ status: 403 }), true);
+  assert.strictEqual(isDefiniteUnsentError({ status: 502 }), false);
+  assert.strictEqual(isDefiniteUnsentError({ status: 429 }), false);
+  assert.strictEqual(isDefiniteUnsentError(new Error('This operation was aborted')), false);
+});
+
+test('concurrent buildEmbedForGameAndLang calls for the same non-English language do not race on cache keys', async () => {
+  const [genshinResult, hsrResult] = await Promise.all([
+    buildEmbedForGameAndLang('genshin', 'vi', [
+      { code: 'GENSHIN1', rewards: '60 Primogem' }
+    ]),
+    buildEmbedForGameAndLang('hkrpg', 'vi', [
+      { code: 'HSR1', rewards: '60 Stellar Jade' }
+    ])
+  ]);
+
+  const genshinJson = genshinResult.embed.toJSON();
+  const hsrJson = hsrResult.embed.toJSON();
+  assert.ok(genshinJson.title.includes('Mã code mới cho Genshin Impact'));
+  assert.ok(hsrJson.title.includes('Mã code mới cho Honkai: Star Rail'));
+  assert.ok(genshinJson.description.includes('Nhấn để nhận'));
+  assert.ok(hsrJson.description.includes('Nhấn để nhận'));
+  assert.ok(genshinJson.footer.text.includes('Hỗ trợ'));
+  assert.ok(hsrJson.footer.text.includes('Hỗ trợ'));
+});
+
+test('buildEmbedForGameAndLang URL-encodes codes and clamps oversized descriptions to 4096 chars', async () => {
+  const manyCodes = Array.from({ length: 80 }, (_, index) => ({
+    code: `CODE+${index}`,
+    rewards: '60 Primogem; 10,000 Mora'
+  }));
+  const { embed } = await buildEmbedForGameAndLang('genshin', 'en', manyCodes);
+  const json = embed.toJSON();
+
+  assert.ok(json.description.includes('?code=CODE%2B0'));
+  assert.ok(json.description.length <= 4096);
+  assert.ok(json.description.endsWith('...'));
 });

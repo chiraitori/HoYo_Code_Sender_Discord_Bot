@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const languageManager = require('../utils/language');
 
 module.exports = {
@@ -9,7 +9,7 @@ module.exports = {
     async execute(interaction) {
         try {
             const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3001';
-            
+
             const embed = new EmbedBuilder()
                 .setColor('#6A5ACD')
                 .setTitle(await languageManager.getString('commands.dashboard.title', interaction.guildId))
@@ -31,7 +31,7 @@ module.exports = {
                         inline: false
                     }
                 )
-                .setFooter({ 
+                .setFooter({
                     text: await languageManager.getString('commands.dashboard.footer', interaction.guildId),
                     iconURL: interaction.client.user.displayAvatarURL()
                 })
@@ -39,15 +39,16 @@ module.exports = {
 
             await interaction.reply({
                 embeds: [embed],
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Error in dashboard command:', error);
-            await interaction.reply({
-                content: await languageManager.getString('commands.dashboard.error', interaction.guildId),
-                ephemeral: true
-            });
+            const content = await languageManager.getString('commands.dashboard.error', interaction.guildId);
+            if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ content });
+            } else {
+                await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+            }
         }
     }
 };

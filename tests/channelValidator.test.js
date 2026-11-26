@@ -140,3 +140,37 @@ test('validateChannel returns the channel when everything is valid', async () =>
   assert.ok(stored && stored.channelStatus, 'expected channelStatus to be written');
   assert.strictEqual(stored.channelStatus.isInvalid, false);
 });
+
+test('validateChannel safely handles null permissionsFor and supports pre-save channelId override', async () => {
+  const nullPermChannel = {
+    permissionsFor: () => null,
+    send: () => {}
+  };
+  const client = makeClient({ guild: makeGuild({ channel: nullPermChannel }) });
+  const result = await validateChannel(client, 'g7', {
+    channelId: 'candidate-channel',
+    persistStatus: false
+  });
+  assert.strictEqual(result.isValid, false);
+  assert.strictEqual(result.error, 'Missing permissions in channel');
+  assert.strictEqual(settingsStore.has('g7'), false);
+});
+
+test('validateChannel checks SendMessagesInThreads for threads', async () => {
+  configStore.set('g8', { guildId: 'g8', channel: 'thread-8' });
+  let checkedPermissions = null;
+  const threadChannel = {
+    isThread: () => true,
+    permissionsFor: () => ({
+      has: perms => {
+        checkedPermissions = perms;
+        return true;
+      }
+    }),
+    send: () => {}
+  };
+  const client = makeClient({ guild: makeGuild({ channel: threadChannel }) });
+  const result = await validateChannel(client, 'g8');
+  assert.strictEqual(result.isValid, true);
+  assert.deepStrictEqual(checkedPermissions, ['ViewChannel', 'SendMessagesInThreads', 'EmbedLinks']);
+});

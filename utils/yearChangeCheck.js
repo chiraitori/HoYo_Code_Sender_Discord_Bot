@@ -4,12 +4,60 @@ const YearMessage = require('../models/YearMessage');
 const Language = require('../models/Language');
 const { EmbedBuilder } = require('discord.js');
 const { sendChannelMessage } = require('./discordMessageSender');
+const { getKnownGuildIds } = require('./clusterGuilds');
 const { getLatestGuildRecords } = require('./guildRecords');
 
+const YEAR_MESSAGE_BATCH_SIZE = 25;
+let yearCheckRunning = false;
+
+async function claimYearMessage(guildId, currentYear) {
+    try {
+        const claimed = await YearMessage.findOneAndUpdate(
+            { guildId, lastYearSent: { $lt: currentYear } },
+            { $set: { lastYearSent: currentYear, sentAt: new Date() } },
+            { new: true }
+        );
+        if (claimed) {
+            return { claimed: true, previousYear: null, inserted: false };
+        }
+
+        const existing = await YearMessage.findOne({ guildId }).lean();
+        if (existing && existing.lastYearSent >= currentYear) {
+            return { claimed: false, previousYear: existing.lastYearSent, inserted: false };
+        }
+
+        await YearMessage.create({
+            guildId,
+            lastYearSent: currentYear,
+            sentAt: new Date()
+        });
+        return { claimed: true, previousYear: null, inserted: true };
+    } catch (error) {
+        if (error?.code === 11000) {
+            return { claimed: false, previousYear: null, inserted: false };
+        }
+        throw error;
+    }
+}
+
+async function processInBatches(tasks, batchSize = YEAR_MESSAGE_BATCH_SIZE) {
+    const results = [];
+    for (let i = 0; i < tasks.length; i += batchSize) {
+        results.push(...await Promise.allSettled(
+            tasks.slice(i, i + batchSize).map(task => task())
+        ));
+    }
+    return results;
+}
+
 async function checkAndSendYearChangeMessage(client) {
+    if (yearCheckRunning) {
+        return;
+    }
+
+    yearCheckRunning = true;
     try {
         // Get current year in Vietnam timezone (Asia/Ho_Chi_Minh = UTC+7)
-        // Get current date in Vietnam time
         const formatter = new Intl.DateTimeFormat('en-US', {
             timeZone: 'Asia/Ho_Chi_Minh',
             year: 'numeric',
@@ -21,12 +69,10 @@ async function checkAndSendYearChangeMessage(client) {
         const day = parts.find(p => p.type === 'day').value;
         const month = parts.find(p => p.type === 'month').value;
         const yearStr = parts.find(p => p.type === 'year').value;
-        const currentYear = parseInt(yearStr);
+        const currentYear = parseInt(yearStr, 10);
 
         // Check if today is January 1st
         if (month !== '1' || day !== '1') {
-            // Uncomment to debug date checking
-            // console.log(`Not Jan 1st (Today is ${month}/${day}), skipping year change check.`);
             return;
         }
 
@@ -38,17 +84,17 @@ async function checkAndSendYearChangeMessage(client) {
             return;
         }
 
-        // Get all guild configurations, settings, and languages
-        const [rawConfigs, rawSettings, yearMessages, languages] = await Promise.all([
+        // Get all guild configurations, settings, languages, and known guilds
+        const [rawConfigs, rawSettings, yearMessages, languages, knownGuildIds] = await Promise.all([
             Config.find({}).sort({ _id: 1 }).lean(),
             Settings.find({}).sort({ _id: 1 }).lean(),
             YearMessage.find({}).lean(),
-            Language.find({}).lean()
+            Language.find({}).lean(),
+            getKnownGuildIds(client)
         ]);
         const configs = getLatestGuildRecords(rawConfigs);
         const allSettings = getLatestGuildRecords(rawSettings);
 
-        // Create lookup maps
         const settingsMap = allSettings.reduce((map, setting) => {
             map[setting.guildId] = setting;
             return map;
@@ -69,11 +115,15 @@ async function checkAndSendYearChangeMessage(client) {
         // Process each configuration
         for (const config of configs) {
             const guildId = config.guildId;
+            if (!knownGuildIds.has(guildId)) {
+                continue;
+            }
+
             const settings = settingsMap[guildId];
             const yearMessage = yearMessageMap[guildId];
 
-            // Skip if autoSend is disabled
-            if (!settings?.autoSendEnabled) {
+            // Skip only if autoSend is explicitly disabled (default-on for legacy guilds)
+            if (settings?.autoSendEnabled === false) {
                 continue;
             }
 
@@ -82,28 +132,35 @@ async function checkAndSendYearChangeMessage(client) {
                 continue;
             }
 
-            // Send the year change message
             const guildLanguage = languageMap[guildId] || 'en';
-            messageTasks.push(sendYearChangeMessage(client, config, guildId, currentYear, guildLanguage));
+            messageTasks.push(() => sendYearChangeMessage(client, config, guildId, currentYear, guildLanguage));
         }
 
-        // Send all messages
+        // Send all messages in rate-limit-safe batches
         if (messageTasks.length > 0) {
             console.log(`Sending year change messages to ${messageTasks.length} guilds...`);
-            await Promise.allSettled(messageTasks);
+            await processInBatches(messageTasks, YEAR_MESSAGE_BATCH_SIZE);
         } else {
             console.log('No year change messages to send.');
         }
 
     } catch (error) {
         console.error('Error in checkAndSendYearChangeMessage:', error);
+    } finally {
+        yearCheckRunning = false;
     }
 }
 
 async function sendYearChangeMessage(client, config, guildId, currentYear, language) {
     try {
-        if (!config.channel) {
+        const channelId = typeof config.channel === 'string' ? config.channel.trim() : '';
+        if (!channelId) {
             console.log(`No channel found for guild ${guildId}, skipping year message`);
+            return;
+        }
+
+        const claim = await claimYearMessage(guildId, currentYear);
+        if (!claim.claimed) {
             return;
         }
 
@@ -111,7 +168,6 @@ async function sendYearChangeMessage(client, config, guildId, currentYear, langu
         let title, description;
 
         if (language === 'vi') {
-            // Vietnamese message
             title = `🎉 Chúc mừng năm mới ${currentYear}!`;
             description =
                 `Dù lời nhắn này đến với mọi người có hơi sớm hay hơi trễ một chút, thì khoảnh khắc bước sang năm ${currentYear} này, mình muốn gửi một lời cảm ơn to lớn đến tất cả các bạn.\n\n` +
@@ -119,7 +175,6 @@ async function sendYearChangeMessage(client, config, guildId, currentYear, langu
                 `Năm mới này, mình xin hứa sẽ cố gắng làm việc chăm chỉ hơn để bot hoạt động ổn định và mang đến những tính năng mới xịn sò trong vài tháng tới. Cảm ơn mọi người đã đồng hành cùng mình.\n\n` +
                 `Chúc mừng năm mới! Mình là [Chiraitori](https://chiraitori.dev), người đã tạo ra con bot này.`;
         } else {
-            // English message (default)
             title = `🎉 Happy New Year ${currentYear}!`;
             description =
                 `Whether this message reaches you a bit early or a little late, as we step into ${currentYear}, I just want to say a huge thank you to everyone.\n\n` +
@@ -128,26 +183,18 @@ async function sendYearChangeMessage(client, config, guildId, currentYear, langu
                 `Happy New Year! I'm [Chiraitori](https://chiraitori.dev), the creator of this bot.`;
         }
 
-        // Create the embed message
         const embed = new EmbedBuilder()
-            .setColor('#FFD700') // Gold/festive color
+            .setColor('#FFD700')
             .setTitle(title)
             .setDescription(description)
             .setFooter({ text: 'https://chiraitori.dev' })
             .setTimestamp();
 
-        // Send the message (no role mentions)
-        await sendChannelMessage(client, config.channel, { embeds: [embed] });
-
-        // Update the database to mark this year as sent
-        await YearMessage.findOneAndUpdate(
-            { guildId: guildId },
-            {
-                lastYearSent: currentYear,
-                sentAt: new Date()
-            },
-            { upsert: true, new: true }
-        );
+        await sendChannelMessage(client, channelId, { embeds: [embed] }, {
+            preferRest: true,
+            guildId,
+            dedupeKey: `year:${currentYear}:${channelId}`
+        });
 
         console.log(`Successfully sent year ${currentYear} message to guild ${guildId}`);
 

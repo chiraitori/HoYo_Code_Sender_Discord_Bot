@@ -167,12 +167,12 @@ async function reconcileConfiguredRoles(client, configs, game) {
 
         const previousRoleId = config[roleField] || null;
         config[roleField] = result.roleId;
+        const filter = config._id
+            ? { _id: config._id, [roleField]: previousRoleId }
+            : { guildId: result.guildId, [roleField]: previousRoleId };
         repairs.push({
             updateOne: {
-                filter: {
-                    guildId: result.guildId,
-                    [roleField]: previousRoleId
-                },
+                filter,
                 update: { $set: { [roleField]: result.roleId } }
             }
         });

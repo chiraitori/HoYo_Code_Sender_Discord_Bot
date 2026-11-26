@@ -61,6 +61,10 @@ const GENSHIN_ICON_MAP_I18N = {
     '7366f77dd734b34e1cccbae2d001e2f8': { en: 'Enhancement Ore', vi: 'Quặng Cường Hóa', ja: '強化鉱石' },
 };
 
+function normalizeLang(lang = 'en') {
+    return lang === 'jp' ? 'ja' : lang;
+}
+
 /**
  * Extract icon hash from URL
  */
@@ -76,23 +80,38 @@ function getIconHash(url) {
 function getItemName(itemData, lang = 'en') {
     if (!itemData) return null;
 
-    // Handle both old format (string) and new format (object with en/vi)
+    // Handle both old format (string) and new format (object with en/vi/ja)
     if (typeof itemData === 'string') {
         return itemData;
     }
 
-    return itemData[lang] || itemData.en || null;
+    const normalized = normalizeLang(lang);
+    return itemData[lang] || itemData[normalized] || itemData.en || null;
+}
+
+function getUnknownRewardsText(lang = 'en') {
+    const normalized = normalizeLang(lang);
+    if (normalized === 'vi') return 'Phần thưởng không xác định';
+    if (normalized === 'ja') return '不明な報酬';
+    return 'Unknown Rewards';
+}
+
+function getUnknownItemText(lang = 'en') {
+    const normalized = normalizeLang(lang);
+    if (normalized === 'vi') return 'Vật phẩm';
+    if (normalized === 'ja') return '不明なアイテム';
+    return 'Unknown Item';
 }
 
 /**
  * Parse icon bonuses to readable text
  * @param {Array} iconBonuses - Array of icon bonus objects
  * @param {string} game - Game identifier (genshin, hkrpg, nap)
- * @param {string} lang - Language code (en, vi)
+ * @param {string} lang - Language code (en, vi, ja/jp)
  */
 function parseIconBonuses(iconBonuses, game = 'genshin', lang = 'en') {
     if (!iconBonuses || iconBonuses.length === 0) {
-        return lang === 'vi' ? 'Phần thưởng không xác định' : 'Unknown Rewards';
+        return getUnknownRewardsText(lang);
     }
 
     // Use i18n icon map if available
@@ -111,12 +130,11 @@ function parseIconBonuses(iconBonuses, game = 'genshin', lang = 'en') {
             rewards.push(`${Number(bonus.bonus_num).toLocaleString('en-US')} ${itemName}`);
         } else {
             // Unknown item - just show quantity
-            const unknownText = lang === 'vi' ? 'Vật phẩm' : 'Unknown Item';
-            rewards.push(`${bonus.bonus_num}x ${unknownText}`);
+            rewards.push(`${bonus.bonus_num}x ${getUnknownItemText(lang)}`);
         }
     }
 
-    return rewards.length > 0 ? rewards.join(', ') : (lang === 'vi' ? 'Phần thưởng không xác định' : 'Unknown Rewards');
+    return rewards.length > 0 ? rewards.join(', ') : getUnknownRewardsText(lang);
 }
 
 module.exports = {

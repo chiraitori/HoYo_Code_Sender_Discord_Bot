@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const Language = require('../models/Language');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
@@ -8,8 +8,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('setlang')
         .setDescription('Set the bot language for this server')
-        // Remove default permissions restriction to make command visible to everyone
-        // Admin permissions will be enforced in the execute function
         .addStringOption(option =>
             option.setName('language')
                 .setDescription('Select language')
@@ -22,30 +20,27 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            // Check if command is used in DMs
             if (await handleDMRestriction(interaction, 'setlang')) {
                 return;
             }
 
-            // Check if user is admin or bot owner using our utility
             if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.setlang.noPermission',
                     interaction.guildId
                 );
-                return interaction.reply({ content: noPermMessage, ephemeral: true });
+                return interaction.reply({ content: noPermMessage, flags: MessageFlags.Ephemeral });
             }
 
-            await interaction.deferReply({ ephemeral: true });
-            
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
             const newLang = interaction.options.getString('language');
-              await Language.findOneAndUpdate(
+            await Language.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 { language: newLang },
                 { upsert: true }
             );
 
-            // Clear the language cache for this guild to force refresh
             languageManager.clearGuildCache(interaction.guildId);
 
             const successMessage = await languageManager.getString(
@@ -55,18 +50,18 @@ module.exports = {
             );
 
             await interaction.editReply({ content: successMessage });
-            
+
         } catch (error) {
             console.error('Error setting language:', error);
             const errorMessage = await languageManager.getString(
                 'commands.setlang.error',
                 interaction.guildId
             );
-            
-            if (interaction.deferred) {
+
+            if (interaction.deferred || interaction.replied) {
                 await interaction.editReply({ content: errorMessage });
             } else {
-                await interaction.reply({ content: errorMessage, ephemeral: true });
+                await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
             }
         }
     }

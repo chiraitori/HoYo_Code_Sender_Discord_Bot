@@ -50,6 +50,11 @@ const livestreamTrackingSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    distributedCodeClaims: [{
+        _id: false,
+        claimKey: String,
+        claimedAt: Date
+    }],
     codeMessages: {
         type: Map,
         of: new mongoose.Schema({

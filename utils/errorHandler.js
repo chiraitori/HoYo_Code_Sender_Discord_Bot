@@ -1,3 +1,4 @@
+const { MessageFlags } = require('discord.js');
 const languageManager = require('./language');
 
 /**
@@ -9,29 +10,22 @@ const languageManager = require('./language');
  */
 async function handleCommandError(interaction, error, errorKey = 'errors.general', fallbackMessage = 'An error occurred.') {
     console.error(`Error in ${interaction.commandName} command:`, error);
-    
+
     try {
         const errorMessage = await languageManager.getString(errorKey, interaction.guildId) || fallbackMessage;
-        
-        const reply = {
-            content: errorMessage,
-            ephemeral: true
-        };
 
         if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(reply);
+            await interaction.editReply({ content: errorMessage });
         } else {
-            await interaction.reply(reply);
+            await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
         }
     } catch (replyError) {
         console.error('Failed to send error message:', replyError);
-        // Last resort - try to send a basic error message
         try {
-            const basicReply = { content: fallbackMessage, ephemeral: true };
             if (interaction.deferred || interaction.replied) {
-                await interaction.editReply(basicReply);
+                await interaction.editReply({ content: fallbackMessage });
             } else {
-                await interaction.reply(basicReply);
+                await interaction.reply({ content: fallbackMessage, flags: MessageFlags.Ephemeral });
             }
         } catch (lastError) {
             console.error('Complete failure to respond to interaction:', lastError);
@@ -41,30 +35,22 @@ async function handleCommandError(interaction, error, errorKey = 'errors.general
 
 /**
  * Standardized success handler for command interactions
- * @param {CommandInteraction} interaction - Discord interaction
- * @param {string} messageKey - Language key for success message
- * @param {string} fallbackMessage - Fallback message if language key fails
- * @param {Object} replacements - Replacements for message placeholders
- * @param {boolean} ephemeral - Whether the message should be ephemeral
  */
 async function handleCommandSuccess(interaction, messageKey, fallbackMessage, replacements = {}, ephemeral = false) {
     try {
         let message = await languageManager.getString(messageKey, interaction.guildId) || fallbackMessage;
-        
-        // Apply replacements
+
         Object.entries(replacements).forEach(([key, value]) => {
             message = message.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
         });
-        
-        const reply = {
-            content: message,
-            ephemeral
-        };
 
         if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(reply);
+            await interaction.editReply({ content: message });
         } else {
-            await interaction.reply(reply);
+            await interaction.reply({
+                content: message,
+                ...(ephemeral ? { flags: MessageFlags.Ephemeral } : {})
+            });
         }
     } catch (error) {
         console.error('Failed to send success message:', error);
@@ -72,19 +58,12 @@ async function handleCommandSuccess(interaction, messageKey, fallbackMessage, re
     }
 }
 
-/**
- * Validate if user has required permissions
- * @param {CommandInteraction} interaction - Discord interaction
- * @param {Array<string>} requiredPermissions - Array of required permission strings
- * @param {string} errorKey - Language key for permission error
- * @returns {boolean} Whether user has permissions
- */
 async function checkPermissions(interaction, requiredPermissions = ['Administrator'], errorKey = 'errors.noPermission') {
     if (!interaction.member?.permissions.has(requiredPermissions)) {
         await handleCommandError(
-            interaction, 
-            new Error('Insufficient permissions'), 
-            errorKey, 
+            interaction,
+            new Error('Insufficient permissions'),
+            errorKey,
             'You do not have permission to use this command.'
         );
         return false;

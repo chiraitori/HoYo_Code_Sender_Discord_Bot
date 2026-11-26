@@ -53,3 +53,8 @@ test('keeps short fallback sweepers for fetched messages and archived threads', 
     assert.deepEqual(sweepers.messages, { interval: 300, lifetime: 300 });
     assert.deepEqual(sweepers.threads, { interval: 900, lifetime: 3600 });
 });
+
+test('enables Discord enforceNonce deduplication on the client', () => {
+    const options = createDiscordClientOptions();
+    assert.equal(options.enforceNonce, true);
+});

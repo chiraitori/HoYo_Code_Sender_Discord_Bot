@@ -37,13 +37,13 @@ class LanguageManager {
             // Get from database
             const guildLang = await Language.findOne({ guildId });
             const language = guildLang?.language || 'en';
-            
+
             // Cache the result
             this.languageCache.set(guildId, {
                 language: language,
                 timestamp: Date.now()
             });
-            
+
             return language;
         } catch (error) {
             console.error('Language lookup error:', error);
@@ -56,13 +56,13 @@ class LanguageManager {
             // Get guild's language preference (with caching)
             // For DMs (guildId = null), this will return 'en'
             const selectedLang = await this.getGuildLanguage(guildId);
-            
+
             // Get the string from the language file
             const lang = this.languages[selectedLang];
             if (!lang) return this.getStringFromPath(key, this.languages.en, replacements);
 
             let text = this.getStringFromPath(key, lang, replacements);
-            
+
             // Fallback to English if string not found
             if (!text && selectedLang !== 'en') {
                 text = this.getStringFromPath(key, this.languages.en, replacements);
@@ -102,13 +102,13 @@ class LanguageManager {
         return this.getString('common.supportMsg', guildId);
     }
 
-    getStringFromPath(key, langObj, replacements) {
+    getStringFromPath(key, langObj, replacements = {}) {
         let text = key.split('.').reduce((obj, i) => obj?.[i], langObj);
-        if (!text) return null;
+        if (typeof text !== 'string' || text.length === 0) return null;
 
         // Replace placeholders
-        Object.entries(replacements).forEach(([key, value]) => {
-            text = text.replace(new RegExp(`{${key}}`, 'g'), value);
+        Object.entries(replacements || {}).forEach(([placeholder, value]) => {
+            text = text.replace(new RegExp(`{${placeholder}}`, 'g'), String(value));
         });
 
         return text;
@@ -138,6 +138,7 @@ class LanguageManager {
             'commands.listcodes.newCodes': 'New {game} Codes!',
             'commands.listcodes.redeemButton': 'Redeem',
             'commands.listcodes.noReward': 'No reward information',
+            'commands.setup.error': 'Failed to save server setup.',
             'errors.general': 'An error occurred. Please try again.',
             'errors.dmNotAllowed': 'This command can only be used in Discord servers, not in direct messages.',
             'common.enabled': 'ENABLED',

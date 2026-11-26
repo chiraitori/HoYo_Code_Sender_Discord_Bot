@@ -1,10 +1,11 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
 const { validateChannel } = require('../utils/channelValidator');
 const { handleDMRestriction } = require('../utils/dmHandler');
+const { getRoleMention } = require('../utils/roleMention');
 
 // Game information mapping
 const gameNames = {
@@ -74,17 +75,17 @@ module.exports = {
                 'commands.demoautosend.noPermission',
                 interaction.guildId
             ) || 'You need administrator permissions to use this command.';
-            return interaction.reply({ content: noPermMessage, ephemeral: true });
+            return interaction.reply({ content: noPermMessage, flags: MessageFlags.Ephemeral });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
             // Get guild configuration
             const config = await Config.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
             if (!config || !config.channel) {
                 const noConfigMessage = await languageManager.getString(
-                    'commands.demoautosend.noConfig', 
+                    'commands.demoautosend.noConfig',
                     interaction.guildId
                 ) || 'Bot is not set up yet! Please use `/setup` first to configure a channel.';
                 return interaction.editReply({ content: noConfigMessage });
@@ -97,9 +98,9 @@ module.exports = {
                     'commands.demoautosend.channelError',
                     interaction.guildId
                 ) || 'Cannot send messages to the configured channel:';
-                
-                return interaction.editReply({ 
-                    content: `${channelErrorMsg} ${validationResult.error}` 
+
+                return interaction.editReply({
+                    content: `${channelErrorMsg} ${validationResult.error}`
                 });
             }
 
@@ -108,25 +109,23 @@ module.exports = {
             const sendToChannel = settings?.autoSendOptions?.channel !== false;
             const sendToThreads = settings?.autoSendOptions?.threads !== false;
 
-            // Get the game option
             const selectedGame = interaction.options.getString('game');
-            
-            // Determine games to send demo codes for
-            const gamesToProcess = selectedGame === 'all' 
-                ? ['genshin', 'hkrpg', 'nap'] 
+            const gamesToProcess = selectedGame === 'all'
+                ? ['genshin', 'hkrpg', 'nap']
                 : [selectedGame];
-            
-            const channel = interaction.client.channels.cache.get(config.channel);
+
+            const channel = validationResult.channel || interaction.client.channels.cache.get(config.channel);
+            const botMember = interaction.guild.members.me
+                || await interaction.guild.members.fetchMe().catch(() => null);
             const sentMessages = [];
-            
-            // Thread mapping for each game
+            let successCount = 0;
+
             const threadMapping = {
                 'genshin': config.forumThreads?.genshin,
                 'hkrpg': config.forumThreads?.hsr,
                 'nap': config.forumThreads?.zzz
             };
-            
-            // Process each selected game
+
             for (const game of gamesToProcess) {
                 const baseTitle = await languageManager.getString(
                     'commands.demoautosend.title',
@@ -140,54 +139,50 @@ module.exports = {
                     interaction.guildId
                 ) || 'Redeem';
 
-                // Generate descriptions for each code
                 const descriptions = [];
-                
                 for (const code of demoCodes[game]) {
-                    const rewardString = await languageManager.getRewardString(code.rewards, interaction.guildId) 
+                    const rewardString = await languageManager.getRewardString(code.rewards, interaction.guildId)
                         || `Reward: ${code.rewards}`;
-                    
+
                     descriptions.push(
                         `**${code.code}** (DEMO)\n` +
                         `[${redeemText}](${redeemUrls[game]}?code=${code.code})\n` +
                         `└ ${rewardString}`
                     );
                 }
-                
-                const finalDescription = descriptions.join('\n\n');
 
-                // Get support message in the server's language
-                const supportMsg = await languageManager.getSupportFooter(
-                    interaction.guildId
-                );
-                
-                // Create embedded message
+                const finalDescription = descriptions.join('\n\n');
+                const supportMsg = await languageManager.getSupportFooter(interaction.guildId);
+
                 const embed = new EmbedBuilder()
-                    .setColor('#FF9900') // Orange color for demo messages
+                    .setColor('#FF9900')
                     .setTitle(title)
                     .setDescription(finalDescription)
-                    .setFooter({ 
+                    .setFooter({
                         text: supportMsg,
                         iconURL: interaction.client.user.displayAvatarURL()
                     })
                     .setTimestamp();
 
-                // Include a notice that these are demo codes
-                embed.addFields({ 
+                embed.addFields({
                     name: await languageManager.getString('commands.demoautosend.notice', interaction.guildId) || '⚠️ Demo Notice',
-                    value: await languageManager.getString('commands.demoautosend.noticeText', interaction.guildId) || 
+                    value: await languageManager.getString('commands.demoautosend.noticeText', interaction.guildId) ||
                         'These are demo codes for testing purposes only. They will not work in-game.'
                 });
 
-                // Get role to mention
                 const roleField = roleMapping[game];
                 const roleId = config[roleField];
-                const roleTag = roleId ? `<@&${roleId}> ` : '';
+                const roleMention = getRoleMention(roleId);
 
                 // Send to main channel if enabled
                 if (sendToChannel && channel) {
                     try {
-                        const sentMessage = await channel.send({ content: roleTag, embeds: [embed] });
+                        const sentMessage = await channel.send({
+                            content: roleMention.content,
+                            embeds: [embed],
+                            allowedMentions: roleMention.allowedMentions
+                        });
+                        successCount++;
                         sentMessages.push(`${gameNames[game]} (Channel): <${sentMessage.url}>`);
                     } catch (error) {
                         console.error(`[DemoAutoSend] Error sending to channel for ${game}:`, error);
@@ -195,14 +190,24 @@ module.exports = {
                     }
                 }
 
-                // Send to forum thread if enabled and configured
-                if (sendToThreads && threadMapping[game]) {
+                // Send to forum thread if enabled, configured, and distinct from main channel
+                const threadId = threadMapping[game];
+                if (sendToThreads && threadId && threadId !== config.channel) {
                     try {
-                        const thread = await interaction.client.channels.fetch(threadMapping[game]).catch(() => null);
+                        const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
                         if (thread) {
-                            const permissions = thread.permissionsFor(interaction.client.user);
-                            if (permissions && permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
-                                const sentMessage = await thread.send({ content: roleTag, embeds: [embed] });
+                            const permissions = botMember ? thread.permissionsFor?.(botMember) : null;
+                            if (permissions && permissions.has([
+                                PermissionFlagsBits.ViewChannel,
+                                PermissionFlagsBits.SendMessagesInThreads,
+                                PermissionFlagsBits.EmbedLinks
+                            ])) {
+                                const sentMessage = await thread.send({
+                                    content: roleMention.content,
+                                    embeds: [embed],
+                                    allowedMentions: roleMention.allowedMentions
+                                });
+                                successCount++;
                                 sentMessages.push(`${gameNames[game]} (Thread): <${sentMessage.url}>`);
                             } else {
                                 console.log(`[DemoAutoSend] Missing permissions for ${game} thread`);
@@ -210,7 +215,7 @@ module.exports = {
                             }
                         } else {
                             console.log(`[DemoAutoSend] Thread not found for ${game}`);
-                            sentMessages.push(`${gameNames[game]} (Thread): ❌ Not configured`);
+                            sentMessages.push(`${gameNames[game]} (Thread): ❌ Not found`);
                         }
                     } catch (error) {
                         console.error(`[DemoAutoSend] Error sending to thread for ${game}:`, error);
@@ -219,12 +224,11 @@ module.exports = {
                 }
             }
 
-            // Notify the admin that demo codes were sent
             const successMessage = await languageManager.getString(
                 'commands.demoautosend.success',
                 interaction.guildId,
-                { count: sentMessages.length }
-            ) || `Successfully sent demo codes for ${sentMessages.length} game(s)!`;
+                { count: successCount }
+            ) || `Successfully sent demo codes for ${successCount} destination(s)!`;
 
             await interaction.editReply({
                 content: `${successMessage}\n\n${sentMessages.join('\n')}`
@@ -236,10 +240,17 @@ module.exports = {
                 'commands.demoautosend.error',
                 interaction.guildId
             ) || 'An error occurred while sending demo codes.';
-            
-            await interaction.editReply({ 
-                content: `${errorMessage}\n\`\`\`${error.message}\`\`\`` 
-            });
+
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    content: `${errorMessage}\n\`\`\`${error.message}\`\`\``
+                });
+            } else {
+                await interaction.reply({
+                    content: `${errorMessage}\n\`\`\`${error.message}\`\`\``,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
         }
     }
 };

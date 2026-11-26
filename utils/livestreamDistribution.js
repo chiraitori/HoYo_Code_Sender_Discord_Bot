@@ -1,7 +1,8 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const Code = require('../models/Code');
+const Language = require('../models/Language');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { getState } = require('./hoyolabAPI');
 const { sendChannelMessage, editChannelMessage } = require('./discordMessageSender');
@@ -51,6 +52,120 @@ const ROLE_MAPPING = {
     'nap': 'zzzRole'
 };
 
+const OFFICIAL_ACCOUNTS = {
+    'genshin': '1015537',
+    'hkrpg': '172534910',
+    'nap': '219270333'
+};
+
+const LIVESTREAM_CLAIM_TTL_MS = 5 * 60 * 1000;
+const DEFINITE_UNSENT_DISCORD_CODES = new Set([10003, 10008, 50001, 50013, 50035, 50083]);
+const activeDistributions = new Set();
+
+function normalizeId(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function isDefiniteUnsentError(error) {
+    if (!error) return false;
+    if (DEFINITE_UNSENT_DISCORD_CODES.has(Number(error.code))) {
+        return true;
+    }
+    const status = Number(error.status);
+    return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+async function claimLivestreamDeliveryTarget(
+    game,
+    version,
+    claimKey,
+    codeDeliveryIds,
+    TrackingModel = LivestreamTracking,
+    now = new Date()
+) {
+    const expiredBefore = new Date(now.getTime() - LIVESTREAM_CLAIM_TTL_MS);
+    await TrackingModel.updateOne(
+        { game, version },
+        {
+            $pull: {
+                distributedCodeClaims: {
+                    claimKey,
+                    claimedAt: { $lte: expiredBefore }
+                }
+            }
+        }
+    );
+
+    const claimed = await TrackingModel.findOneAndUpdate(
+        {
+            game,
+            version,
+            distributedCodeTargets: { $nin: codeDeliveryIds },
+            'distributedCodeClaims.claimKey': { $ne: claimKey }
+        },
+        {
+            $push: {
+                distributedCodeClaims: {
+                    claimKey,
+                    claimedAt: now
+                }
+            }
+        },
+        { new: true }
+    );
+
+    return Boolean(claimed);
+}
+
+async function releaseLivestreamDeliveryTarget(
+    game,
+    version,
+    claimKey,
+    TrackingModel = LivestreamTracking
+) {
+    await TrackingModel.updateOne(
+        { game, version },
+        { $pull: { distributedCodeClaims: { claimKey } } }
+    );
+}
+
+async function completeLivestreamDeliveryTarget(
+    game,
+    version,
+    claimKey,
+    codeDeliveryIds,
+    TrackingModel = LivestreamTracking
+) {
+    await TrackingModel.updateOne(
+        { game, version },
+        {
+            $addToSet: { distributedCodeTargets: { $each: codeDeliveryIds } },
+            $pull: { distributedCodeClaims: { claimKey } }
+        }
+    );
+}
+
+async function preloadLanguageCache() {
+    if (typeof Language.find !== 'function') {
+        return;
+    }
+
+    try {
+        const languages = await Language.find({}).lean();
+        const now = Date.now();
+        for (const lang of languages) {
+            if (lang?.guildId && lang?.language) {
+                languageManager.languageCache.set(lang.guildId, {
+                    language: lang.language,
+                    timestamp: now
+                });
+            }
+        }
+    } catch (error) {
+        console.warn('[Auto-Distribution] Could not preload language cache:', error.message);
+    }
+}
+
 function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds = null) {
     const latestConfigs = getLatestGuildRecords(configs);
     const latestSettings = getLatestGuildRecords(settings);
@@ -67,7 +182,7 @@ function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds
             continue;
         }
 
-        const channelId = config.livestreamChannel || config.channel;
+        const channelId = normalizeId(config.livestreamChannel || config.channel);
         if (guildSettings?.autoSendOptions?.channel !== false && channelId) {
             const targetId = `${botId || 'legacy'}:channel:${channelId}`;
             targets.set(targetId, {
@@ -82,7 +197,7 @@ function getDeliveryTargets(configs, settings, game, botId = null, knownGuildIds
             hkrpg: config.forumThreads?.hsr,
             nap: config.forumThreads?.zzz
         };
-        const threadId = threadMapping[game];
+        const threadId = normalizeId(threadMapping[game]);
         if (
             guildSettings?.autoSendOptions?.threads !== false
             && threadId
@@ -153,45 +268,21 @@ async function distributeIfReady(client, game, version = null, codes = null) {
     }
 
     const trackingVersion = tracking.version || '1.0';
+    const distributionKey = `${game}:${trackingVersion}`;
+    if (activeDistributions.has(distributionKey)) {
+        console.log(`[Auto-Distribution] Skipping ${distributionKey}; distribution already running`);
+        return;
+    }
+
     const botId = client.user?.id;
     if (!botId) {
         throw new Error('Cannot distribute livestream codes before the bot is ready');
     }
 
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    if (isTrackingPastDistributionWindow(tracking, nowSeconds)) {
-        await LivestreamTracking.updateOne(
-            { game, version: trackingVersion },
-            {
-                $set: { distributed: true },
-                $addToSet: { distributedBots: botId }
-            }
-        );
-        console.log(
-            `[Auto-Distribution] Skipping stale ${game} ${trackingVersion} tracking; `
-            + 'the 24-hour delivery window has closed'
-        );
-        return;
-    }
-
-    const state = await getState(game, trackingVersion, botId);
-
-    // Only distribute if STATE = 5 (Found) and not already distributed
-    if (state !== 5) {
-        return;
-    }
-
-    console.log(`[Auto-Distribution] 🚀 Distributing new codes for ${game}...`);
-    const baseDistributionData = typeof tracking.toObject === 'function'
-        ? tracking.toObject()
-        : tracking;
-    const rawCodes = codes || baseDistributionData.codes || [];
-    const distributionCodes = getActiveLivestreamCodes(
-        rawCodes,
-        nowSeconds
-    );
-    if (distributionCodes.length === 0) {
-        if (rawCodes.length > 0) {
+    activeDistributions.add(distributionKey);
+    try {
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        if (isTrackingPastDistributionWindow(tracking, nowSeconds)) {
             await LivestreamTracking.updateOne(
                 { game, version: trackingVersion },
                 {
@@ -200,232 +291,315 @@ async function distributeIfReady(client, game, version = null, codes = null) {
                 }
             );
             console.log(
-                `[Auto-Distribution] Skipping ${game} ${trackingVersion}; `
-                + 'all livestream codes are expired'
+                `[Auto-Distribution] Skipping stale ${game} ${trackingVersion} tracking; `
+                + 'the 24-hour delivery window has closed'
             );
+            return;
         }
-        return;
-    }
-    const expectedCount = getExpectedLivestreamCodeCount(game);
-    if (distributionCodes.length < expectedCount) {
-        console.log(
-            `[Auto-Distribution] Waiting for complete livestream set for ${game} ${trackingVersion}: `
-            + `${distributionCodes.length}/${expectedCount} active codes`
-        );
-        return;
-    }
-    const distributionData = {
-        ...baseDistributionData,
-        codes: distributionCodes
-    };
 
-    // Get all guilds with auto-send enabled
-    const [allConfigs, allSettings] = await Promise.all([
-        Config.find({}).sort({ _id: 1 }).lean(),
-        Settings.find({}).sort({ _id: 1 }).lean()
-    ]);
-    const duplicateConfigs = countDuplicateGuildRecords(allConfigs);
-    const duplicateSettings = countDuplicateGuildRecords(allSettings);
-    if (duplicateConfigs || duplicateSettings) {
-        console.warn(
-            `[Auto-Distribution] Ignoring duplicate DB rows: ${duplicateConfigs} config, `
-            + `${duplicateSettings} settings (newest row per guild wins)`
-        );
-    }
-    const knownGuildIds = await getKnownGuildIds(client);
-    const targets = getDeliveryTargets(
-        allConfigs,
-        allSettings,
-        game,
-        botId,
-        knownGuildIds
-    );
-    await reconcileConfiguredRoles(
-        client,
-        [...new Set(targets.map(target => target.config))],
-        game
-    );
-    if (targets.length === 0) {
-        console.warn(`[Auto-Distribution] No eligible delivery targets for ${game}; will retry`);
-        return;
-    }
+        const state = await getState(game, trackingVersion, botId);
 
-    // Do not treat regular Code pool notifications as livestream deliveries:
-    // livestream codes are also stored in the Code pool, and must still be
-    // distributed in full by the livestream pipeline.
-    const storedCodeDeliveryIds = tracking.distributedCodeTargets || [];
-    const legacyCodeDeliveryIds = storedCodeDeliveryIds.length === 0
-        ? getLegacyCodeDeliveryIds(tracking.distributedTargets, distributionCodes)
-        : [];
-    const deliveredCodeTargetIds = new Set([
-        ...storedCodeDeliveryIds,
-        ...legacyCodeDeliveryIds
-    ]);
-    if (legacyCodeDeliveryIds.length > 0) {
-        await LivestreamTracking.updateOne(
-            { game, version: trackingVersion },
-            { $addToSet: { distributedCodeTargets: { $each: legacyCodeDeliveryIds } } }
-        );
-    }
-
-    const existingMessages = tracking.codeMessages instanceof Map
-        ? tracking.codeMessages
-        : new Map(Object.entries(tracking.codeMessages || {}));
-    const legacyTargets = new Set(tracking.distributedTargets || []);
-    const pendingDeliveries = getPendingCodeDeliveries(
-        targets,
-        distributionCodes,
-        deliveredCodeTargetIds
-    ).map(delivery => (
-        existingMessages.get(delivery.target.id)?.messageId || legacyTargets.has(delivery.target.id)
-            ? delivery
-            : { ...delivery, codes: distributionCodes }
-    ));
-    if (pendingDeliveries.length === 0) {
-        await LivestreamTracking.findOneAndUpdate(
-            { game, version: trackingVersion },
-            {
-                $set: { distributed: true },
-                $addToSet: { distributedBots: botId }
-            },
-            { upsert: false }
-        );
-        return;
-    }
-
-    const embeds = new Map();
-    for (const delivery of pendingDeliveries) {
-        const signature = delivery.codes.map(codeData => codeData.code).sort().join(',');
-        const guildId = delivery.target.config.guildId;
-        const language = await languageManager.getGuildLanguage(guildId);
-        const embedKey = `${signature}:${language}`;
-        if (!embeds.has(embedKey)) {
-            embeds.set(embedKey, await buildCodesEmbed(game, {
-                ...distributionData,
-                codes: delivery.codes
-            }, guildId));
+        // Only distribute if STATE = 5 (Found) and not already distributed
+        if (state !== 5) {
+            return;
         }
-        delivery.embed = embeds.get(embedKey);
-    }
 
-    const results = [];
-    const batchSize = 25;
-    for (let index = 0; index < pendingDeliveries.length; index += batchSize) {
-        const batchDeliveries = pendingDeliveries.slice(index, index + batchSize);
-        const batchResults = await Promise.allSettled(batchDeliveries.map(async delivery => {
-            const send = delivery.target.type === 'channel' ? sendToChannel : sendToThread;
-            const messageId = await send(client, delivery.target.config, game, delivery.embed, {
-                returnMessageId: true
-            });
-            if (!messageId) return false;
-
-            const channelId = delivery.target.id.split(':').at(-1);
-            try {
+        console.log(`[Auto-Distribution] 🚀 Distributing new codes for ${game}...`);
+        const baseDistributionData = typeof tracking.toObject === 'function'
+            ? tracking.toObject()
+            : tracking;
+        const rawCodes = codes || baseDistributionData.codes || [];
+        const distributionCodes = getActiveLivestreamCodes(
+            rawCodes,
+            nowSeconds
+        );
+        if (distributionCodes.length === 0) {
+            if (rawCodes.length > 0) {
                 await LivestreamTracking.updateOne(
                     { game, version: trackingVersion },
-                    { $set: { [`codeMessages.${delivery.target.id}`]: {
-                        channelId,
-                        messageId,
-                        summarySignature: getSummarySignature(delivery.codes)
-                    } } }
+                    {
+                        $set: { distributed: true },
+                        $addToSet: { distributedBots: botId }
+                    }
                 );
-            } catch (error) {
-                console.error(`[Auto-Distribution] Could not record message ${messageId}:`, error.message);
-            }
-            return true;
-        }));
-        results.push(...batchResults);
-
-        const successfulBatchCodeTargetIds = batchResults.flatMap((result, resultIndex) => (
-            result.status === 'fulfilled' && result.value === true
-                ? batchDeliveries[resultIndex].codes.map(
-                    codeData => getCodeDeliveryId(batchDeliveries[resultIndex].target.id, codeData)
-                )
-                : []
-        ));
-        if (successfulBatchCodeTargetIds.length > 0) {
-            const notifiedTargetsByCode = new Map();
-            batchResults.forEach((result, resultIndex) => {
-                if (result.status !== 'fulfilled' || result.value !== true) {
-                    return;
-                }
-                const delivery = batchDeliveries[resultIndex];
-                for (const codeData of delivery.codes) {
-                    if (!notifiedTargetsByCode.has(codeData.code)) {
-                        notifiedTargetsByCode.set(codeData.code, new Set());
-                    }
-                    notifiedTargetsByCode.get(codeData.code).add(delivery.target.id);
-                }
-            });
-
-            try {
-                await Code.bulkWrite([...notifiedTargetsByCode].map(([code, targetIds]) => ({
-                    updateOne: {
-                        filter: { game, code },
-                        update: {
-                            $setOnInsert: { game, code, isExpired: false, timestamp: new Date() },
-                            $addToSet: { notifiedTargets: { $each: [...targetIds] } }
-                        },
-                        upsert: true
-                    }
-                })), { ordered: false });
-            } catch (error) {
-                console.error(
-                    `[Auto-Distribution] Could not synchronize shared delivery markers for ${game}:`,
-                    error.message
+                console.log(
+                    `[Auto-Distribution] Skipping ${game} ${trackingVersion}; `
+                    + 'all livestream codes are expired'
                 );
             }
+            return;
+        }
+        const expectedCount = getExpectedLivestreamCodeCount(game);
+        if (distributionCodes.length < expectedCount) {
+            console.log(
+                `[Auto-Distribution] Waiting for complete livestream set for ${game} ${trackingVersion}: `
+                + `${distributionCodes.length}/${expectedCount} active codes`
+            );
+            return;
+        }
+        const distributionData = {
+            ...baseDistributionData,
+            codes: distributionCodes
+        };
 
+        // Get all guilds with auto-send enabled
+        const [allConfigs, allSettings] = await Promise.all([
+            Config.find({}).sort({ _id: 1 }).lean(),
+            Settings.find({}).sort({ _id: 1 }).lean(),
+            preloadLanguageCache()
+        ]);
+        const duplicateConfigs = countDuplicateGuildRecords(allConfigs);
+        const duplicateSettings = countDuplicateGuildRecords(allSettings);
+        if (duplicateConfigs || duplicateSettings) {
+            console.warn(
+                `[Auto-Distribution] Ignoring duplicate DB rows: ${duplicateConfigs} config, `
+                + `${duplicateSettings} settings (newest row per guild wins)`
+            );
+        }
+        const knownGuildIds = await getKnownGuildIds(client);
+        const targets = getDeliveryTargets(
+            allConfigs,
+            allSettings,
+            game,
+            botId,
+            knownGuildIds
+        );
+        await reconcileConfiguredRoles(
+            client,
+            [...new Set(targets.map(target => target.config))],
+            game
+        );
+        if (targets.length === 0) {
+            console.warn(`[Auto-Distribution] No eligible delivery targets for ${game}; will retry`);
+            return;
+        }
+
+        // Do not treat regular Code pool notifications as livestream deliveries:
+        // livestream codes are also stored in the Code pool, and must still be
+        // distributed in full by the livestream pipeline.
+        const storedCodeDeliveryIds = tracking.distributedCodeTargets || [];
+        const legacyCodeDeliveryIds = storedCodeDeliveryIds.length === 0
+            ? getLegacyCodeDeliveryIds(tracking.distributedTargets, distributionCodes)
+            : [];
+        const deliveredCodeTargetIds = new Set([
+            ...storedCodeDeliveryIds,
+            ...legacyCodeDeliveryIds
+        ]);
+        if (legacyCodeDeliveryIds.length > 0) {
             await LivestreamTracking.updateOne(
                 { game, version: trackingVersion },
-                { $addToSet: { distributedCodeTargets: { $each: successfulBatchCodeTargetIds } } }
+                { $addToSet: { distributedCodeTargets: { $each: legacyCodeDeliveryIds } } }
             );
         }
-    }
-    const progress = getCodeDeliveryProgress(
-        targets,
-        distributionCodes,
-        deliveredCodeTargetIds,
-        pendingDeliveries,
-        results
-    );
-    const { successfulCodeTargetIds, failCount, distributed } = progress;
 
-    for (let index = 0; index < results.length; index++) {
-        const result = results[index];
-        if (result.status === 'rejected') {
-            console.error(
-                `[Auto-Distribution] Failed ${pendingDeliveries[index].target.id}:`,
-                result.reason?.message || result.reason
+        const existingMessages = tracking.codeMessages instanceof Map
+            ? tracking.codeMessages
+            : new Map(Object.entries(tracking.codeMessages || {}));
+        const legacyTargets = new Set(tracking.distributedTargets || []);
+        const pendingDeliveries = getPendingCodeDeliveries(
+            targets,
+            distributionCodes,
+            deliveredCodeTargetIds
+        ).map(delivery => (
+            existingMessages.get(delivery.target.id)?.messageId || legacyTargets.has(delivery.target.id)
+                ? delivery
+                : { ...delivery, codes: distributionCodes }
+        ));
+        if (pendingDeliveries.length === 0) {
+            await LivestreamTracking.findOneAndUpdate(
+                { game, version: trackingVersion },
+                {
+                    $set: { distributed: true },
+                    $addToSet: { distributedBots: botId }
+                },
+                { upsert: false }
+            );
+            return;
+        }
+
+        // Fetch Events Overview banner ONCE per distribution instead of once per language.
+        const cachedEventsBanner = await fetchEventsBanner(OFFICIAL_ACCOUNTS[game], game);
+        if (cachedEventsBanner) {
+            distributionData.bannerUrl = cachedEventsBanner;
+            await LivestreamTracking.findOneAndUpdate(
+                { game, version: trackingVersion },
+                { $set: { bannerUrl: cachedEventsBanner } }
             );
         }
-    }
 
-    const update = {
-        $set: { distributed }
-    };
-    if (successfulCodeTargetIds.length > 0) {
-        update.$addToSet = {
-            distributedCodeTargets: { $each: successfulCodeTargetIds }
+        const embeds = new Map();
+        for (const delivery of pendingDeliveries) {
+            const signature = delivery.codes.map(codeData => codeData.code).sort().join(',');
+            const guildId = delivery.target.config.guildId;
+            const language = await languageManager.getGuildLanguage(guildId);
+            const embedKey = `${signature}:${language}`;
+            if (!embeds.has(embedKey)) {
+                embeds.set(embedKey, await buildCodesEmbed(game, {
+                    ...distributionData,
+                    codes: delivery.codes
+                }, guildId, {
+                    fetchEventsBanner: async () => null
+                }));
+            }
+            delivery.embed = embeds.get(embedKey);
+            delivery.codeSignature = signature;
+        }
+
+        const results = [];
+        const batchSize = 25;
+        for (let index = 0; index < pendingDeliveries.length; index += batchSize) {
+            const batchDeliveries = pendingDeliveries.slice(index, index + batchSize);
+            const batchResults = await Promise.allSettled(batchDeliveries.map(async delivery => {
+                const deliveryCodeIds = delivery.codes
+                    .map(codeData => getCodeDeliveryId(delivery.target.id, codeData))
+                    .filter(Boolean);
+                const claimKey = `${delivery.target.id}:${delivery.codeSignature}`;
+                const claimed = await claimLivestreamDeliveryTarget(
+                    game,
+                    trackingVersion,
+                    claimKey,
+                    deliveryCodeIds
+                );
+                if (!claimed) {
+                    return false;
+                }
+
+                const channelId = delivery.target.id.split(':').at(-1);
+                const dedupeKey = `live:${game}:${trackingVersion}:${channelId}:${delivery.codeSignature}`;
+                const send = delivery.target.type === 'channel' ? sendToChannel : sendToThread;
+                try {
+                    const messageId = await send(client, delivery.target.config, game, delivery.embed, {
+                        returnMessageId: true,
+                        preferRest: true,
+                        guildId: delivery.target.config.guildId,
+                        dedupeKey
+                    });
+                    if (!messageId) {
+                        await releaseLivestreamDeliveryTarget(game, trackingVersion, claimKey);
+                        return false;
+                    }
+
+                    try {
+                        await LivestreamTracking.updateOne(
+                            { game, version: trackingVersion },
+                            {
+                                $set: {
+                                    [`codeMessages.${delivery.target.id}`]: {
+                                        channelId,
+                                        messageId,
+                                        summarySignature: getSummarySignature(delivery.codes)
+                                    }
+                                }
+                            }
+                        );
+                    } catch (error) {
+                        console.error(`[Auto-Distribution] Could not record message ${messageId}:`, error.message);
+                    }
+
+                    await completeLivestreamDeliveryTarget(
+                        game,
+                        trackingVersion,
+                        claimKey,
+                        deliveryCodeIds
+                    );
+                    return true;
+                } catch (error) {
+                    if (isDefiniteUnsentError(error)) {
+                        await releaseLivestreamDeliveryTarget(game, trackingVersion, claimKey);
+                    }
+                    throw error;
+                }
+            }));
+            results.push(...batchResults);
+
+            const successfulBatchCodeTargetIds = batchResults.flatMap((result, resultIndex) => (
+                result.status === 'fulfilled' && result.value === true
+                    ? batchDeliveries[resultIndex].codes.map(
+                        codeData => getCodeDeliveryId(batchDeliveries[resultIndex].target.id, codeData)
+                    )
+                    : []
+            ));
+            if (successfulBatchCodeTargetIds.length > 0) {
+                const notifiedTargetsByCode = new Map();
+                batchResults.forEach((result, resultIndex) => {
+                    if (result.status !== 'fulfilled' || result.value !== true) {
+                        return;
+                    }
+                    const delivery = batchDeliveries[resultIndex];
+                    for (const codeData of delivery.codes) {
+                        if (!notifiedTargetsByCode.has(codeData.code)) {
+                            notifiedTargetsByCode.set(codeData.code, new Set());
+                        }
+                        notifiedTargetsByCode.get(codeData.code).add(delivery.target.id);
+                    }
+                });
+
+                try {
+                    await Code.bulkWrite([...notifiedTargetsByCode].map(([code, targetIds]) => ({
+                        updateOne: {
+                            filter: { game, code },
+                            update: {
+                                $setOnInsert: { game, code, isExpired: false, timestamp: new Date() },
+                                $addToSet: { notifiedTargets: { $each: [...targetIds] } }
+                            },
+                            upsert: true
+                        }
+                    })), { ordered: false });
+                } catch (error) {
+                    console.error(
+                        `[Auto-Distribution] Could not synchronize shared delivery markers for ${game}:`,
+                        error.message
+                    );
+                }
+            }
+        }
+        const progress = getCodeDeliveryProgress(
+            targets,
+            distributionCodes,
+            deliveredCodeTargetIds,
+            pendingDeliveries,
+            results
+        );
+        const { successfulCodeTargetIds, failCount, distributed } = progress;
+
+        for (let index = 0; index < results.length; index++) {
+            const result = results[index];
+            if (result.status === 'rejected') {
+                console.error(
+                    `[Auto-Distribution] Failed ${pendingDeliveries[index].target.id}:`,
+                    result.reason?.message || result.reason
+                );
+            }
+        }
+
+        const update = {
+            $set: { distributed }
         };
-    }
-    if (distributed) {
-        update.$addToSet = {
-            ...(update.$addToSet || {}),
-            distributedBots: botId
-        };
-    }
+        if (successfulCodeTargetIds.length > 0) {
+            update.$addToSet = {
+                distributedCodeTargets: { $each: successfulCodeTargetIds }
+            };
+        }
+        if (distributed) {
+            update.$addToSet = {
+                ...(update.$addToSet || {}),
+                distributedBots: botId
+            };
+        }
 
-    await LivestreamTracking.findOneAndUpdate(
-        { game, version: trackingVersion },
-        update,
-        { upsert: false }
-    );
+        await LivestreamTracking.findOneAndUpdate(
+            { game, version: trackingVersion },
+            update,
+            { upsert: false }
+        );
 
-    console.log(
-        `[Auto-Distribution] Delivered ${successfulCodeTargetIds.length} new ${game} code-targets `
-        + `(${failCount} targets failed, ${progress.deliveredCodeTargetIds.size} total recorded)`
-    );
+        console.log(
+            `[Auto-Distribution] Delivered ${successfulCodeTargetIds.length} new ${game} code-targets `
+            + `(${failCount} targets failed, ${progress.deliveredCodeTargetIds.size} total recorded)`
+        );
+    } finally {
+        activeDistributions.delete(distributionKey);
+    }
 }
 
 /**
@@ -437,6 +611,7 @@ async function fetchEventsBanner(accountId, game) {
 
         const url = `https://bbs-api-os.hoyolab.com/community/post/wapi/userPost?uid=${accountId}`;
         const response = await axios.get(url, {
+            timeout: 10000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'x-rpc-client_type': '4'
@@ -448,12 +623,13 @@ async function fetchEventsBanner(accountId, game) {
         // Look for Events Overview post
         for (const postData of posts.slice(0, 10)) {
             const post = postData.post;
-            const title = post.subject.toLowerCase();
+            const title = (post?.subject || '').toLowerCase();
 
             if (title.includes('event') && (title.includes('overview') || title.includes('review'))) {
                 // Fetch full post
                 const detailUrl = `https://bbs-api-os.hoyolab.com/community/post/wapi/getPostFull?post_id=${post.post_id}`;
                 const detailResponse = await axios.get(detailUrl, {
+                    timeout: 10000,
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                         'x-rpc-client_type': '4'
@@ -485,15 +661,21 @@ async function fetchEventsBanner(accountId, game) {
  */
 async function sendToChannel(client, config, game, embed, options = {}) {
     // Use livestreamChannel if configured, otherwise fall back to regular channel
-    const channelId = config.livestreamChannel || config.channel;
+    const channelId = normalizeId(config.livestreamChannel || config.channel);
 
-    if (!channelId) return;
+    if (!channelId) return false;
 
-    const channel = client.channels.cache.get(channelId);
+    const channel = client.channels?.cache?.get(channelId);
+    const guild = channel?.guild || client.guilds?.cache?.get(config.guildId) || null;
+    const botMember = guild?.members?.me || client.user;
 
     // Check permissions
-    const permissions = channel?.permissionsFor(client.user);
-    if (permissions && !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+    const permissions = channel && botMember ? channel.permissionsFor?.(botMember) : null;
+    if (permissions && !permissions.has([
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.EmbedLinks
+    ])) {
         return false;
     }
 
@@ -523,14 +705,20 @@ async function sendToThread(client, config, game, embed, options = {}) {
         'nap': config.forumThreads?.zzz
     };
 
-    const threadId = threadMapping[game];
+    const threadId = normalizeId(threadMapping[game]);
     if (!threadId) return false;
 
-    const thread = client.channels.cache.get(threadId);
+    const thread = client.channels?.cache?.get(threadId);
+    const guild = thread?.guild || client.guilds?.cache?.get(config.guildId) || null;
+    const botMember = guild?.members?.me || client.user;
 
-    // Check permissions
-    const permissions = thread?.permissionsFor(client.user);
-    if (permissions && !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+    // Check thread permissions (threads require SendMessagesInThreads, not SendMessages)
+    const permissions = thread && botMember ? thread.permissionsFor?.(botMember) : null;
+    if (permissions && !permissions.has([
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessagesInThreads,
+        PermissionFlagsBits.EmbedLinks
+    ])) {
         return false;
     }
 
@@ -556,7 +744,8 @@ async function summarizeIfReady(client, tracking) {
     const [configs, settings, knownGuildIds] = await Promise.all([
         Config.find({}).sort({ _id: 1 }).lean(),
         Settings.find({}).sort({ _id: 1 }).lean(),
-        getKnownGuildIds(client)
+        getKnownGuildIds(client),
+        preloadLanguageCache()
     ]);
     const targets = getDeliveryTargets(configs, settings, tracking.game, client.user.id, knownGuildIds);
     const codes = getActiveLivestreamCodes(tracking.codes);
@@ -586,6 +775,13 @@ async function summarizeIfReady(client, tracking) {
                 { $set: { [`codeMessages.${target.id}.summarySignature`]: signature } }
             );
         } catch (error) {
+            if (error?.code === 10008 || error?.code === 10003) {
+                // Message or channel was deleted permanently; stop retrying every 3 minutes.
+                await LivestreamTracking.updateOne(
+                    { game: tracking.game, version: tracking.version },
+                    { $set: { [`codeMessages.${target.id}.summarySignature`]: signature } }
+                ).catch(() => {});
+            }
             console.error(`[Livestream Summary] Failed to update ${target.id}:`, error.message);
         }
     }
@@ -598,13 +794,6 @@ async function summarizeIfReady(client, tracking) {
  * @returns {Promise<EmbedBuilder>} Embed
  */
 async function buildCodesEmbed(game, tracking, guildId = null, options = {}) {
-    // Try to fetch Events Overview banner (available ~15 min after livestream)
-    const OFFICIAL_ACCOUNTS = {
-        'genshin': '1015537',
-        'hkrpg': '172534910',
-        'nap': '219270333'
-    };
-
     let finalBanner = tracking.bannerUrl; // Start with Special Program banner
 
     // Try to get Events Overview banner
@@ -616,7 +805,7 @@ async function buildCodesEmbed(game, tracking, guildId = null, options = {}) {
         // Update tracking with better banner for future use
         await LivestreamTracking.findOneAndUpdate(
             { game, version: tracking.version },
-            { bannerUrl: eventsBanner }
+            { $set: { bannerUrl: eventsBanner } }
         );
     }
 
@@ -668,7 +857,7 @@ async function buildCodesEmbed(game, tracking, guildId = null, options = {}) {
                 { number: i + 1 }
             );
 
-            const directRedeemUrl = `${REDEEM_URLS[game]}?code=${codeData.code}`;
+            const directRedeemUrl = `${REDEEM_URLS[game]}?code=${encodeURIComponent(codeData.code)}`;
             embed.addFields({
                 name: codeFieldName,
                 value: `\`${codeData.code}\`\n[${redeemText}](${directRedeemUrl})${rewardText}\n**${expiresLabel}:** ${expireText}`,
@@ -722,5 +911,8 @@ module.exports = {
     buildCodesEmbed,
     getDeliveryTargets,
     getPendingDeliveryTargets,
-    getDeliveryProgress
+    getDeliveryProgress,
+    claimLivestreamDeliveryTarget,
+    releaseLivestreamDeliveryTarget,
+    completeLivestreamDeliveryTarget
 };

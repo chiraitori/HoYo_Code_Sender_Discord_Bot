@@ -158,7 +158,10 @@ async function parseAndSaveCodes(responseData, game, version) {
             for (const bonus of bonuses) {
                 const isActive = !bonus.code_status || bonus.code_status === 'ON';
                 if (bonus.exchange_code && isActive) {
-                    const code = bonus.exchange_code.trim().toUpperCase();
+                    const code = String(bonus.exchange_code).trim().toUpperCase();
+                    if (!code) {
+                        continue;
+                    }
 
                     // Avoid duplicates
                     if (!codes.some(c => c.code === code)) {
@@ -168,7 +171,7 @@ async function parseAndSaveCodes(responseData, game, version) {
                         codes.push({
                             code: code,
                             title: rewardText,
-                            expireAt: bonus.offline_at || 0,
+                            expireAt: bonus.offline_at || module.exchange_group?.offline_at || 0,
                             discoveredAt: Math.floor(Date.now() / 1000)
                         });
                     }
@@ -186,10 +189,18 @@ async function parseAndSaveCodes(responseData, game, version) {
 
     const existing = await LivestreamTracking.findOne({ game, version });
     // Keep codes already seen during this program even if the API stops listing them.
-    const mergedCodes = new Map((existing?.codes || []).map(codeData => [
-        codeData.code,
-        typeof codeData.toObject === 'function' ? codeData.toObject() : codeData
-    ]));
+    const mergedCodes = new Map();
+    for (const codeData of (existing?.codes || [])) {
+        const plainCode = typeof codeData.toObject === 'function' ? codeData.toObject() : codeData;
+        const normalizedCode = String(plainCode?.code || '').trim().toUpperCase();
+        if (!normalizedCode) {
+            continue;
+        }
+        mergedCodes.set(normalizedCode, {
+            ...plainCode,
+            code: normalizedCode
+        });
+    }
     for (const codeData of codes) {
         const previous = mergedCodes.get(codeData.code);
         mergedCodes.set(codeData.code, {
@@ -210,7 +221,7 @@ async function parseAndSaveCodes(responseData, game, version) {
     }
 
     const existingCodes = (existing?.codes || [])
-        .map(codeData => codeData.code)
+        .map(codeData => String(codeData.code || '').trim().toUpperCase())
         .filter(Boolean)
         .sort();
     const incomingCodes = mergedCodeList.map(codeData => codeData.code).sort();

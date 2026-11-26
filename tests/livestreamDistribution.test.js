@@ -4,7 +4,10 @@ const assert = require('node:assert');
 const {
   getDeliveryTargets,
   getPendingDeliveryTargets,
-  getDeliveryProgress
+  getDeliveryProgress,
+  claimLivestreamDeliveryTarget,
+  releaseLivestreamDeliveryTarget,
+  completeLivestreamDeliveryTarget
 } = require('../utils/livestreamDistribution');
 
 test('uses the livestream channel when one is configured', () => {
@@ -193,4 +196,53 @@ test('retries only failed targets and completes after their later success', () =
     [{ status: 'fulfilled', value: true }]
   );
   assert.strictEqual(secondProgress.distributed, true);
+});
+
+
+test('only one concurrent livestream worker can claim a delivery target', async () => {
+  const delivered = new Set();
+  const claims = new Map();
+  const model = {
+    async updateOne(_query, update) {
+      const pull = update.$pull?.distributedCodeClaims;
+      if (pull?.claimedAt?.$lte) {
+        const claimedAt = claims.get(pull.claimKey);
+        if (claimedAt && claimedAt <= pull.claimedAt.$lte) {
+          claims.delete(pull.claimKey);
+        }
+      } else if (pull?.claimKey) {
+        claims.delete(pull.claimKey);
+      }
+      for (const id of update.$addToSet?.distributedCodeTargets?.$each || []) {
+        delivered.add(id);
+      }
+    },
+    async findOneAndUpdate(query, update) {
+      const codeIds = query.distributedCodeTargets.$nin;
+      const claimKey = query['distributedCodeClaims.claimKey'].$ne;
+      if (codeIds.some(id => delivered.has(id)) || claims.has(claimKey)) {
+        return null;
+      }
+      claims.set(claimKey, update.$push.distributedCodeClaims.claimedAt);
+      return {};
+    }
+  };
+
+  const results = await Promise.all([
+    claimLivestreamDeliveryTarget('genshin', '7.0', 'bot:channel:1:A,B,C', ['bot:channel:1:code:A'], model),
+    claimLivestreamDeliveryTarget('genshin', '7.0', 'bot:channel:1:A,B,C', ['bot:channel:1:code:A'], model)
+  ]);
+  assert.strictEqual(results.filter(Boolean).length, 1);
+
+  await releaseLivestreamDeliveryTarget('genshin', '7.0', 'bot:channel:1:A,B,C', model);
+  assert.strictEqual(
+    await claimLivestreamDeliveryTarget('genshin', '7.0', 'bot:channel:1:A,B,C', ['bot:channel:1:code:A'], model),
+    true
+  );
+
+  await completeLivestreamDeliveryTarget('genshin', '7.0', 'bot:channel:1:A,B,C', ['bot:channel:1:code:A'], model);
+  assert.strictEqual(
+    await claimLivestreamDeliveryTarget('genshin', '7.0', 'bot:channel:1:A,B,C', ['bot:channel:1:code:A'], model),
+    false
+  );
 });

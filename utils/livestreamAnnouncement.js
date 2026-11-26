@@ -1,6 +1,7 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
+const Language = require('../models/Language');
 const LivestreamTracking = require('../models/LivestreamTracking');
 const { sendChannelMessage } = require('./discordMessageSender');
 const languageManager = require('./language');
@@ -21,6 +22,17 @@ const GAME_NAMES = {
 };
 
 const ANNOUNCEMENT_CLAIM_TTL_MS = 5 * 60 * 1000;
+const DEFINITE_UNSENT_DISCORD_CODES = new Set([10003, 10008, 50001, 50013, 50035, 50083]);
+let announcementBuildCounter = 0;
+
+function isDefiniteUnsentError(error) {
+    if (!error) return false;
+    if (DEFINITE_UNSENT_DISCORD_CODES.has(Number(error.code))) {
+        return true;
+    }
+    const status = Number(error.status);
+    return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
 
 async function processInBatches(tasks, batchSize = 25) {
     const results = [];
@@ -100,6 +112,37 @@ async function completeAnnouncementTarget(
     );
 }
 
+async function buildLocalizedAnnouncementPayload(lang, streamInfo) {
+    const fakeGuildId = `__announcement_build_${streamInfo.game}_${lang}_${++announcementBuildCounter}`;
+    languageManager.languageCache.set(fakeGuildId, {
+        language: lang,
+        timestamp: Date.now()
+    });
+
+    try {
+        const [content, embed] = await Promise.all([
+            languageManager.getString(
+                'livestream.announcement.content',
+                fakeGuildId,
+                { game: GAME_NAMES[streamInfo.game] }
+            ),
+            buildLivestreamAnnouncementEmbed({
+                guildId: fakeGuildId,
+                game: streamInfo.game,
+                version: streamInfo.version,
+                streamTime: streamInfo.streamTime,
+                bannerUrl: streamInfo.bannerUrl,
+                youtubeStreams: streamInfo.youtubeStreams,
+                streamTimeEstimated: streamInfo.streamTimeEstimated
+            })
+        ]);
+
+        return { content, embed };
+    } finally {
+        languageManager.languageCache.delete(fakeGuildId);
+    }
+}
+
 /**
  * Send announcement to all guilds
  * @param {Client} client - Discord client
@@ -114,10 +157,25 @@ async function sendAnnouncement(client, streamInfo) {
 
     console.log(`[Announcement] 📢 Sending announcement for ${game} ${version}...`);
 
-    const [allConfigs, allSettings] = await Promise.all([
+    const [allConfigs, allSettings, languages] = await Promise.all([
         Config.find({}).sort({ _id: 1 }).lean(),
-        Settings.find({}).sort({ _id: 1 }).lean()
+        Settings.find({}).sort({ _id: 1 }).lean(),
+        typeof Language.find === 'function' ? Language.find({}).lean() : Promise.resolve([])
     ]);
+
+    const languageMap = new Map();
+    const uniqueLanguages = new Set(['en']);
+    for (const lang of languages) {
+        if (lang?.guildId && lang?.language) {
+            languageMap.set(lang.guildId, lang.language);
+            uniqueLanguages.add(lang.language);
+            languageManager.languageCache.set(lang.guildId, {
+                language: lang.language,
+                timestamp: Date.now()
+            });
+        }
+    }
+
     const knownGuildIds = await getKnownGuildIds(client);
     const targets = getAnnouncementTargets(
         allConfigs,
@@ -129,9 +187,20 @@ async function sendAnnouncement(client, streamInfo) {
     const tracking = await LivestreamTracking.findOne({ game, version });
     const deliveredTargets = new Set(tracking?.announcementTargets || []);
     const pendingTargets = targets.filter(target => !deliveredTargets.has(target.id));
+
+    const payloadCache = new Map();
+    if (pendingTargets.length > 0) {
+        await Promise.all([...uniqueLanguages].map(async lang => {
+            payloadCache.set(lang, await buildLocalizedAnnouncementPayload(lang, streamInfo));
+        }));
+    }
+
     const tasks = [];
 
     for (const target of pendingTargets) {
+        const guildLang = languageMap.get(target.config.guildId) || 'en';
+        const cachedPayload = payloadCache.get(guildLang) || payloadCache.get('en');
+
         tasks.push(async () => {
             const claimed = await claimAnnouncementTarget(game, version, target.id);
             if (!claimed) {
@@ -148,7 +217,8 @@ async function sendAnnouncement(client, streamInfo) {
                     streamTime,
                     bannerUrl,
                     streamInfo.youtubeStreams,
-                    streamTimeEstimated
+                    streamTimeEstimated,
+                    cachedPayload
                 );
                 if (sent) {
                     await completeAnnouncementTarget(game, version, target.id);
@@ -157,7 +227,9 @@ async function sendAnnouncement(client, streamInfo) {
                 }
                 return sent;
             } catch (error) {
-                await releaseAnnouncementTarget(game, version, target.id);
+                if (isDefiniteUnsentError(error)) {
+                    await releaseAnnouncementTarget(game, version, target.id);
+                }
                 console.error(
                     `[Announcement] Error for guild ${target.config.guildId}:`,
                     error.message
@@ -201,16 +273,28 @@ async function sendAnnouncementToChannel(
     streamTime,
     bannerUrl,
     youtubeStreams,
-    streamTimeEstimated
+    streamTimeEstimated,
+    cachedPayload = null
 ) {
-    const channel = client.channels.cache.get(channelId);
+    const channel = client.channels?.cache?.get(channelId);
+    const guild = channel?.guild || client.guilds?.cache?.get(guildId) || null;
+    const botMember = guild?.members?.me || client.user;
 
-    const permissions = channel?.permissionsFor(client.user);
-    if (permissions && !permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+    const permissions = channel && botMember ? channel.permissionsFor?.(botMember) : null;
+    if (permissions && !permissions.has([
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.EmbedLinks
+    ])) {
         return false;
     }
 
-    const embed = await buildLivestreamAnnouncementEmbed({
+    const content = cachedPayload?.content ?? await languageManager.getString(
+        'livestream.announcement.content',
+        guildId,
+        { game: GAME_NAMES[game] }
+    );
+    const embed = cachedPayload?.embed ?? await buildLivestreamAnnouncementEmbed({
         guildId,
         game,
         version,
@@ -221,12 +305,12 @@ async function sendAnnouncementToChannel(
     });
 
     await sendChannelMessage(client, channelId, {
-        content: await languageManager.getString(
-            'livestream.announcement.content',
-            guildId,
-            { game: GAME_NAMES[game] }
-        ),
+        content,
         embeds: [embed]
+    }, {
+        preferRest: true,
+        guildId,
+        dedupeKey: `ann:${game}:${version}:${channelId}`
     });
     return true;
 }
@@ -277,7 +361,9 @@ function getAnnouncementTargets(
             continue;
         }
 
-        const channelId = config.livestreamChannel || config.channel;
+        const channelId = typeof (config.livestreamChannel || config.channel) === 'string'
+            ? (config.livestreamChannel || config.channel).trim()
+            : '';
         if (channelId) {
             const id = `${botId}:channel:${channelId}`;
             targets.set(id, { id, config, channelId });
@@ -388,6 +474,7 @@ async function buildLivestreamAnnouncementEmbedLocalized({
 
 module.exports = {
     buildLivestreamAnnouncementEmbed,
+    buildLocalizedAnnouncementPayload,
     sendAnnouncement,
     getAnnouncementTargets,
     wasAnnouncementSentForBot,

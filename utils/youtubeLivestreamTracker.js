@@ -236,10 +236,10 @@ async function enrichWithYoutubeApi(entries) {
     }
 }
 
-async function fetchChannelLivestream(channel) {
+async function fetchChannelLivestreamOutcome(channel) {
     const channelId = await resolveChannelId(channel);
     if (!channelId) {
-        return null;
+        return { ok: false, stream: null };
     }
 
     try {
@@ -258,7 +258,7 @@ async function fetchChannelLivestream(channel) {
         );
 
         if (candidates.length === 0) {
-            return null;
+            return { ok: true, stream: null };
         }
 
         const channelLive = await fetchChannelLivePage(channelId);
@@ -271,29 +271,44 @@ async function fetchChannelLivestream(channel) {
             || candidates.find(video => video.status === 'upcoming')
             || candidates[0];
 
-        if (!channelLive || candidate.status !== 'unknown') {
+        const channelLiveMatchesCandidate = Boolean(
+            channelLive?.url && candidate.videoId && channelLive.url.includes(candidate.videoId)
+        );
+
+        if (!channelLiveMatchesCandidate || candidate.status !== 'unknown') {
             return {
-                ...candidate,
-                locale: channel.locale,
-                channelId,
-                status: candidate.status || 'unknown'
+                ok: true,
+                stream: {
+                    ...candidate,
+                    locale: channel.locale,
+                    channelId,
+                    status: candidate.status || 'unknown'
+                }
             };
         }
 
         return {
-            ...candidate,
-            ...channelLive,
-            locale: channel.locale,
-            channelId,
-            videoId: channelLive.url.match(/[?&]v=([^&]+)/)?.[1] || candidate.videoId,
-            scheduledStartTime: channelLive.scheduledStartTime
-                || candidate.scheduledStartTime
-                || null
+            ok: true,
+            stream: {
+                ...candidate,
+                ...channelLive,
+                locale: channel.locale,
+                channelId,
+                videoId: channelLive.url.match(/[?&]v=([^&]+)/)?.[1] || candidate.videoId,
+                scheduledStartTime: channelLive.scheduledStartTime
+                    || candidate.scheduledStartTime
+                    || null
+            }
         };
     } catch (error) {
         console.error(`[YouTube Tracker] Error checking ${channel.locale}:`, error.message);
-        return null;
+        return { ok: false, stream: null };
     }
+}
+
+async function fetchChannelLivestream(channel) {
+    const outcome = await fetchChannelLivestreamOutcome(channel);
+    return outcome.stream;
 }
 
 async function fetchYoutubeLivestreams(game) {
@@ -303,10 +318,22 @@ async function fetchYoutubeLivestreams(game) {
     }
 
     const channels = OFFICIAL_CHANNELS[game] || [];
-    const results = await Promise.all(channels.map(fetchChannelLivestream));
-    const streams = results.filter(Boolean);
+    const outcomes = await Promise.all(channels.map(fetchChannelLivestreamOutcome));
+    const anySucceeded = outcomes.some(outcome => outcome.ok);
+    const streams = outcomes.map(outcome => outcome.stream).filter(Boolean);
+
+    if (!anySucceeded && channels.length > 0) {
+        // Do not overwrite good cached data or negative-cache transient YouTube outages.
+        return cached?.streams || [];
+    }
+
     livestreamCache.set(game, { streams, timestamp: Date.now() });
     return streams;
+}
+
+function clearYoutubeCache() {
+    livestreamCache.clear();
+    channelIdCache.clear();
 }
 
 async function getOfficialChannelLinks(game) {
@@ -335,7 +362,9 @@ async function fetchYoutubeLivestream(game) {
 
 module.exports = {
     OFFICIAL_CHANNELS,
+    clearYoutubeCache,
     decodeXml,
+    fetchChannelLivestream,
     fetchChannelLivePage,
     fetchPremiereDetails,
     fetchYoutubeLivestreams,

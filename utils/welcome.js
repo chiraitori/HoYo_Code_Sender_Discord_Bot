@@ -1,5 +1,5 @@
 // utils/welcome.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const languageManager = require('./language');
 
 /**
@@ -9,94 +9,114 @@ const languageManager = require('./language');
  */
 async function sendWelcomeMessage(guild, client) {
     try {
-        // Default language is English
         const guildId = guild.id;
-        
-        // Get translation strings (do this first to use in both channel and DM cases)
-        const title = await languageManager.getString('welcome.title', guildId) || 
-            'Thanks for Adding HoYo Code Sender!';
-            
-        const description = await languageManager.getString('welcome.description', guildId) ||
-            'Thanks for adding me to your server! I\'ll help you get HoYoverse game codes automatically.';
-            
-        const setupHeader = await languageManager.getString('welcome.setupHeader', guildId) ||
-            '🔧 Quick Setup Guide';
-            
-        const setupSteps = await languageManager.getString('welcome.setupSteps', guildId) ||
-            '1. Run `/setup` to configure notification channel & roles\n' +
-            '2. (Optional) Use `/favgames` to select which games to receive notifications for\n' +
-            '3. (Optional) Change the language with `/setlang`\n\n' +
-            'That\'s it! I\'ll now automatically send new game codes to your configured channel.';
-            
-        const helpTip = await languageManager.getString('welcome.helpTip', guildId) ||
-            'For more information and tips, run `/help` anytime.';
 
-        const dmInfo = await languageManager.getString('welcome.dmInfo', guildId) ||
-            'I couldn\'t find a suitable channel to send the welcome message in your server, so I\'m sending it to you directly.';
+        const [
+            title,
+            description,
+            setupHeader,
+            setupSteps,
+            helpTip,
+            dmInfo,
+            footer
+        ] = await Promise.all([
+            languageManager.getString('welcome.title', guildId),
+            languageManager.getString('welcome.description', guildId),
+            languageManager.getString('welcome.setupHeader', guildId),
+            languageManager.getString('welcome.setupSteps', guildId),
+            languageManager.getString('welcome.helpTip', guildId),
+            languageManager.getString('welcome.dmInfo', guildId),
+            languageManager.getString('welcome.footer', guildId)
+        ]);
 
-        // Create welcome embed
         const welcomeEmbed = new EmbedBuilder()
             .setColor('#00AAFF')
-            .setTitle(title)
-            .setDescription(description)
+            .setTitle(title || 'Thanks for Adding HoYo Code Sender!')
+            .setDescription(
+                description
+                || "Thanks for adding me to your server! I'll help you get HoYoverse game codes automatically."
+            )
             .addFields(
-                { name: setupHeader, value: setupSteps },
-                { name: '💡 Tip', value: helpTip }
+                {
+                    name: setupHeader || '🔧 Quick Setup Guide',
+                    value: setupSteps
+                        || '1. Run `/setup` to configure notification channel & roles\n'
+                        + '2. (Optional) Use `/favgames` to select which games to receive notifications for\n'
+                        + '3. (Optional) Change the language with `/setlang`\n\n'
+                        + "That's it! I'll now automatically send new game codes to your configured channel."
+                },
+                {
+                    name: '💡 Tip',
+                    value: helpTip || 'For more information and tips, run `/help` anytime.'
+                }
             )
             .setFooter({
-                text: await languageManager.getString('welcome.footer', guildId) || 
-                    'HoYo Code Sender - Get your game codes automatically!'
+                text: footer || 'HoYo Code Sender - Get your game codes automatically!'
             })
             .setTimestamp();
-        
-        // Try to find a suitable channel to send the welcome message
-        // Priority: system channel > general/welcome/bot channels > first writable text channel
+
+        const botMember = guild.members?.me || client.user;
+
+        // Priority: system channel > bot/setup channels > first writable text channel
         let targetChannel = guild.systemChannel;
-        
-        if (!targetChannel || !canSendToChannel(targetChannel, client.user)) {
+
+        if (!targetChannel || !canSendToChannel(targetChannel, botMember)) {
+            targetChannel = null;
             const channelNames = ['bot-commands', 'bot', 'setup'];
-            
+
             for (const name of channelNames) {
-                const channel = guild.channels.cache.find(ch => 
-                    ch.name.includes(name) && 
-                    ch.type === 0 && // Text channels
-                    canSendToChannel(ch, client.user)
+                const channel = guild.channels.cache.find(ch =>
+                    ch.name?.toLowerCase().includes(name)
+                    && ch.type === 0
+                    && canSendToChannel(ch, botMember)
                 );
-                
+
                 if (channel) {
                     targetChannel = channel;
                     break;
                 }
             }
-            
-            // If still no channel, find first available text channel
+
             if (!targetChannel) {
-                targetChannel = guild.channels.cache.find(ch => 
-                    ch.type === 0 && 
-                    canSendToChannel(ch, client.user)
+                targetChannel = guild.channels.cache.find(ch =>
+                    ch.type === 0 && canSendToChannel(ch, botMember)
                 );
             }
         }
-        
-        // If suitable channel found, send message there
+
+        let sentInChannel = false;
         if (targetChannel) {
-            await targetChannel.send({
-                content: `<@${guild.ownerId}>`,
-                embeds: [welcomeEmbed]
-            });
-            
-            console.log(`Sent welcome message to ${guild.name} in #${targetChannel.name}`);
-        } else {
-            // If no suitable channel was found, try to DM the owner
-            console.log(`Could not find a suitable channel to send welcome message in ${guild.name}, attempting to DM owner`);
-            
             try {
-                // Fetch the owner 
+                await targetChannel.send({
+                    content: guild.ownerId ? `<@${guild.ownerId}>` : undefined,
+                    embeds: [welcomeEmbed],
+                    allowedMentions: {
+                        parse: [],
+                        users: guild.ownerId ? [guild.ownerId] : []
+                    }
+                });
+                sentInChannel = true;
+                console.log(`Sent welcome message to ${guild.name} in #${targetChannel.name}`);
+            } catch (sendError) {
+                console.warn(
+                    `Could not send welcome message to #${targetChannel.name} in ${guild.name}:`,
+                    sendError.message
+                );
+            }
+        }
+
+        if (!sentInChannel && guild.ownerId) {
+            console.log(`Could not send welcome message in ${guild.name}, attempting to DM owner`);
+
+            try {
                 const owner = await client.users.fetch(guild.ownerId);
                 if (owner) {
-                    // Add an extra field to explain why we're DMing
-                    welcomeEmbed.addFields({ name: 'ℹ️ Note', value: dmInfo });
-                    
+                    welcomeEmbed.addFields({
+                        name: 'ℹ️ Note',
+                        value: dmInfo
+                            || "I couldn't find a suitable channel to send the welcome message in your server, so I'm sending it to you directly."
+                    });
+
                     await owner.send({ embeds: [welcomeEmbed] });
                     console.log(`Sent welcome DM to the owner of ${guild.name}`);
                 }
@@ -110,14 +130,20 @@ async function sendWelcomeMessage(guild, client) {
 }
 
 /**
- * Check if the bot can send messages to a channel
- * @param {Channel} channel - Discord channel
- * @param {User} botUser - Bot's user object
- * @returns {Boolean} - Whether bot can send messages
+ * Check if the bot can send embedded messages to a channel
  */
-function canSendToChannel(channel, botUser) {
-    const permissions = channel.permissionsFor(botUser);
-    return permissions && permissions.has(['ViewChannel', 'SendMessages']);
+function canSendToChannel(channel, botMember) {
+    if (!channel || !botMember || typeof channel.permissionsFor !== 'function') {
+        return false;
+    }
+    const permissions = channel.permissionsFor(botMember);
+    return Boolean(
+        permissions && permissions.has([
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.EmbedLinks
+        ])
+    );
 }
 
-module.exports = { sendWelcomeMessage };
+module.exports = { sendWelcomeMessage, canSendToChannel };

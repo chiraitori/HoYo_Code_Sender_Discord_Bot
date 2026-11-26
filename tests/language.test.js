@@ -27,6 +27,17 @@ test('getStringFromPath returns null for a missing key', () => {
   );
 });
 
+test('getStringFromPath returns null for nested object keys instead of returning an object', () => {
+  assert.strictEqual(
+    languageManager.getStringFromPath('commands.listcodes.error', languageManager.languages.en, {}),
+    null
+  );
+  assert.strictEqual(
+    languageManager.getStringFromPath('commands.setup.error', languageManager.languages.en, { foo: 'bar' }),
+    null
+  );
+});
+
 test('getFallbackText returns a known fallback message', () => {
   assert.strictEqual(
     languageManager.getFallbackText('commands.about.title'),

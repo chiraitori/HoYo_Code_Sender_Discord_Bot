@@ -250,7 +250,7 @@ async function scanOwnedGuildsForConfigRecovery(shardClient, context = {}) {
 }
 
 function scanRecoveryOnShard(shardClient, context) {
-    return require(`${process.cwd()}/utils/configRecovery.js`).scanOwnedGuildsForConfigRecovery(
+    return require(context.modulePath).scanOwnedGuildsForConfigRecovery(
         shardClient,
         context
     );
@@ -278,7 +278,8 @@ async function recoverMissingGuildConfigurations(
     const context = {
         guildIds: uniqueGuildIds,
         maxChannelsPerGuild,
-        historyPages
+        historyPages,
+        modulePath: __filename
     };
     const shardResults = client.shard?.broadcastEval
         ? await broadcastEvalWhenReady(client, scanRecoveryOnShard, { context })

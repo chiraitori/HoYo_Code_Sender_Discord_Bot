@@ -1,5 +1,35 @@
-const { Routes } = require('discord.js');
-const { broadcastEvalWhenReady } = require('./clusterGuilds');
+const crypto = require('crypto');
+const { Routes, ShardClientUtil } = require('discord.js');
+const { waitForShardsReady } = require('./clusterGuilds');
+
+const DISCORD_NONCE_MAX_LENGTH = 25;
+
+function createMessageNonce(dedupeKey = null) {
+    if (typeof dedupeKey === 'string' && dedupeKey.trim().length > 0) {
+        return crypto
+            .createHash('sha256')
+            .update(dedupeKey.trim())
+            .digest('hex')
+            .slice(0, DISCORD_NONCE_MAX_LENGTH);
+    }
+
+    return crypto
+        .randomBytes(12)
+        .toString('hex')
+        .slice(0, DISCORD_NONCE_MAX_LENGTH);
+}
+
+function resolveMessageNonce(payload, options = {}) {
+    const rawNonce = options.nonce ?? payload?.nonce;
+    if (typeof rawNonce === 'string' && rawNonce.trim().length > 0) {
+        return rawNonce.trim().slice(0, DISCORD_NONCE_MAX_LENGTH);
+    }
+    if (Number.isInteger(rawNonce)) {
+        return String(rawNonce).slice(0, DISCORD_NONCE_MAX_LENGTH);
+    }
+
+    return createMessageNonce(options.dedupeKey || null);
+}
 
 function serializeAllowedMentions(allowedMentions = {}) {
     return {
@@ -10,26 +40,60 @@ function serializeAllowedMentions(allowedMentions = {}) {
     };
 }
 
-function serializeMessagePayload(payload) {
-    return {
+function serializeMessagePayload(payload, nonce = null) {
+    const serialized = {
         content: payload.content || '',
         embeds: (payload.embeds || []).map(embed =>
             typeof embed.toJSON === 'function' ? embed.toJSON() : embed
         ),
         allowedMentions: payload.allowedMentions || { roles: [], users: [] }
     };
+
+    if (nonce) {
+        serialized.nonce = nonce;
+        serialized.enforceNonce = true;
+    }
+
+    return serialized;
 }
 
 async function sendChannelMessage(client, channelId, payload, options = {}) {
-    const cachedChannel = client.channels.cache.get(channelId);
+    const nonce = resolveMessageNonce(payload, options);
+    const cachedChannel = client.channels?.cache?.get(channelId);
     if (cachedChannel && typeof cachedChannel.send === 'function') {
-        const message = await cachedChannel.send(payload);
+        const message = await cachedChannel.send({
+            ...payload,
+            nonce,
+            enforceNonce: true
+        });
         return options.returnMessageId ? message.id : true;
     }
 
-    if (client.shard?.broadcastEval) {
-        const shardResults = await broadcastEvalWhenReady(
-            client,
+    if (!options.preferRest && client.shard?.broadcastEval) {
+        // Wait for shard readiness BEFORE invoking a write eval, and NEVER retry
+        // the write broadcastEval itself to avoid duplicate sends if another shard flaps.
+        await waitForShardsReady(client);
+
+        const shardCount = Number(client.shard.count);
+        let targetShard;
+        if (
+            options.guildId
+            && /^\d{17,20}$/.test(String(options.guildId))
+            && Number.isInteger(shardCount)
+            && shardCount > 1
+        ) {
+            targetShard = ShardClientUtil.shardIdForGuildId(String(options.guildId), shardCount);
+        }
+
+        const evalOptions = {
+            context: {
+                channelId,
+                payload: serializeMessagePayload(payload, nonce)
+            },
+            ...(targetShard !== undefined ? { shard: targetShard } : {})
+        };
+
+        const rawResults = await client.shard.broadcastEval(
             async (shardClient, context) => {
                 const channel = shardClient.channels.cache.get(context.channelId);
                 if (!channel) {
@@ -56,14 +120,10 @@ async function sendChannelMessage(client, channelId, payload, options = {}) {
                     };
                 }
             },
-            {
-                context: {
-                    channelId,
-                    payload: serializeMessagePayload(payload)
-                }
-            }
+            evalOptions
         );
 
+        const shardResults = Array.isArray(rawResults) ? rawResults : [rawResults];
         const owningShardResult = shardResults.find(result => result?.handled);
         if (owningShardResult?.sent) {
             return options.returnMessageId ? owningShardResult.messageId : true;
@@ -79,11 +139,14 @@ async function sendChannelMessage(client, channelId, payload, options = {}) {
         }
     }
 
+    const serialized = serializeMessagePayload(payload, nonce);
     const message = await client.rest.post(Routes.channelMessages(channelId), {
         body: {
-            content: serializeMessagePayload(payload).content,
-            embeds: serializeMessagePayload(payload).embeds,
-            allowed_mentions: serializeAllowedMentions(payload.allowedMentions)
+            content: serialized.content,
+            embeds: serialized.embeds,
+            allowed_mentions: serializeAllowedMentions(payload.allowedMentions),
+            nonce,
+            enforce_nonce: true
         }
     });
     return options.returnMessageId ? message.id : true;
@@ -100,6 +163,7 @@ async function editChannelMessage(client, channelId, messageId, payload) {
 }
 
 module.exports = {
+    createMessageNonce,
     sendChannelMessage,
     editChannelMessage,
     serializeMessagePayload

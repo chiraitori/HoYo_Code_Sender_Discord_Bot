@@ -36,6 +36,7 @@ function createDiscordClientOptions() {
         // Slash commands and outbound messages only need guild events. Listening
         // for every guild message filled per-channel caches without any consumer.
         intents: [GatewayIntentBits.Guilds],
+        enforceNonce: true,
         makeCache: Options.cacheWithLimits(cacheLimits),
         sweepers
     };

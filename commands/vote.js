@@ -1,7 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { Api } = require('@top-gg/sdk');
 const languageManager = require('../utils/language');
-const Config = require('../models/Config');
 const { trackVoteCommand } = require('../utils/topggWebhook');
 
 // Initialize the Top.gg API client if token is available
@@ -28,13 +27,13 @@ module.exports = {
             ).catch(error => {
                 console.error('Failed to sync vote tracking across shards:', error);
             });
-            
+
             // Defer reply to give us time to check with Top.gg
-            await interaction.deferReply({ ephemeral: true });
-            
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
             let hasVoted = false;
             let voteCheckError = false;
-            
+
             if (api) {
                 try {
                     hasVoted = await api.hasVoted(interaction.user.id);
@@ -45,16 +44,16 @@ module.exports = {
             } else {
                 voteCheckError = true;
             }
-            
-            // Get translated strings
-            const title = await languageManager.getString('commands.vote.title', interaction.guildId);
-            const description = await languageManager.getString('commands.vote.description', interaction.guildId);
-            const statusLabel = await languageManager.getString('commands.vote.status', interaction.guildId);
-            const hasVotedText = await languageManager.getString('commands.vote.hasVoted', interaction.guildId);
-            const hasNotVotedText = await languageManager.getString('commands.vote.hasNotVoted', interaction.guildId);
-            const linkText = await languageManager.getString('commands.vote.link', interaction.guildId);
-            
-            // Create embed with vote information
+
+            const [title, description, statusLabel, hasVotedText, hasNotVotedText, linkText] = await Promise.all([
+                languageManager.getString('commands.vote.title', interaction.guildId),
+                languageManager.getString('commands.vote.description', interaction.guildId),
+                languageManager.getString('commands.vote.status', interaction.guildId),
+                languageManager.getString('commands.vote.hasVoted', interaction.guildId),
+                languageManager.getString('commands.vote.hasNotVoted', interaction.guildId),
+                languageManager.getString('commands.vote.link', interaction.guildId)
+            ]);
+
             const embed = new EmbedBuilder()
                 .setColor(hasVoted ? '#00FF00' : '#FF69B4')
                 .setTitle(title)
@@ -62,7 +61,7 @@ module.exports = {
                 .addFields(
                     {
                         name: statusLabel,
-                        value: voteCheckError ? 
+                        value: voteCheckError ?
                             (await languageManager.getString('errors.api', interaction.guildId) || 'Could not check vote status.') :
                             (hasVoted ? hasVotedText : hasNotVotedText)
                     },
@@ -73,12 +72,11 @@ module.exports = {
                 )
                 .setTimestamp();
 
-            // If user has voted, add a thank you message
             if (hasVoted) {
-                embed.setFooter({ 
-                    text: await languageManager.getString('commands.vote.voteAgain', interaction.guildId) || 
-                          'You can vote again in 12 hours.',
-                    iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
+                embed.setFooter({
+                    text: await languageManager.getString('commands.vote.voteAgain', interaction.guildId) ||
+                        'You can vote again in 12 hours.',
+                    iconURL: interaction.user.displayAvatarURL({ forceStatic: false })
                 });
             }
 
@@ -87,11 +85,11 @@ module.exports = {
             console.error('Error in vote command:', error);
             const errorMsg = await languageManager.getString('commands.vote.error', interaction.guildId) ||
                 'Error checking vote status. Please try again.';
-            
-            if (interaction.deferred) {
+
+            if (interaction.deferred || interaction.replied) {
                 await interaction.editReply({ content: errorMsg });
             } else {
-                await interaction.reply({ content: errorMsg, ephemeral: true });
+                await interaction.reply({ content: errorMsg, flags: MessageFlags.Ephemeral });
             }
         }
     }

@@ -1,6 +1,13 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+const {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ComponentType,
+    MessageFlags
+} = require('discord.js');
 const axios = require('axios');
-const Code = require('../models/Code');
 const languageManager = require('../utils/language');
 const { enrichCodesWithHoyolabRewards } = require('../utils/codeRewardEnricher');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('../utils/hoyolabExchangeCodes');
@@ -22,51 +29,60 @@ module.exports = {
     async execute(interaction) {
         try {
             const game = interaction.options.getString('game');
-            
+
             // Get translated messages using correct key
             const loadingMessage = await languageManager.getString('commands.listcodes.loading', interaction.guildId);
             // Make the response ephemeral (visible only to the user who used the command)
-            await interaction.reply({ content: loadingMessage, ephemeral: true });
+            await interaction.reply({ content: loadingMessage, flags: MessageFlags.Ephemeral });
 
-            const response = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`, {
+            const primaryResponse = await axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`, {
                 timeout: 10000, // 10 second timeout
                 headers: {
                     'User-Agent': 'HoYo-Code-Sender-Bot/1.0'
                 }
+            }).catch(error => {
+                console.error(`[listcodes] Primary API failed for ${game}:`, error.message);
+                return { data: { codes: [] }, error: true };
             });
 
+            const primaryCodes = Array.isArray(primaryResponse.data?.codes)
+                ? primaryResponse.data.codes
+                : [];
             const hoyolabCodes = await getHoyolabExchangeCodes(game);
-            response.data.codes = mergeExchangeCodes(
+            const mergedCodes = mergeExchangeCodes(game, primaryCodes, hoyolabCodes);
+            const activeCodes = await enrichCodesWithHoyolabRewards(
                 game,
-                response.data?.codes || [],
-                hoyolabCodes
+                mergedCodes.filter(code => code.status === 'OK')
             );
-            response.data.codes = await enrichCodesWithHoyolabRewards(
-                game,
-                response.data?.codes || []
-            );
-            
+
             // Get game choice
             const gameNames = {
                 'genshin': 'Genshin Impact',
                 'hkrpg': 'Honkai: Star Rail',
                 'nap': 'Zenless Zone Zero'
             };
-            
+
             // Get game emojis
             const gameEmojis = {
                 'genshin': '<:genshin:1368073403231375430>',
                 'hkrpg': '<:hsr:1368073099756703794>',
                 'nap': '<:zzz:1368073452174704763>'
             };
-            
-            if (!response.data?.codes?.length) {
+
+            if (!activeCodes.length) {
+                if (primaryResponse.error) {
+                    const fetchErrorMessage = await languageManager.getString(
+                        'commands.listcodes.error.fetch',
+                        interaction.guildId
+                    );
+                    return await interaction.editReply({ content: fetchErrorMessage });
+                }
+
                 const noCodesMessage = await languageManager.getString(
-                    'commands.listcodes.noCodes', 
+                    'commands.listcodes.noCodes',
                     interaction.guildId,
                     { game: gameNames[game] }
                 );
-                // Keep the "no codes" message ephemeral too
                 return await interaction.editReply({ content: noCodesMessage });
             }
 
@@ -75,7 +91,7 @@ module.exports = {
                 interaction.guildId,
                 { game: gameNames[game] }
             );
-            
+
             // Add emoji to title
             title = `${gameEmojis[game]} ${title}`;
 
@@ -91,19 +107,18 @@ module.exports = {
             const noRewardText = await languageManager.getString('commands.listcodes.noReward', interaction.guildId);
             const previousText = '◀️';
             const nextText = '▶️';
-            const pageText = await languageManager.getString('commands.listcodes.page', interaction.guildId) || 'Page';
 
             // Create code entries
-            const codeEntries = await Promise.all(response.data.codes
-                .sort((a, b) => b.id - a.id)
+            const codeEntries = await Promise.all(activeCodes
+                .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0))
                 .map(async code => {
-                    const rewardText = code.rewards ? 
-                        await languageManager.getRewardString(code.rewards, interaction.guildId) : 
+                    const rewardText = code.rewards ?
+                        await languageManager.getRewardString(code.rewards, interaction.guildId) :
                         noRewardText;
-                        
+
                     return `**${code.code}**\n` +
                         `${rewardText}\n` +
-                        `[${redeemButtonText}](${redeemUrls[game]}?code=${code.code})`;
+                        `[${redeemButtonText}](${redeemUrls[game]}?code=${encodeURIComponent(code.code)})`;
                 }));
 
             // Split into pages if needed
@@ -113,22 +128,18 @@ module.exports = {
             const MAX_LENGTH = 4000; // Keep some buffer below 4096
 
             for (const entry of codeEntries) {
-                // Account for the newlines we'll add between entries
                 const entryLength = entry.length + 2; // +2 for '\n\n'
-                
+
                 if (currentLength + entryLength > MAX_LENGTH && currentPage.length > 0) {
-                    // This entry would exceed the limit, save current page and start a new one
                     pages.push(currentPage.join('\n\n'));
                     currentPage = [entry];
                     currentLength = entryLength;
                 } else {
-                    // Add to current page
                     currentPage.push(entry);
                     currentLength += entryLength;
                 }
             }
-            
-            // Add the last page if there's anything left
+
             if (currentPage.length > 0) {
                 pages.push(currentPage.join('\n\n'));
             }
@@ -137,7 +148,7 @@ module.exports = {
             const supportMsg = await languageManager.getSupportFooter(
                 interaction.guildId
             );
-            
+
             const embeds = pages.map((pageContent, index) => {
                 const embed = new EmbedBuilder()
                     .setColor('#0099ff')
@@ -150,112 +161,107 @@ module.exports = {
                 if (index === pages.length - 1) {
                     embed.addFields({ name: redeemHeader, value: redeemUrls[game] });
                 }
-                
+
                 return embed;
             });
 
             // If there's only one page, no need for pagination buttons
             if (pages.length === 1) {
-                return await interaction.editReply({ 
-                    content: null, 
+                return await interaction.editReply({
+                    content: null,
                     embeds: [embeds[0]]
-                    // Reply is already ephemeral from the initial reply
                 });
             }
 
             // Create pagination buttons with page indicator
-            const createButtons = (currentPage) => {
+            const createButtons = (pageIndex) => {
                 const row = new ActionRowBuilder();
-                
-                // Previous button
+
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId('prev')
                         .setLabel(previousText)
                         .setStyle(ButtonStyle.Primary)
-                        .setDisabled(currentPage === 0)
+                        .setDisabled(pageIndex === 0)
                 );
-                
-                // Page indicator button (non-functional, just shows current page)
+
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId('page_indicator')
-                        .setLabel(`${currentPage + 1}/${pages.length}`)
+                        .setLabel(`${pageIndex + 1}/${pages.length}`)
                         .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true) // Always disabled as it's just an indicator
+                        .setDisabled(true)
                 );
-                
-                // Next button
+
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId('next')
                         .setLabel(nextText)
                         .setStyle(ButtonStyle.Primary)
-                        .setDisabled(currentPage === pages.length - 1)
+                        .setDisabled(pageIndex === pages.length - 1)
                 );
-                
+
                 return row;
             };
 
-            // Initial page
             let currentPageIndex = 0;
-            
-            // Send the first page with buttons
+
             const message = await interaction.editReply({
                 content: null,
                 embeds: [embeds[currentPageIndex]],
                 components: [createButtons(currentPageIndex)]
-                // Reply is already ephemeral from the initial reply
             });
 
-            // Create button collector
-            const collector = message.createMessageComponentCollector({ 
+            const collector = message.createMessageComponentCollector({
                 componentType: ComponentType.Button,
                 time: 300000 // Expire after 5 minutes
             });
 
             collector.on('collect', async (i) => {
-                // Make sure only the person who ran the command can use the buttons
-                if (i.user.id !== interaction.user.id) {
-                    const notYours = await languageManager.getString('common.notYourButton', interaction.guildId) || 
-                        'This button is not for you.';
-                    return await i.reply({ content: notYours, ephemeral: true });
-                }
+                try {
+                    if (i.user.id !== interaction.user.id) {
+                        const notYours = await languageManager.getString('common.notYourButton', interaction.guildId) ||
+                            'This button is not for you.';
+                        return await i.reply({ content: notYours, flags: MessageFlags.Ephemeral });
+                    }
 
-                // Update page based on which button was pressed
-                if (i.customId === 'prev') {
-                    currentPageIndex--;
-                } else if (i.customId === 'next') {
-                    currentPageIndex++;
-                }
+                    if (i.customId === 'prev') {
+                        currentPageIndex = Math.max(0, currentPageIndex - 1);
+                    } else if (i.customId === 'next') {
+                        currentPageIndex = Math.min(embeds.length - 1, currentPageIndex + 1);
+                    }
 
-                // Update the message with the new page and buttons
-                await i.update({
-                    embeds: [embeds[currentPageIndex]],
-                    components: [createButtons(currentPageIndex)]
-                });
+                    await i.update({
+                        embeds: [embeds[currentPageIndex]],
+                        components: [createButtons(currentPageIndex)]
+                    });
+                } catch (collectError) {
+                    console.error('[listcodes] Pagination interaction error:', collectError);
+                }
             });
 
             collector.on('end', async () => {
-                // Remove the buttons when the collector expires
                 try {
                     await interaction.editReply({
                         embeds: [embeds[currentPageIndex]],
-                        components: [] // Remove components
+                        components: []
                     });
                 } catch (e) {
-                    console.error('Failed to remove buttons after timeout:', e);
+                    // Interaction token may already be expired after 15 minutes or message dismissed
                 }
             });
 
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error in listcodes command:', error);
             try {
-                const errorMessage = await languageManager.getString('commands.listcodes.error', interaction.guildId);
-                if (interaction.replied) {
+                const errorMessage = await languageManager.getString(
+                    'commands.listcodes.error.fetch',
+                    interaction.guildId
+                );
+                if (interaction.replied || interaction.deferred) {
                     await interaction.editReply({ content: errorMessage });
                 } else {
-                    await interaction.reply({ content: errorMessage, ephemeral: true });
+                    await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
                 }
             } catch (e) {
                 console.error('Failed to send error message:', e);

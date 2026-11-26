@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const languageManager = require('../utils/language');
 
 module.exports = {
@@ -38,21 +38,21 @@ module.exports = {
                         name: await languageManager.getString('commands.about.devbio', interaction.guildId),
                         value: '[chiraitori.dev](https://chiraitori.dev)'
                     }
-                    
                 )
                 .setTimestamp();
 
             await interaction.reply({
                 embeds: [embed],
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Error in about command:', error);
-            await interaction.reply({
-                content: await languageManager.getString('commands.about.error', interaction.guildId),
-                ephemeral: true
-            });
+            const content = await languageManager.getString('commands.about.error', interaction.guildId);
+            if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ content });
+            } else {
+                await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+            }
         }
     }
 };

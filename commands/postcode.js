@@ -1,32 +1,58 @@
-const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const {
+    SlashCommandBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ActionRowBuilder,
+    PermissionFlagsBits,
+    EmbedBuilder,
+    MessageFlags
+} = require('discord.js');
 const Config = require('../models/Config');
 const languageManager = require('../utils/language');
+const { hasAdminPermission } = require('../utils/permissions');
 const { handleDMRestriction } = require('../utils/dmHandler');
+const { getRoleMention } = require('../utils/roleMention');
+
+const gameAliases = {
+    genshin: 'genshin',
+    hsr: 'hsr',
+    hkrpg: 'hsr',
+    zzz: 'zzz',
+    nap: 'zzz'
+};
 
 const gameNames = {
-    'genshin': 'Genshin Impact',
-    'hsr': 'Honkai: Star Rail',
-    'zzz': 'Zenless Zone Zero'
+    genshin: 'Genshin Impact',
+    hsr: 'Honkai: Star Rail',
+    zzz: 'Zenless Zone Zero'
 };
 
 const gameEmojis = {
-    'genshin': '<:genshin:1368073403231375430>',
-    'hsr': '<:hsr:1368073099756703794>',
-    'zzz': '<:zzz:1368073452174704763>'
+    genshin: '<:genshin:1368073403231375430>',
+    hsr: '<:hsr:1368073099756703794>',
+    zzz: '<:zzz:1368073452174704763>'
 };
 
 const postcodeUrls = {
-    'genshin': 'https://genshin.hoyoverse.com/en/gift',
-    'hsr': 'https://hsr.hoyoverse.com/gift',
-    'zzz': 'https://zzz.hoyoverse.com/gift'
+    genshin: 'https://genshin.hoyoverse.com/en/gift',
+    hsr: 'https://hsr.hoyoverse.com/gift',
+    zzz: 'https://zenless.hoyoverse.com/redemption'
 };
 
 const roleMappings = {
-    'genshin': 'genshinRole',
-    'hsr': 'hsrRole',
-    'zzz': 'zzzRole'
+    genshin: 'genshinRole',
+    hsr: 'hsrRole',
+    zzz: 'zzzRole'
 };
 
+async function safeEphemeralReply(interaction, payload) {
+    if (interaction.replied || interaction.deferred) {
+        await interaction.editReply({ content: payload.content, embeds: payload.embeds });
+    } else {
+        await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+    }
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -41,13 +67,13 @@ module.exports = {
                 return;
             }
 
-            // Add strict permission check
-            if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+            // Check if user is admin or bot owner
+            if (!hasAdminPermission(interaction)) {
                 const noPermMessage = await languageManager.getString(
                     'commands.postcode.noPermission',
                     interaction.guildId
                 );
-                return interaction.reply({ content: noPermMessage, ephemeral: true });
+                return interaction.reply({ content: noPermMessage, flags: MessageFlags.Ephemeral });
             }
 
             // Get translated modal title
@@ -112,26 +138,43 @@ module.exports = {
                 'commands.postcode.error',
                 interaction.guildId
             );
-            await interaction.reply({ content: errorMessage, ephemeral: true });
+            await safeEphemeralReply(interaction, { content: errorMessage });
         }
     },
 
     async modalSubmit(interaction) {
         try {
-            const game = interaction.fields.getTextInputValue('game').toLowerCase().trim();
-            const code1 = interaction.fields.getTextInputValue('code1').trim();
-            const code2 = interaction.fields.getTextInputValue('code2').trim();
-            const code3 = interaction.fields.getTextInputValue('code3').trim();
+            if (!interaction.guild) {
+                const dmError = await languageManager.getString(
+                    'errors.dmNotAllowed',
+                    null,
+                    { command: 'postcode' }
+                );
+                return interaction.reply({ content: dmError, flags: MessageFlags.Ephemeral });
+            }
+
+            if (!hasAdminPermission(interaction)) {
+                const noPermMessage = await languageManager.getString(
+                    'commands.postcode.noPermission',
+                    interaction.guildId
+                );
+                return interaction.reply({ content: noPermMessage, flags: MessageFlags.Ephemeral });
+            }
+
+            const rawGame = interaction.fields.getTextInputValue('game').toLowerCase().trim();
+            const game = gameAliases[rawGame];
+            const code1 = interaction.fields.getTextInputValue('code1').trim().toUpperCase();
+            const code2 = interaction.fields.getTextInputValue('code2').trim().toUpperCase();
+            const code3 = interaction.fields.getTextInputValue('code3').trim().toUpperCase();
             const message = interaction.fields.getTextInputValue('message').trim();
 
             // Validate game input
-            const validGames = ['genshin', 'hsr', 'zzz', 'hkrpg', 'nap'];
-            if (!validGames.includes(game)) {
+            if (!game) {
                 const invalidGameMessage = await languageManager.getString(
                     'commands.postcode.invalidGame',
                     interaction.guildId
                 ) || 'Invalid game. Please use: genshin, hsr, or zzz';
-                return interaction.reply({ content: invalidGameMessage, ephemeral: true });
+                return interaction.reply({ content: invalidGameMessage, flags: MessageFlags.Ephemeral });
             }
 
             // Validate at least one code is provided
@@ -140,12 +183,10 @@ module.exports = {
                     'commands.postcode.noCode',
                     interaction.guildId
                 ) || 'At least one code is required.';
-                return interaction.reply({ content: noCodeMessage, ephemeral: true });
+                return interaction.reply({ content: noCodeMessage, flags: MessageFlags.Ephemeral });
             }
 
-            const codes = [code1];
-            if (code2) codes.push(code2);
-            if (code3) codes.push(code3);
+            const codes = [...new Set([code1, code2, code3].filter(Boolean))];
 
             // Get config from database
             const config = await Config.findOne({ guildId: interaction.guild.id }).sort({ _id: -1 });
@@ -154,16 +195,35 @@ module.exports = {
                     'errors.noConfig',
                     interaction.guildId
                 );
-                return interaction.reply({ content: noConfigMessage, ephemeral: true });
+                return interaction.reply({ content: noConfigMessage, flags: MessageFlags.Ephemeral });
             }
 
-            const channel = interaction.guild.channels.cache.get(config.channel);
-            if (!channel) {
+            const channel = interaction.guild.channels.cache.get(config.channel)
+                || await interaction.guild.channels.fetch(config.channel).catch(() => null);
+            if (!channel || typeof channel.send !== 'function') {
                 const invalidChannelMessage = await languageManager.getString(
                     'errors.invalidChannel',
                     interaction.guildId
                 );
-                return interaction.reply({ content: invalidChannelMessage, ephemeral: true });
+                return interaction.reply({ content: invalidChannelMessage, flags: MessageFlags.Ephemeral });
+            }
+
+            const botMember = interaction.guild.members.me
+                || await interaction.guild.members.fetchMe().catch(() => null);
+            const sendPerm = channel.isThread?.()
+                ? PermissionFlagsBits.SendMessagesInThreads
+                : PermissionFlagsBits.SendMessages;
+            const permissions = botMember ? channel.permissionsFor?.(botMember) : null;
+            if (permissions && !permissions.has([
+                PermissionFlagsBits.ViewChannel,
+                sendPerm,
+                PermissionFlagsBits.EmbedLinks
+            ])) {
+                const invalidChannelMessage = await languageManager.getString(
+                    'errors.invalidChannel',
+                    interaction.guildId
+                );
+                return interaction.reply({ content: invalidChannelMessage, flags: MessageFlags.Ephemeral });
             }
 
             // Create embed with translated content
@@ -173,35 +233,41 @@ module.exports = {
                 { game: gameNames[game] }
             );
             const embedTitle = `${gameEmojis[game]} ${baseEmbedTitle}`;
+            const postcodeButton = await languageManager.getString(
+                'commands.postcode.postcodeButton',
+                interaction.guildId
+            );
 
             const embed = new EmbedBuilder()
                 .setColor(0x0099FF)
                 .setTitle(embedTitle)
-                .setDescription(await (async () => {
-                    const descriptions = [];
-                    for (const code of codes) {
-                        const postcodeButton = await languageManager.getString('commands.postcode.postcodeButton', interaction.guildId);
-                        descriptions.push(`**${code}**\n[${postcodeButton}](${postcodeUrls[game]}?code=${code})`);
-                    }
-                    return descriptions.join('\n\n');
-                })());
+                .setDescription(
+                    codes
+                        .map(code => `**${code}**\n[${postcodeButton}](${postcodeUrls[game]}?code=${encodeURIComponent(code)})`)
+                        .join('\n\n')
+                )
+                .setTimestamp();
 
             if (message) {
                 const messageLabel = await languageManager.getString('commands.postcode.messageLabel', interaction.guildId);
                 embed.addFields({ name: messageLabel, value: message });
             }
 
-            // Send message with role mention
+            // Send message with safe role mention
             const roleId = config[roleMappings[game]];
-            const roleTag = roleId ? `<@&${roleId}> ` : '';
-            await channel.send({ content: roleTag, embeds: [embed] });
+            const roleMention = getRoleMention(roleId);
+            await channel.send({
+                content: roleMention.content,
+                embeds: [embed],
+                allowedMentions: roleMention.allowedMentions
+            });
 
             // Send success message
             const successMessage = await languageManager.getString(
                 'commands.postcode.success',
                 interaction.guildId
             );
-            await interaction.reply({ content: successMessage, ephemeral: true });
+            await interaction.reply({ content: successMessage, flags: MessageFlags.Ephemeral });
 
         } catch (error) {
             console.error('Error processing postcode:', error);
@@ -209,7 +275,7 @@ module.exports = {
                 'commands.postcode.error',
                 interaction.guildId
             );
-            await interaction.reply({ content: errorMessage, ephemeral: true });
+            await safeEphemeralReply(interaction, { content: errorMessage });
         }
     }
 };

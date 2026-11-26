@@ -1,9 +1,10 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
 const { handleDMRestriction } = require('../utils/dmHandler');
+const { removeOtherGuildRecords } = require('../utils/guildRecords');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -37,10 +38,13 @@ module.exports = {
                 'commands.setup.noPermission',
                 interaction.guildId
             );
-            return interaction.reply({ content: noPermMessage || 'You need administrator permission to use this command.', ephemeral: true });
+            return interaction.reply({
+                content: noPermMessage || 'You need administrator permission to use this command.',
+                flags: MessageFlags.Ephemeral
+            });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
             const action = interaction.options.getString('action');
@@ -51,7 +55,7 @@ module.exports = {
                 replacements
             );
 
-            let config = await Config.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
+            const config = await Config.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
             let settings = await Settings.findOne({ guildId: interaction.guildId }).sort({ _id: -1 });
 
             if (!config) {
@@ -108,11 +112,12 @@ module.exports = {
 
             // REMOVE action
             if (action === 'remove') {
-                await Config.findOneAndUpdate(
+                const updatedConfig = await Config.findOneAndUpdate(
                     { guildId: interaction.guildId },
-                    { $unset: { livestreamChannel: "" } },
-                    { sort: { _id: -1 } }
+                    { $unset: { livestreamChannel: '' } },
+                    { new: true, sort: { _id: -1 } }
                 );
+                await removeOtherGuildRecords(Config, interaction.guildId, updatedConfig?._id);
 
                 const removeEmbed = new EmbedBuilder()
                     .setColor('#00FF00')
@@ -130,7 +135,7 @@ module.exports = {
 
             if (action === 'announcement_enable' || action === 'announcement_disable') {
                 const enabled = action === 'announcement_enable';
-                await Settings.findOneAndUpdate(
+                const updatedSettings = await Settings.findOneAndUpdate(
                     { guildId: interaction.guildId },
                     {
                         $set: { livestreamAnnouncementsEnabled: enabled },
@@ -138,6 +143,7 @@ module.exports = {
                     },
                     { upsert: true, new: true, setDefaultsOnInsert: true, sort: { _id: -1 } }
                 );
+                await removeOtherGuildRecords(Settings, interaction.guildId, updatedSettings?._id);
 
                 const announcementEmbed = new EmbedBuilder()
                     .setColor(enabled ? '#00FF00' : '#FF5555')
@@ -151,7 +157,7 @@ module.exports = {
 
             // SET action
             if (action === 'set') {
-                if (!channel) {
+                if (!channel || !channel.isTextBased?.() || typeof channel.send !== 'function') {
                     const errorEmbed = new EmbedBuilder()
                         .setColor('#FF5555')
                         .setTitle(await t('channelRequiredTitle'))
@@ -162,23 +168,18 @@ module.exports = {
                     return interaction.editReply({ embeds: [errorEmbed] });
                 }
 
-                // Temporarily save channel to validate
-                await Config.findOneAndUpdate(
-                    { guildId: interaction.guildId },
-                    { livestreamChannel: channel.id },
-                    { sort: { _id: -1 } }
-                );
-
-                // Validate channel permissions
-                const channelPerms = channel.permissionsFor(interaction.client.user);
-                if (!channelPerms || !channelPerms.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
-                    // Revert the change
-                    await Config.findOneAndUpdate(
-                        { guildId: interaction.guildId },
-                        { $unset: { livestreamChannel: "" } },
-                        { sort: { _id: -1 } }
-                    );
-
+                // Validate permissions BEFORE saving so an invalid channel never erases existing settings
+                const botMember = interaction.guild.members.me
+                    || await interaction.guild.members.fetchMe().catch(() => null);
+                const sendPerm = channel.isThread?.()
+                    ? PermissionFlagsBits.SendMessagesInThreads
+                    : PermissionFlagsBits.SendMessages;
+                const channelPerms = botMember ? channel.permissionsFor?.(botMember) : null;
+                if (!channelPerms || !channelPerms.has([
+                    PermissionFlagsBits.ViewChannel,
+                    sendPerm,
+                    PermissionFlagsBits.EmbedLinks
+                ])) {
                     const errorEmbed = new EmbedBuilder()
                         .setColor('#FF5555')
                         .setTitle(await t('insufficientPermissionsTitle'))
@@ -192,6 +193,13 @@ module.exports = {
 
                     return interaction.editReply({ embeds: [errorEmbed] });
                 }
+
+                const updatedConfig = await Config.findOneAndUpdate(
+                    { guildId: interaction.guildId },
+                    { livestreamChannel: channel.id },
+                    { new: true, sort: { _id: -1 } }
+                );
+                await removeOtherGuildRecords(Config, interaction.guildId, updatedConfig?._id);
 
                 const successEmbed = new EmbedBuilder()
                     .setColor('#00FF00')
@@ -230,7 +238,11 @@ module.exports = {
                 .setFooter({ text: await languageManager.getString('commands.livestreamcodesetup.errorFooter', interaction.guildId) })
                 .setTimestamp();
 
-            await interaction.editReply({ embeds: [errorEmbed] });
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ embeds: [errorEmbed] });
+            } else {
+                await interaction.reply({ embeds: [errorEmbed], flags: MessageFlags.Ephemeral });
+            }
         }
     }
 };

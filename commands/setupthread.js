@@ -1,8 +1,9 @@
-const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const Config = require('../models/Config');
 const Settings = require('../models/Settings');
 const languageManager = require('../utils/language');
 const { hasAdminPermission } = require('../utils/permissions');
+const { removeOtherGuildRecords } = require('../utils/guildRecords');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -44,11 +45,11 @@ module.exports = {
                 null,
                 { command: 'setupthread' }
             ) || '❌ The `/setupthread` command can only be used in Discord servers, not in direct messages.';
-            return interaction.reply({ content: errorMessage, flags: 64 });
+            return interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
         }
 
         // Defer reply IMMEDIATELY to prevent timeout (interactions expire in 3 seconds)
-        await interaction.deferReply({ flags: 64 }); // 64 = ephemeral flag
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         // Check if user is admin or bot owner
         if (!hasAdminPermission(interaction)) {
@@ -80,7 +81,7 @@ module.exports = {
                         'commands.setupthread.error.notThread',
                         interaction.guildId
                     ) || `The selected channel for ${name} is not a thread. Please select a forum thread.`;
-                    
+
                     const errorEmbed = new EmbedBuilder()
                         .setColor('#FF5555')
                         .setTitle('⚠️ Invalid Channel Type')
@@ -90,34 +91,39 @@ module.exports = {
                             value: 'Make sure you select threads from a forum channel, not regular text channels.'
                         })
                         .setTimestamp();
-                    
+
                     return interaction.editReply({ embeds: [errorEmbed] });
                 }
             }
 
-            // Check bot permissions in all threads
-            const botMember = await interaction.guild.members.fetch(interaction.client.user.id);
-            
+            // Check bot permissions in all threads (threads require SendMessagesInThreads)
+            const botMember = interaction.guild.members.me
+                || await interaction.guild.members.fetch(interaction.client.user.id);
+
             for (const { thread, name } of threads) {
-                const permissions = thread.permissionsFor(botMember);
-                
-                if (!permissions.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) {
+                const permissions = thread.permissionsFor?.(botMember);
+
+                if (!permissions || !permissions.has([
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessagesInThreads,
+                    PermissionFlagsBits.EmbedLinks
+                ])) {
                     const errorMsg = await languageManager.getString(
                         'commands.setupthread.error.noPermission',
                         interaction.guildId
                     ) || `I don't have permission to send messages in the ${name} thread.`;
-                    
+
                     const errorEmbed = new EmbedBuilder()
                         .setColor('#FF5555')
                         .setTitle('⚠️ Missing Permissions')
                         .setDescription(errorMsg)
                         .addFields({
                             name: 'Required Permissions',
-                            value: '• View Channel\n• Send Messages\n• Embed Links'
+                            value: '• View Channel\n• Send Messages in Threads\n• Embed Links'
                         })
                         .setFooter({ text: 'Please check bot permissions and try again' })
                         .setTimestamp();
-                    
+
                     return interaction.editReply({ embeds: [errorEmbed] });
                 }
             }
@@ -136,27 +142,32 @@ module.exports = {
             if (hsrRole) updateData.hsrRole = hsrRole.id;
             if (zzzRole) updateData.zzzRole = zzzRole.id;
 
-            await Config.findOneAndUpdate(
+            const savedConfig = await Config.findOneAndUpdate(
                 { guildId: interaction.guildId },
                 updateData,
                 { upsert: true, new: true, sort: { _id: -1 } }
             );
 
             // Enable auto-send by default and enable threads posting
-            await Settings.findOneAndUpdate(
+            const savedSettings = await Settings.findOneAndUpdate(
                 { guildId: interaction.guildId },
-                { 
+                {
                     autoSendEnabled: true,
                     'autoSendOptions.threads': true
                 },
                 { upsert: true, new: true, sort: { _id: -1 } }
             );
 
+            await Promise.all([
+                removeOtherGuildRecords(Config, interaction.guildId, savedConfig?._id),
+                removeOtherGuildRecords(Settings, interaction.guildId, savedSettings?._id)
+            ]);
+
             // Success message
             const successMsg = await languageManager.getString(
                 'commands.setupthread.success',
                 interaction.guildId
-            ) || `✅ Forum threads configured successfully!`;
+            ) || '✅ Forum threads configured successfully!';
 
             const successEmbed = new EmbedBuilder()
                 .setColor('#00FF00')
@@ -196,13 +207,17 @@ module.exports = {
 
         } catch (error) {
             console.error('Error in setupthread command:', error);
-            
+
             const errorMsg = await languageManager.getString(
                 'commands.setupthread.error.general',
                 interaction.guildId
             ) || 'An error occurred while setting up the forum thread.';
 
-            await interaction.editReply({ content: `❌ ${errorMsg}` });
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ content: `❌ ${errorMsg}` });
+            } else {
+                await interaction.reply({ content: `❌ ${errorMsg}`, flags: MessageFlags.Ephemeral });
+            }
         }
     }
 };

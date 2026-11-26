@@ -35,7 +35,7 @@ manager.on('shardCreate', shard => {
     });
 
     shard.on('death', process => {
-        console.error(`[ShardManager] ❌ Shard ${shard.id} died (exit ${process.exitCode})`);
+        console.error(`[ShardManager] ❌ Shard ${shard.id} died (exit ${process?.exitCode ?? 'unknown'})`);
     });
 
     shard.on('error', error => {
@@ -52,6 +52,7 @@ const RESHARD_THRESHOLD = 0.8; // trigger when 80% full
 const RESHARD_DELAY = 5500;
 const RESHARD_TIMEOUT = 60000;
 const MAX_SPAWN_RETRIES = 5;
+let reshardingInProgress = false;
 
 function getRetryAfterMs(error) {
     const retryAfter = error?.headers?.get?.('retry-after');
@@ -64,6 +65,32 @@ function getRetryAfterMs(error) {
     return null;
 }
 
+function safeKillShard(shard) {
+    if (!shard) {
+        return;
+    }
+
+    // discord.js Shard#kill() throws a TypeError if both process and worker are null
+    // (for example, while a shard is between exit and respawn).
+    if (!shard.process && !shard.worker) {
+        shard.ready = false;
+        return;
+    }
+
+    try {
+        shard.kill();
+    } catch (error) {
+        console.warn(`[ShardManager] Ignoring error while stopping shard ${shard.id}:`, error.message);
+    }
+}
+
+function stopAllManagedShards() {
+    for (const [, shard] of manager.shards) {
+        safeKillShard(shard);
+    }
+    manager.shards.clear();
+}
+
 async function spawnWithRetry(options) {
     for (let attempt = 1; attempt <= MAX_SPAWN_RETRIES; attempt += 1) {
         try {
@@ -73,6 +100,15 @@ async function spawnWithRetry(options) {
 
             if (error?.status !== 429 || !retryAfterMs || attempt === MAX_SPAWN_RETRIES) {
                 throw error;
+            }
+
+            // Clean up any partially spawned shards before retrying so we never
+            // leave duplicate Shard 0 processes running singleton jobs in parallel.
+            if (manager.shards.size > 0) {
+                console.warn(
+                    `[ShardManager] Stopping ${manager.shards.size} partial shard(s) before retry...`
+                );
+                stopAllManagedShards();
             }
 
             const delayMs = retryAfterMs + 1000;
@@ -87,11 +123,7 @@ async function spawnWithRetry(options) {
 
 async function reshardTo(targetShards) {
     console.log(`[AutoScale] Stopping ${manager.shards.size} shard(s) before resharding...`);
-    for (const [, shard] of manager.shards) {
-        shard.kill();
-    }
-
-    manager.shards.clear();
+    stopAllManagedShards();
     manager.totalShards = targetShards;
     manager.shardList = [...Array(targetShards).keys()];
 
@@ -104,6 +136,10 @@ async function reshardTo(targetShards) {
 }
 
 async function checkReshardNeeded() {
+    if (reshardingInProgress || shuttingDown) {
+        return;
+    }
+
     try {
         const guildCounts = await manager.fetchClientValues('guilds.cache.size');
         const totalGuilds = guildCounts.reduce((sum, count) => sum + count, 0);
@@ -131,12 +167,17 @@ async function checkReshardNeeded() {
 
         if (recommended > currentShards) {
             if (process.env.AUTO_RESHARD === 'true') {
-                console.log(
-                    `[AutoScale] Resharding: ${currentShards} -> ${recommended} shard(s) ` +
-                    `(${totalGuilds} guilds, Discord recommends ${discordRecommended})`
-                );
-                await reshardTo(recommended);
-                console.log('[AutoScale] Reshard complete');
+                reshardingInProgress = true;
+                try {
+                    console.log(
+                        `[AutoScale] Resharding: ${currentShards} -> ${recommended} shard(s) ` +
+                        `(${totalGuilds} guilds, Discord recommends ${discordRecommended})`
+                    );
+                    await reshardTo(recommended);
+                    console.log('[AutoScale] Reshard complete');
+                } finally {
+                    reshardingInProgress = false;
+                }
             } else {
                 console.warn(
                     `[AutoScale] Reshard recommended: ${currentShards} -> ${recommended} shard(s) ` +
@@ -173,9 +214,7 @@ async function shutdown(signal) {
 
     console.log(`[ShardManager] Received ${signal}; shutting down all shards...`);
     try {
-        for (const [, shard] of manager.shards) {
-            shard.kill();
-        }
+        stopAllManagedShards();
     } catch (error) {
         console.error('[ShardManager] Error during shutdown:', error.message);
     }

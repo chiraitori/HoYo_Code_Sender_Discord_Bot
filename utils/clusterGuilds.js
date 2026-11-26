@@ -96,8 +96,66 @@ async function getKnownGuildIds(client, retryOptions = undefined) {
     return new Set(guildIdsByShard.flat());
 }
 
+async function waitForShardsReady(
+    client,
+    {
+        maxAttempts = 60,
+        retryDelayMs = 1000
+    } = {}
+) {
+    if (!client?.shard?.broadcastEval) {
+        return;
+    }
+
+    const expectedShardCount = Number(client.shard.count);
+    if (!Number.isInteger(expectedShardCount) || expectedShardCount <= 0) {
+        return;
+    }
+
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const readyStates = await client.shard.broadcastEval(
+                shardClient => shardClient.isReady()
+            );
+
+            if (
+                readyStates.length < expectedShardCount
+                || readyStates.some(isReady => !isReady)
+            ) {
+                const readyCount = readyStates.filter(Boolean).length;
+                const error = new Error(
+                    `Only ${readyCount}/${expectedShardCount} shards are ready`
+                );
+                error.code = 'ShardingInProcess';
+                throw error;
+            }
+
+            return;
+        } catch (error) {
+            if (!isShardingInProcessError(error)) {
+                throw error;
+            }
+
+            lastError = error;
+            if (attempt === 1 || attempt % 10 === 0) {
+                console.log(
+                    `[ShardManager] Waiting for all shards before cross-shard work `
+                    + `(${attempt}/${maxAttempts})...`
+                );
+            }
+            if (attempt < maxAttempts) {
+                await wait(retryDelayMs);
+            }
+        }
+    }
+
+    throw lastError;
+}
+
 module.exports = {
     getKnownGuildIds,
     broadcastEvalWhenReady,
+    waitForShardsReady,
     isShardingInProcessError
 };

@@ -137,32 +137,31 @@ async function checkGame(client, game) {
             if (codesFound && refreshedState === 5) {
                 console.log(`[Livestream Checker] New livestream code delivery ready for ${game}`);
 
-                // Save codes to database for distribution
+                // Save active codes to database for distribution. Do NOT return early
+                // when all codes are expired so distributeIfReady can close out the tracking.
                 const updatedTracking = await LivestreamTracking.findOne({ game, version });
                 if (updatedTracking && updatedTracking.codes) {
                     const distributionCodes = getActiveLivestreamCodes(updatedTracking.codes, currentTime);
 
-                    if (distributionCodes.length === 0) {
-                        return;
-                    }
-
-                    const timestamp = new Date();
-                    await Code.bulkWrite(distributionCodes.map(codeData => ({
-                        updateOne: {
-                            filter: { game, code: codeData.code },
-                            update: {
-                                $set: {
-                                    isExpired: false
+                    if (distributionCodes.length > 0) {
+                        const timestamp = new Date();
+                        await Code.bulkWrite(distributionCodes.map(codeData => ({
+                            updateOne: {
+                                filter: { game, code: codeData.code },
+                                update: {
+                                    $set: {
+                                        isExpired: false
+                                    },
+                                    $setOnInsert: {
+                                        game,
+                                        code: codeData.code,
+                                        timestamp
+                                    }
                                 },
-                                $setOnInsert: {
-                                    game,
-                                    code: codeData.code,
-                                    timestamp
-                                }
-                            },
-                            upsert: true
-                        }
-                    })));
+                                upsert: true
+                            }
+                        })));
+                    }
                 }
             }
         }
@@ -214,15 +213,10 @@ async function announceUpcomingIfNeeded(client, tracking) {
         streamTimeEstimated: tracking.streamTimeEstimated,
         youtubeStreams: tracking.youtubeStreams || []
     });
-
 }
 
 /**
  * Update the tracking message in Discord
- * @param {Client} client - Discord client
- * @param {string} game - Game identifier
- * @param {number} state - Current state
- * @param {Object} tracking - Tracking data
  */
 async function updateTrackingMessage(client, game, state, tracking) {
     if (!tracking.trackingChannel || !tracking.trackingMessage) {
@@ -236,14 +230,12 @@ async function updateTrackingMessage(client, game, state, tracking) {
         const message = await channel.messages.fetch(tracking.trackingMessage);
         if (!message) return;
 
-        // Build embed
         const embed = new EmbedBuilder()
             .setColor(getStateColor(state))
             .setTitle(`🎮 ${getGameName(game)} Livestream Codes`)
             .setDescription(`**State:** ${getStateName(state)}`)
             .setTimestamp();
 
-        // Add version info
         if (tracking.version) {
             embed.addFields({
                 name: '📦 Version',
@@ -252,7 +244,6 @@ async function updateTrackingMessage(client, game, state, tracking) {
             });
         }
 
-        // Add stream time info
         if (tracking.streamTime && tracking.streamTime > 0) {
             embed.addFields({
                 name: '⏰ Stream Time',
@@ -261,7 +252,6 @@ async function updateTrackingMessage(client, game, state, tracking) {
             });
         }
 
-        // Add codes if found
         if ((state === 5 || state === 3) && tracking.codes && tracking.codes.length > 0) {
             const codeList = tracking.codes.map(c => `\`${c.code}\``).join('\n');
             embed.addFields({
@@ -271,9 +261,8 @@ async function updateTrackingMessage(client, game, state, tracking) {
             });
         }
 
-        // Add next update countdown
         const nextUpdate = Math.floor(Date.now() / 1000) + 180; // 3 minutes
-        embed.setFooter({ text: `Next check: ` });
+        embed.setFooter({ text: 'HoYo Code Sender Livestream Tracker' });
 
         const content = `State \`${state}\` \`${getStateName(state)}\` | Next Update <t:${nextUpdate}:R>`;
 
@@ -283,11 +272,6 @@ async function updateTrackingMessage(client, game, state, tracking) {
     }
 }
 
-/**
- * Get game display name
- * @param {string} game - Game identifier
- * @returns {string} Display name
- */
 function getGameName(game) {
     const names = {
         'genshin': 'Genshin Impact',
@@ -297,19 +281,14 @@ function getGameName(game) {
     return names[game] || game;
 }
 
-/**
- * Get embed color based on state
- * @param {number} state - State number
- * @returns {string} Hex color
- */
 function getStateColor(state) {
     const colors = {
-        0: '#808080', // Disabled - Gray
-        1: '#808080', // No Schedule - Gray
-        2: '#FFA500', // Not yet live - Orange
-        3: '#00FF00', // Distributed - Green
-        4: '#FFFF00', // Searching - Yellow
-        5: '#00FF00'  // Found - Green
+        0: '#808080',
+        1: '#808080',
+        2: '#FFA500',
+        3: '#00FF00',
+        4: '#FFFF00',
+        5: '#00FF00'
     };
     return colors[state] || '#808080';
 }

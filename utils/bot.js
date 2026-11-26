@@ -26,9 +26,12 @@ const {
     jsonBodyErrorHandler,
     logDashboardAudit
 } = require('./httpSecurity');
-const { startLivestreamChecker } = require('./livestreamChecker');
-const { startPostTracker } = require('./hoyolabPostTracker');
+const { startLivestreamChecker, stopLivestreamChecker } = require('./livestreamChecker');
+const { startPostTracker, stopPostTracker } = require('./hoyolabPostTracker');
 const { sendChannelMessage } = require('./discordMessageSender');
+const { broadcastEvalWhenReady } = require('./clusterGuilds');
+const { removeOtherGuildRecords } = require('./guildRecords');
+const languageManager = require('./language');
 const { getShardIdsFromEnv } = require('./shards');
 const { getHoyolabExchangeCodes, mergeExchangeCodes } = require('./hoyolabExchangeCodes');
 const { getDiscordIdentityError } = require('./discordIdentity');
@@ -55,6 +58,9 @@ const PORT = process.env.PORT || 3000;
 const API_BIND_HOST = process.env.API_BIND_HOST || '0.0.0.0';
 let httpServer = null;
 let selfMaintenance = null;
+let presenceInterval = null;
+let codeCheckInterval = null;
+let yearCheckInterval = null;
 
 app.disable('x-powered-by');
 app.set('trust proxy', parseTrustProxy());
@@ -160,7 +166,7 @@ function serializeGuild(guild, includeDetails = false) {
             .filter(channel =>
                 (channel.type === 0 || channel.type === 5)
                 && guild.members.me
-                && channel.permissionsFor(guild.members.me)?.has('SendMessages')
+                && channel.permissionsFor(guild.members.me)?.has(['ViewChannel', 'SendMessages'])
             )
             .map(channel => ({
                 id: channel.id,
@@ -175,15 +181,15 @@ function serializeGuild(guild, includeDetails = false) {
                 (channel.type === 11 || channel.type === 12)
                 && !channel.archived
                 && guild.members.me
-                && (channel.permissionsFor(guild.members.me)?.has('SendMessagesInThreads')
-                    || channel.permissionsFor(guild.members.me)?.has('SendMessages'))
+                && channel.permissionsFor(guild.members.me)?.has(['ViewChannel', 'SendMessagesInThreads'])
             )
             .map(thread => ({
                 id: thread.id,
                 name: thread.name,
                 type: thread.type,
                 parentId: thread.parentId || null,
-                parentName: thread.parent?.name || null
+                parentName: thread.parent?.name || null,
+                canEmbed: Boolean(guild.members.me && thread.permissionsFor(guild.members.me)?.has('EmbedLinks'))
             }))
             .sort((a, b) => a.name.localeCompare(b.name))
     };
@@ -202,7 +208,7 @@ async function getClusterStats() {
         }];
     }
 
-    return client.shard.broadcastEval(shardClient => ({
+    return broadcastEvalWhenReady(client, shardClient => ({
         guildCount: shardClient.guilds.cache.size,
         userCount: shardClient.guilds.cache.reduce((sum, guild) => sum + guild.memberCount, 0),
         channelCount: shardClient.channels.cache.size,
@@ -210,7 +216,7 @@ async function getClusterStats() {
         memoryUsage: process.memoryUsage(),
         ping: shardClient.ws.ping,
         status: shardClient.ws.status
-    }));
+    }), { maxAttempts: 5, retryDelayMs: 500 });
 }
 
 async function getClusterGuilds() {
@@ -218,7 +224,7 @@ async function getClusterGuilds() {
         return client.guilds.cache.map(guild => serializeGuild(guild));
     }
 
-    const guildsByShard = await client.shard.broadcastEval(shardClient =>
+    const guildsByShard = await broadcastEvalWhenReady(client, shardClient =>
         shardClient.guilds.cache.map(guild => ({
             id: guild.id,
             name: guild.name,
@@ -226,7 +232,8 @@ async function getClusterGuilds() {
             icon: guild.iconURL({ extension: 'png', size: 128 }),
             ownerId: guild.ownerId,
             joinedAt: guild.joinedAt?.toISOString() || null
-        }))
+        })),
+        { maxAttempts: 5, retryDelayMs: 500 }
     );
 
     return guildsByShard.flat();
@@ -238,7 +245,7 @@ async function getGuildAcrossShards(guildId) {
         return guild ? serializeGuild(guild, true) : null;
     }
 
-    const results = await client.shard.broadcastEval((shardClient, context) => {
+    const results = await broadcastEvalWhenReady(client, (shardClient, context) => {
         const guild = shardClient.guilds.cache.get(context.guildId);
         if (!guild) {
             return null;
@@ -268,7 +275,7 @@ async function getGuildAcrossShards(guildId) {
                 .filter(channel =>
                     (channel.type === 0 || channel.type === 5)
                     && guild.members.me
-                    && channel.permissionsFor(guild.members.me)?.has('SendMessages')
+                    && channel.permissionsFor(guild.members.me)?.has(['ViewChannel', 'SendMessages'])
                 )
                 .map(channel => ({
                     id: channel.id,
@@ -283,19 +290,19 @@ async function getGuildAcrossShards(guildId) {
                     (channel.type === 11 || channel.type === 12)
                     && !channel.archived
                     && guild.members.me
-                    && (channel.permissionsFor(guild.members.me)?.has('SendMessagesInThreads')
-                        || channel.permissionsFor(guild.members.me)?.has('SendMessages'))
+                    && channel.permissionsFor(guild.members.me)?.has(['ViewChannel', 'SendMessagesInThreads'])
                 )
                 .map(thread => ({
                     id: thread.id,
                     name: thread.name,
                     type: thread.type,
                     parentId: thread.parentId || null,
-                    parentName: thread.parent?.name || null
+                    parentName: thread.parent?.name || null,
+                    canEmbed: Boolean(guild.members.me && thread.permissionsFor(guild.members.me)?.has('EmbedLinks'))
                 }))
                 .sort((a, b) => a.name.localeCompare(b.name))
         };
-    }, { context: { guildId } });
+    }, { context: { guildId }, maxAttempts: 5, retryDelayMs: 500 });
 
     return results.find(Boolean) || null;
 }
@@ -324,9 +331,9 @@ async function getCachedApiData(game, apiUrl) {
             console.warn(`⚠️  Slow API response for ${game}: ${responseTime}ms`);
         }
 
-        const data = response.data;
+        const data = (response.data && typeof response.data === 'object') ? response.data : { codes: [] };
         const hoyolabCodes = await getHoyolabExchangeCodes(game);
-        data.codes = mergeExchangeCodes(game, data?.codes || [], hoyolabCodes);
+        data.codes = mergeExchangeCodes(game, Array.isArray(data.codes) ? data.codes : [], hoyolabCodes);
         apiCache.set(cacheKey, {
             data: data,
             timestamp: Date.now(),
@@ -581,6 +588,69 @@ app.get('/api/bot/guild/:guildId', async (req, res) => {
     }
 });
 
+async function fetchVerifiedGuildThread(serverId, threadId) {
+    if (!threadId || !client?.rest) {
+        return null;
+    }
+
+    try {
+        const channelData = await client.rest.get(Routes.channel(threadId));
+        if (
+            channelData
+            && channelData.guild_id === serverId
+            && (channelData.type === 11 || channelData.type === 12)
+        ) {
+            return {
+                id: channelData.id,
+                name: channelData.name || threadId,
+                type: channelData.type,
+                parentId: channelData.parent_id || null,
+                archived: Boolean(channelData.thread_metadata?.archived),
+                canEmbed: true
+            };
+        }
+    } catch {
+        // Thread does not exist or bot has no access
+    }
+
+    return null;
+}
+
+async function verifyConfigPatchOwnership(serverId, patch, guild) {
+    if (configPatchBelongsToGuild(patch, guild)) {
+        return true;
+    }
+
+    // Validate all non-thread fields strictly against cached guild roles & channels first.
+    const nonThreadPatch = {};
+    for (const [key, value] of Object.entries(patch)) {
+        if (key !== 'forumThreads') {
+            nonThreadPatch[key] = value;
+        }
+    }
+    if (!configPatchBelongsToGuild(nonThreadPatch, guild)) {
+        return false;
+    }
+
+    if (!patch.forumThreads || typeof patch.forumThreads !== 'object') {
+        return false;
+    }
+
+    const cachedThreadIds = new Set((guild.threads || []).map(item => item.id));
+    for (const threadId of Object.values(patch.forumThreads)) {
+        if (threadId === null || cachedThreadIds.has(threadId)) {
+            continue;
+        }
+        // ThreadManager sweeps inactive threads after 1h; verify ownership via REST before rejecting.
+        const verifiedThread = await fetchVerifiedGuildThread(serverId, threadId);
+        if (!verifiedThread) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function serializeServerConfig(serverId, config) {
     return {
         guildId: config?.guildId || serverId,
@@ -709,6 +779,9 @@ app.put('/api/server/:serverId/snapshot', async (req, res) => {
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
         if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
             return res.status(400).json({ error: 'Invalid snapshot payload' });
         }
@@ -739,7 +812,7 @@ app.put('/api/server/:serverId/snapshot', async (req, res) => {
         if (!guild) {
             return res.status(404).json({ error: 'Server not found' });
         }
-        if (hasConfig && !configPatchBelongsToGuild(configPatch, guild)) {
+        if (hasConfig && !(await verifyConfigPatchOwnership(serverId, configPatch, guild))) {
             return res.status(400).json({ error: 'Channel, threads, and roles must belong to this server' });
         }
 
@@ -768,6 +841,7 @@ app.put('/api/server/:serverId/snapshot', async (req, res) => {
                 }
                 applyConfigPatch(config, configPatch);
                 await config.save();
+                await removeOtherGuildRecords(Config, serverId, config._id);
                 savedConfig = config;
             })());
         } else {
@@ -784,6 +858,7 @@ app.put('/api/server/:serverId/snapshot', async (req, res) => {
                     settings.set(field, value);
                 }
                 await settings.save();
+                await removeOtherGuildRecords(Settings, serverId, settings._id);
                 savedSettings = settings;
             })());
         } else {
@@ -796,7 +871,10 @@ app.put('/api/server/:serverId/snapshot', async (req, res) => {
                     { guildId: serverId },
                     { $set: { language: validatedLanguage } },
                     { upsert: true, setDefaultsOnInsert: true, runValidators: true }
-                ).then(() => { savedLanguage = validatedLanguage; })
+                ).then(() => {
+                    languageManager.clearGuildCache(serverId);
+                    savedLanguage = validatedLanguage;
+                })
             );
         } else {
             tasks.push(Language.findOne({ guildId: serverId }).then(l => { savedLanguage = l ? l.language : 'en'; }));
@@ -847,11 +925,14 @@ app.put('/api/server/:serverId/config', async (req, res) => {
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
         const updateData = getValidatedConfigPatch(req.body);
         if (!updateData) return res.status(400).json({ error: 'Invalid channel, thread, or role configuration' });
         const guild = await getGuildAcrossShards(serverId);
         if (!guild) return res.status(404).json({ error: 'Server not found' });
-        if (!configPatchBelongsToGuild(updateData, guild)) {
+        if (!(await verifyConfigPatchOwnership(serverId, updateData, guild))) {
             return res.status(400).json({ error: 'Channel, threads, and roles must belong to this server' });
         }
 
@@ -873,6 +954,7 @@ app.put('/api/server/:serverId/config', async (req, res) => {
 
         applyConfigPatch(config, updateData);
         await config.save();
+        await removeOtherGuildRecords(Config, serverId, config._id);
 
         logDashboardAudit(req, 'server.config.update', { serverId, fields: Object.keys(updateData) });
         res.json(serializeServerConfig(serverId, config));
@@ -920,6 +1002,7 @@ app.put('/api/server/:serverId/language', async (req, res) => {
             { $set: { language } },
             { upsert: true, setDefaultsOnInsert: true, runValidators: true }
         );
+        languageManager.clearGuildCache(serverId);
 
         logDashboardAudit(req, 'server.language.update', { serverId, language });
         res.json({ success: true, language });
@@ -968,6 +1051,7 @@ app.put('/api/server/:serverId/settings', async (req, res) => {
         for (const [field, value] of Object.entries(updateData)) settings.set(field, value);
 
         await settings.save();
+        await removeOtherGuildRecords(Settings, serverId, settings._id);
 
         logDashboardAudit(req, 'server.settings.update', { serverId, fields: Object.keys(updateData) });
         res.json(serializeServerSettings(serverId, settings));
@@ -1011,6 +1095,9 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
         if (!serverId) {
             return res.status(400).json({ error: 'Invalid server ID format' });
         }
+        if (!client || !client.isReady()) {
+            return res.status(503).json({ error: 'Bot is not ready' });
+        }
         const testPayload = getValidatedTestPayload(req.body);
         if (!testPayload) {
             return res.status(400).json({ error: 'Invalid test game selection' });
@@ -1032,6 +1119,9 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
         if (!channel) {
             return res.status(400).json({ error: 'Notification channel not found' });
         }
+        if (channel.canEmbed === false) {
+            return res.status(400).json({ error: 'Bot is missing Embed Links permission in the configured channel' });
+        }
 
         const { EmbedBuilder } = require('discord.js');
         if (testPayload.game) {
@@ -1040,7 +1130,10 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
             const roleValid = Boolean(roleId && guild.roles.some(role => role.id === roleId));
             const feed = await getCachedApiData(meta.apiKey, meta.apiUrl).catch(() => null);
             const liveList = Array.isArray(feed?.codes) ? feed.codes : [];
-            const liveCode = liveList.find(c => !c.isExpired && c.code) || liveList[0] || null;
+            const liveCode = liveList.find(c => c.status === 'OK' && !c.isExpired && c.code)
+                || liveList.find(c => !c.isExpired && c.code)
+                || liveList[0]
+                || null;
 
             if (!liveCode) {
                 return res.status(404).json({ error: `No active ${meta.name} codes available right now to test delivery.` });
@@ -1062,7 +1155,7 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
                 content: roleValid ? `<@&${roleId}>` : undefined,
                 embeds: [embed],
                 allowedMentions: { parse: [], roles: roleValid ? [roleId] : [] }
-            });
+            }, { guildId: serverId });
 
             logDashboardAudit(req, 'server.test.live', { serverId, channelId: config.channel, game: testPayload.game });
             return res.json({ success: true, message: `Sent ${meta.name} test (${liveCode.code}) to #${channel.name}.` });
@@ -1079,7 +1172,7 @@ app.post('/api/server/:serverId/test', testNotificationLimiter, async (req, res)
             .setFooter({ text: 'Test completed successfully' })
             .setTimestamp();
 
-        await sendChannelMessage(client, config.channel, { embeds: [embed] });
+        await sendChannelMessage(client, config.channel, { embeds: [embed] }, { guildId: serverId });
 
         logDashboardAudit(req, 'server.test.sent', { serverId, channelId: config.channel });
         res.json({ success: true, message: `Test notification sent to #${channel.name}!` });
@@ -1111,15 +1204,27 @@ app.post('/api/server/:serverId/check-channels', async (req, res) => {
         }
 
         const targets = [];
-        const checkTarget = (label, id, isThread = false) => {
+        const checkTarget = async (label, id, isThread = false) => {
             if (!id) {
                 targets.push({ label, id: null, name: null, status: 'unset', canEmbed: null });
                 return;
             }
             if (isThread) {
-                const thread = guild.threads.find(item => item.id === id);
+                let thread = guild.threads.find(item => item.id === id);
+                if (!thread) {
+                    const fetchedThread = await fetchVerifiedGuildThread(serverId, id);
+                    if (fetchedThread && !fetchedThread.archived) {
+                        thread = fetchedThread;
+                    }
+                }
                 targets.push(thread
-                    ? { label, id, name: thread.name, status: 'ok', canEmbed: true }
+                    ? {
+                        label,
+                        id,
+                        name: thread.name,
+                        status: thread.canEmbed === false ? 'missing_embed' : 'ok',
+                        canEmbed: thread.canEmbed !== false
+                    }
                     : { label, id, name: null, status: 'missing', canEmbed: false });
                 return;
             }
@@ -1137,13 +1242,13 @@ app.post('/api/server/:serverId/check-channels', async (req, res) => {
             });
         };
 
-        checkTarget('Main channel', config?.channel || null, false);
+        await checkTarget('Main channel', config?.channel || null, false);
         if (config?.livestreamChannel) {
-            checkTarget('Livestream channel', config.livestreamChannel, false);
+            await checkTarget('Livestream channel', config.livestreamChannel, false);
         }
         for (const game of ['zzz', 'genshin', 'hsr']) {
             if (config?.forumThreads?.[game]) {
-                checkTarget(`${DASHBOARD_GAME_META[game].name} thread`, config.forumThreads[game], true);
+                await checkTarget(`${DASHBOARD_GAME_META[game].name} thread`, config.forumThreads[game], true);
             }
         }
 
@@ -1158,15 +1263,16 @@ app.post('/api/server/:serverId/check-channels', async (req, res) => {
                     : null;
         const checkedAt = new Date();
 
-        await Settings.findOneAndUpdate(
+        const updatedSettings = await Settings.findOneAndUpdate(
             { guildId: serverId },
             {
                 'channelStatus.isInvalid': !valid,
                 'channelStatus.lastError': lastError,
                 'channelStatus.lastChecked': checkedAt
             },
-            { upsert: true, sort: { _id: -1 } }
+            { upsert: true, new: true, sort: { _id: -1 } }
         );
+        await removeOtherGuildRecords(Settings, serverId, updatedSettings?._id);
 
         logDashboardAudit(req, 'server.channels.checked', { serverId, valid });
         return res.json({
@@ -1209,7 +1315,13 @@ app.post('/api/server/:serverId/post-code', testNotificationLimiter, async (req,
 
         const meta = DASHBOARD_GAME_META[payload.game];
         const threadId = config?.forumThreads?.[payload.game] || null;
-        const threadObj = threadId ? guild.threads.find(item => item.id === threadId) : null;
+        let threadObj = threadId ? guild.threads.find(item => item.id === threadId) : null;
+        if (threadId && !threadObj && (payload.target === 'thread' || payload.target === 'auto')) {
+            const fetchedThread = await fetchVerifiedGuildThread(serverId, threadId);
+            if (fetchedThread && !fetchedThread.archived) {
+                threadObj = fetchedThread;
+            }
+        }
         const liveObj = config?.livestreamChannel ? guild.channels.find(item => item.id === config.livestreamChannel) : null;
         const mainObj = config?.channel ? guild.channels.find(item => item.id === config.channel) : null;
 
@@ -1222,8 +1334,10 @@ app.post('/api/server/:serverId/post-code', testNotificationLimiter, async (req,
         if (!chosenTarget) {
             return res.status(400).json({ error: 'No valid configured channel or thread found for this destination.' });
         }
+        if (chosenTarget.canEmbed === false) {
+            return res.status(400).json({ error: 'Bot is missing Embed Links permission in the selected destination.' });
+        }
 
-        const languageManager = require('./language');
         const embedTitle = await languageManager.getString('commands.postcode.embedTitle', serverId, { game: meta.name })
             || `${meta.name} Redemption Codes`;
         const redeemLabel = await languageManager.getString('commands.postcode.postcodeButton', serverId)
@@ -1237,7 +1351,7 @@ app.post('/api/server/:serverId/post-code', testNotificationLimiter, async (req,
             .setTitle(embedTitle)
             .setDescription(
                 payload.codes
-                    .map(code => `**${code}**\n[${redeemLabel}](${meta.redeemBase}${code})`)
+                    .map(code => `**${code}**\n[${redeemLabel}](${meta.redeemBase}${encodeURIComponent(code)})`)
                     .join('\n\n')
             )
             .setTimestamp();
@@ -1253,7 +1367,7 @@ app.post('/api/server/:serverId/post-code', testNotificationLimiter, async (req,
             content: roleValid ? `<@&${roleId}>` : undefined,
             embeds: [embed],
             allowedMentions: { parse: [], roles: roleValid ? [roleId] : [] }
-        });
+        }, { guildId: serverId });
 
         logDashboardAudit(req, 'server.postcode.sent', {
             serverId,
@@ -1291,6 +1405,7 @@ app.post('/api/server/:serverId/reset', resetConfigLimiter, async (req, res) => 
             Settings.deleteMany({ guildId: serverId }),
             Language.deleteMany({ guildId: serverId })
         ]);
+        languageManager.clearGuildCache(serverId);
 
         logDashboardAudit(req, 'server.config.reset', { serverId });
         res.json({ success: true, message: 'Configuration reset successfully!' });
@@ -1301,7 +1416,7 @@ app.post('/api/server/:serverId/reset', resetConfigLimiter, async (req, res) => 
 });
 
 // Clear old cache entries every hour
-setInterval(() => {
+const apiCacheCleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [key, value] of apiCache.entries()) {
         if (now - value.timestamp > CACHE_DURATION * 2) { // Clear if 2x older than cache duration
@@ -1309,6 +1424,7 @@ setInterval(() => {
         }
     }
 }, 60 * 60 * 1000); // Every hour
+apiCacheCleanupInterval.unref?.();
 
 // Serve HTML
 app.get('/', (req, res) => {
@@ -1449,20 +1565,28 @@ client.once('clientReady', async () => {
         console.error('Error during startup:', error);
     }
     const updatePresence = () => {
-        client.user.setPresence({
-            activities: [{
-                name: `for redemption codes | ${process.env.VERSION || '1.15.0'}`,
-                type: ActivityType.Watching
-            }],
-            status: 'online'
-        });
+        if (!client.isReady() || !client.user) {
+            return;
+        }
+        try {
+            client.user.setPresence({
+                activities: [{
+                    name: `for redemption codes | ${process.env.VERSION || '1.15.0'}`,
+                    type: ActivityType.Watching
+                }],
+                status: 'online'
+            });
+        } catch (error) {
+            console.warn('[Presence] Failed to update presence:', error.message);
+        }
     };
 
     // Set immediately on startup
     updatePresence();
-    
+
     // Refresh presence every 30 minutes so it doesn't disappear
-    setInterval(updatePresence, 30 * 60 * 1000);
+    presenceInterval = setInterval(updatePresence, 30 * 60 * 1000);
+    presenceInterval.unref?.();
 
     // Singleton background tasks — only run on shard 0
     if (runsPrimaryServices) {
@@ -1495,7 +1619,7 @@ client.once('clientReady', async () => {
         }
 
         // Start regular code checking (every 5 minutes)
-        setInterval(() => {
+        codeCheckInterval = setInterval(() => {
             checkAndSendNewCodes(client).catch(error => {
                 console.error('Scheduled code check failed:', error);
             });
@@ -1506,7 +1630,7 @@ client.once('clientReady', async () => {
         });
 
         // Check for year change messages (every 30 minutes)
-        setInterval(() => {
+        yearCheckInterval = setInterval(() => {
             checkAndSendYearChangeMessage(client).catch(error => {
                 console.error('Scheduled year change check failed:', error);
             });
@@ -1516,7 +1640,11 @@ client.once('clientReady', async () => {
         });
 
         if (process.env.LIVESTREAM_TRACKING_ENABLED !== 'false') {
-            await startPostTracker(client);
+            try {
+                await startPostTracker(client);
+            } catch (error) {
+                console.error('[Post Tracker] Startup failed:', error);
+            }
             startLivestreamChecker(client);
         } else {
             console.log('[Livestream] Tracking disabled by LIVESTREAM_TRACKING_ENABLED=false');
@@ -1545,11 +1673,23 @@ if (runsPrimaryServices) {
     setupTopggWebhook(app, client);
 }
 
+// Final Express error handler: always respond with JSON rather than an HTML stack trace
+app.use((err, req, res, _next) => {
+    console.error('[HTTP] Unhandled Express error:', err);
+    if (res.headersSent) {
+        return;
+    }
+    res.status(err?.status || 500).json({
+        error: 'Internal Server Error',
+        requestId: req.requestId || null
+    });
+});
+
 // Handle interactions
 client.on('interactionCreate', async interaction => {
     try {
         // Command interactions
-        if (interaction.isCommand()) {
+        if (interaction.isChatInputCommand()) {
             const command = client.commands.get(interaction.commandName);
             if (!command) return;
 
@@ -1569,7 +1709,7 @@ client.on('interactionCreate', async interaction => {
                         await interaction.reply(content);
                     }
                 } catch (responseError) {
-                    if (responseError?.code !== 40060) {
+                    if (responseError?.code !== 40060 && responseError?.code !== 10062) {
                         throw responseError;
                     }
                 }
@@ -1577,10 +1717,29 @@ client.on('interactionCreate', async interaction => {
         }
 
         // Modal submit interactions
-        if (interaction.isModalSubmit() && interaction.customId === 'redeemModal') {
-            const command = client.commands.get('redeem');
+        if (interaction.isModalSubmit() && interaction.customId === 'postcodeModal') {
+            const command = client.commands.get('postcode');
             if (command?.modalSubmit) {
-                await command.modalSubmit(interaction);
+                try {
+                    await command.modalSubmit(interaction);
+                } catch (error) {
+                    console.error('Modal submission error:', error);
+                    const content = {
+                        content: 'An error occurred while processing this submission.',
+                        flags: MessageFlags.Ephemeral
+                    };
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            await interaction.editReply(content);
+                        } else {
+                            await interaction.reply(content);
+                        }
+                    } catch (responseError) {
+                        if (responseError?.code !== 40060 && responseError?.code !== 10062) {
+                            throw responseError;
+                        }
+                    }
+                }
             }
         }
     } catch (error) {
@@ -1614,6 +1773,11 @@ async function shutdown(signal, exitCode = 0) {
     forceExitTimer.unref();
 
     selfMaintenance?.stop();
+    if (presenceInterval) clearInterval(presenceInterval);
+    if (codeCheckInterval) clearInterval(codeCheckInterval);
+    if (yearCheckInterval) clearInterval(yearCheckInterval);
+    stopLivestreamChecker();
+    stopPostTracker();
 
     if (httpServer) {
         httpServer.closeIdleConnections?.();

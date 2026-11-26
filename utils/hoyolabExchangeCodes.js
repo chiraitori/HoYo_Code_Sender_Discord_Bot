@@ -54,13 +54,18 @@ function extractHoyolabExchangeCodes(game, responseData) {
     return codes;
 }
 
-async function getHoyolabExchangeCodes(game) {
+async function getHoyolabExchangeCodes(game, fetcher = fetchLivestreamCodes) {
     const cached = codeCache.get(game);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
         return cached.codes;
     }
 
-    const responseData = await fetchLivestreamCodes(game);
+    const responseData = await fetcher(game);
+    if (!responseData || !Array.isArray(responseData?.data?.modules)) {
+        // Do not negative-cache transient API failures or overwrite valid stale codes.
+        return cached?.codes || [];
+    }
+
     const codes = extractHoyolabExchangeCodes(game, responseData);
 
     codeCache.set(game, {
@@ -69,6 +74,14 @@ async function getHoyolabExchangeCodes(game) {
     });
 
     return codes;
+}
+
+function clearHoyolabExchangeCodeCache(game = null) {
+    if (game) {
+        codeCache.delete(game);
+    } else {
+        codeCache.clear();
+    }
 }
 
 function mergeExchangeCodes(game, primaryCodes = [], hoyolabCodes = []) {
@@ -108,5 +121,6 @@ function mergeExchangeCodes(game, primaryCodes = [], hoyolabCodes = []) {
 module.exports = {
     extractHoyolabExchangeCodes,
     getHoyolabExchangeCodes,
+    clearHoyolabExchangeCodeCache,
     mergeExchangeCodes
 };

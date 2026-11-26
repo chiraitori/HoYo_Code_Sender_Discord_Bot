@@ -3,6 +3,8 @@ const assert = require('node:assert');
 
 const {
   extractHoyolabExchangeCodes,
+  getHoyolabExchangeCodes,
+  clearHoyolabExchangeCodeCache,
   mergeExchangeCodes,
 } = require('../utils/hoyolabExchangeCodes');
 
@@ -63,4 +65,26 @@ test('mergeExchangeCodes fills missing rewards from HoYoLAB duplicates', () => {
 
   const code = merged.find(item => item.code === 'ZZZY2ANNIV');
   assert.ok(code.rewards.includes('300 Polychrome'));
+});
+
+test('getHoyolabExchangeCodes does not negative-cache failed API responses', async () => {
+  clearHoyolabExchangeCodeCache('nap');
+  let calls = 0;
+
+  const first = await getHoyolabExchangeCodes('nap', async () => {
+    calls += 1;
+    return null;
+  });
+  assert.deepStrictEqual(first, []);
+
+  // A subsequent call must retry immediately rather than serving a cached empty failure.
+  const second = await getHoyolabExchangeCodes('nap', async () => {
+    calls += 1;
+    return hoyolabResponse;
+  });
+  assert.strictEqual(calls, 2);
+  assert.strictEqual(second.length, 1);
+  assert.strictEqual(second[0].code, 'ZZZY2ANNIV');
+
+  clearHoyolabExchangeCodeCache('nap');
 });
