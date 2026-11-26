@@ -158,9 +158,15 @@ async function sendAnnouncement(client, streamInfo) {
     console.log(`[Announcement] 📢 Sending announcement for ${game} ${version}...`);
 
     const [allConfigs, allSettings, languages] = await Promise.all([
-        Config.find({}).sort({ _id: 1 }).lean(),
-        Settings.find({}).sort({ _id: 1 }).lean(),
-        typeof Language.find === 'function' ? Language.find({}).lean() : Promise.resolve([])
+        Config.find({}, { guildId: 1, channel: 1, livestreamChannel: 1 }).sort({ _id: 1 }).lean(),
+        Settings.find({}, {
+            guildId: 1,
+            autoSendEnabled: 1,
+            autoSendOptions: 1,
+            livestreamAnnouncementsEnabled: 1,
+            favoriteGames: 1
+        }).sort({ _id: 1 }).lean(),
+        typeof Language.find === 'function' ? Language.find({}, { guildId: 1, language: 1 }).lean() : Promise.resolve([])
     ]);
 
     const languageMap = new Map();

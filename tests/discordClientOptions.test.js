@@ -20,14 +20,24 @@ test('subscribes only to guild events required by slash commands', () => {
     assert.equal(options.intents.includes(GatewayIntentBits.GuildMessages), false);
 });
 
-test('does not retain messages, reactions, presence, or voice state', () => {
+test('does not retain messages, reactions, presence, voice state, or unused guild managers', () => {
     for (const managerName of [
+        'ApplicationCommandManager',
+        'AutoModerationRuleManager',
+        'BaseGuildEmojiManager',
+        'DMMessageManager',
+        'GuildBanManager',
+        'GuildEmojiManager',
+        'GuildInviteManager',
+        'GuildScheduledEventManager',
+        'GuildStickerManager',
         'MessageManager',
+        'PresenceManager',
         'ReactionManager',
         'ReactionUserManager',
-        'PresenceManager',
-        'VoiceStateManager',
-        'ThreadMemberManager'
+        'StageInstanceManager',
+        'ThreadMemberManager',
+        'VoiceStateManager'
     ]) {
         assert.equal(createCache(managerName).maxSize, 0, managerName);
     }

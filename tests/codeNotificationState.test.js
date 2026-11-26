@@ -8,6 +8,7 @@ const {
   getCodeNotificationTargetId,
   getPendingCodesForTarget,
   getCodeDeliveryTargets,
+  inspectShardChannelPermissions,
   isDefiniteUnsentError
 } = require('../utils/autoCodeSend');
 
@@ -373,4 +374,29 @@ test('buildEmbedForGameAndLang URL-encodes codes and clamps oversized descriptio
   assert.ok(json.description.includes('?code=CODE%2B0'));
   assert.ok(json.description.length <= 4096);
   assert.ok(json.description.endsWith('...'));
+});
+
+test('inspectShardChannelPermissions flags deleted text channels on owning shard without rejecting swept threads', () => {
+  const guild = {
+    id: 'guild-1',
+    channels: { cache: new Map() },
+    members: { me: { id: 'bot-1' } }
+  };
+  const shardClient = {
+    user: { id: 'bot-1' },
+    guilds: { cache: new Map([['guild-1', guild]]) },
+    channels: { cache: new Map() }
+  };
+
+  const result = inspectShardChannelPermissions(shardClient, {
+    channels: [
+      { guildId: 'guild-1', channelId: 'deleted-channel-1', type: 'channel' },
+      { guildId: 'guild-1', channelId: 'swept-thread-1', type: 'thread' },
+      { guildId: 'other-shard-guild', channelId: 'remote-channel-1', type: 'channel' }
+    ]
+  });
+
+  assert.deepStrictEqual(result, [
+    { channelId: 'deleted-channel-1', reason: 'missing_channel' }
+  ]);
 });

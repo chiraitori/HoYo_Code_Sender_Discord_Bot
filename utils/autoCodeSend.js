@@ -209,8 +209,16 @@ function inspectShardChannelPermissions(shardClient, context) {
     const unwritable = [];
 
     for (const item of context.channels || []) {
-        const channel = shardClient.channels.cache.get(item.channelId);
+        const guild = shardClient.guilds.cache.get(item.guildId) || null;
+        const channel = shardClient.channels.cache.get(item.channelId)
+            || guild?.channels?.cache?.get(item.channelId)
+            || null;
         if (!channel) {
+            // Discord always caches standard guild text/announcement channels for connected guilds.
+            // If this shard owns the guild and the channel ID is missing, it was deleted (10003).
+            if (guild && item.type === 'channel') {
+                unwritable.push({ channelId: item.channelId, reason: 'missing_channel' });
+            }
             continue;
         }
 
@@ -219,9 +227,9 @@ function inspectShardChannelPermissions(shardClient, context) {
             continue;
         }
 
-        const guild = shardClient.guilds.cache.get(item.guildId) || channel.guild || null;
-        const botMember = guild?.members?.me
-            || guild?.members?.cache?.get(shardClient.user?.id)
+        const resolvedGuild = guild || channel.guild || null;
+        const botMember = resolvedGuild?.members?.me
+            || resolvedGuild?.members?.cache?.get(shardClient.user?.id)
             || null;
         const permissions = botMember ? channel.permissionsFor(botMember) : null;
         const sendPermission = item.type === 'thread' ? 'SendMessagesInThreads' : 'SendMessages';
@@ -277,57 +285,14 @@ async function checkAndSendNewCodes(client) {
     const games = ['genshin', 'hkrpg', 'nap'];
 
     try {
-        // Fetch all configurations, settings, and languages in parallel once
-        const [rawConfigs, rawSettings, languages] = await Promise.all([
-            Config.find({}).sort({ _id: 1 }).lean(),
-            Settings.find({}).sort({ _id: 1 }).lean(),
-            Language.find({}).lean()
-        ]);
-        const configs = getLatestGuildRecords(rawConfigs);
-        const allSettings = getLatestGuildRecords(rawSettings);
-        const duplicateConfigs = countDuplicateGuildRecords(rawConfigs);
-        const duplicateSettings = countDuplicateGuildRecords(rawSettings);
-        if (duplicateConfigs || duplicateSettings) {
-            console.warn(
-                `[Code Check] Ignoring duplicate DB rows: ${duplicateConfigs} config, `
-                + `${duplicateSettings} settings (newest row per guild wins)`
-            );
-        }
-
-        // Create lookup maps to avoid repeated database queries
-        const settingsMap = allSettings.reduce((map, setting) => {
-            map[setting.guildId] = setting;
-            return map;
-        }, {});
-
-        const languageMap = languages.reduce((map, lang) => {
-            map[lang.guildId] = lang;
-            return map;
-        }, {});
-
-        // Pre-populate language cache from batch-fetched data to avoid per-guild DB queries
-        for (const lang of languages) {
-            languageManager.languageCache.set(lang.guildId, {
-                language: lang.language,
-                timestamp: Date.now()
-            });
-        }
-
         const botId = client.user?.id;
         if (!botId) {
             throw new Error('Cannot check codes before the bot is ready');
         }
 
-        // Batch fetch only lightweight code fields needed for discovery & expiration checks
-        // (avoids pulling hundreds of thousands of notifiedTargets strings into RAM every 5 min).
-        const allExistingCodes = await Code.find({}, { game: 1, code: 1, isExpired: 1 }).lean();
-        const existingCodesMap = new Map(
-            allExistingCodes.map(code => [normalizeCodeKey(code.game, code.code), code])
-        );
-        const knownGuildIds = await getKnownGuildIds(client);
-        console.log(`Code check: ${allExistingCodes.length} existing codes in DB, ${knownGuildIds.size} known guilds`);
-
-        // Fetch all games' codes in parallel
+        // Fast-path: fetch lightweight existing code metadata AND external APIs in parallel first.
+        // Only query Config/Settings/Language (~8,500+ docs) and cross-shard guild lists when
+        // new codes are actually discovered (avoids ~23s of wasted DB reads on idle 5-min ticks).
         const gameCodeRequests = games.map(game =>
             axios.get(`https://hoyo-codes.seria.moe/codes?game=${game}`, {
                 timeout: 15000, // 15 second timeout
@@ -341,7 +306,13 @@ async function checkAndSendNewCodes(client) {
                 })
         );
 
-        const gameResponses = await Promise.all(gameCodeRequests);
+        const [allExistingCodes, gameResponses] = await Promise.all([
+            Code.find({}, { game: 1, code: 1, isExpired: 1 }).lean(),
+            Promise.all(gameCodeRequests)
+        ]);
+        const existingCodesMap = new Map(
+            allExistingCodes.map(code => [normalizeCodeKey(code.game, code.code), code])
+        );
 
         await Promise.all(gameResponses.map(async (response, index) => {
             const game = games[index];
@@ -491,10 +462,61 @@ async function checkAndSendNewCodes(client) {
         }
 
         // ===== OPTIMIZED MESSAGE SENDING =====
-        // If no new codes, skip all message sending logic
+        // If no new codes, exit immediately without loading Config/Settings/Language or polling shards
         if (Object.keys(newCodesForGames).length === 0) {
-            console.log(`Code check completed in ${Date.now() - startTime}ms. No new codes found.`);
+            console.log(`Code check completed in ${Date.now() - startTime}ms (${allExistingCodes.length} existing codes). No new codes found.`);
             return;
+        }
+
+        // Load guild configurations, settings, languages, and connected guild IDs ONLY when broadcasting new codes
+        const [rawConfigs, rawSettings, languages, knownGuildIds] = await Promise.all([
+            Config.find({}, {
+                guildId: 1,
+                channel: 1,
+                forumThreads: 1,
+                genshinRole: 1,
+                hsrRole: 1,
+                zzzRole: 1,
+                notifications: 1
+            }).sort({ _id: 1 }).lean(),
+            Settings.find({}, {
+                guildId: 1,
+                autoSendEnabled: 1,
+                autoSendOptions: 1,
+                favoriteGames: 1
+            }).sort({ _id: 1 }).lean(),
+            Language.find({}, { guildId: 1, language: 1 }).lean(),
+            getKnownGuildIds(client)
+        ]);
+        const configs = getLatestGuildRecords(rawConfigs);
+        const allSettings = getLatestGuildRecords(rawSettings);
+        const duplicateConfigs = countDuplicateGuildRecords(rawConfigs);
+        const duplicateSettings = countDuplicateGuildRecords(rawSettings);
+        if (duplicateConfigs || duplicateSettings) {
+            console.warn(
+                `[Code Check] Ignoring duplicate DB rows: ${duplicateConfigs} config, `
+                + `${duplicateSettings} settings (newest row per guild wins)`
+            );
+        }
+        console.log(`Code check: ${insertedCodes.length} new code(s), ${configs.length} configured / ${knownGuildIds.size} known guilds`);
+
+        // Create lookup maps to avoid repeated database queries
+        const settingsMap = allSettings.reduce((map, setting) => {
+            map[setting.guildId] = setting;
+            return map;
+        }, {});
+
+        const languageMap = languages.reduce((map, lang) => {
+            map[lang.guildId] = lang;
+            return map;
+        }, {});
+
+        // Pre-populate language cache from batch-fetched data to avoid per-guild DB queries
+        for (const lang of languages) {
+            languageManager.languageCache.set(lang.guildId, {
+                language: lang.language,
+                timestamp: Date.now()
+            });
         }
 
         // Pre-build embeds per (game, language) to avoid rebuilding identical embeds for 2500+ guilds
@@ -521,14 +543,22 @@ async function checkAndSendNewCodes(client) {
 
         console.log(`Pre-built ${embedCache.size} embed(s) for ${Object.keys(newCodesForGames).length} game(s) × ${uniqueLanguages.size} language(s)`);
 
+        // Only reconcile configs that are currently missing a role ID on the hot send path
+        // (full reconciliation already runs on startup).
         for (const game of Object.keys(newCodesForGames)) {
-            const eligibleConfigs = configs.filter(config => {
+            const roleField = roleMapping[game];
+            const missingRoleConfigs = configs.filter(config => {
+                if (config[roleField]) {
+                    return false;
+                }
                 const settings = settingsMap[config.guildId];
                 return knownGuildIds.has(config.guildId)
                     && shouldSendGameNotifications(settings, game)
                     && getCodeDeliveryTargets(config, settings, game, botId).length > 0;
             });
-            await reconcileConfiguredRoles(client, eligibleConfigs, game);
+            if (missingRoleConfigs.length > 0) {
+                await reconcileConfiguredRoles(client, missingRoleConfigs, game);
+            }
         }
 
         // Prepare message sending tasks as lazy functions (not yet executing)
@@ -905,5 +935,6 @@ module.exports = {
     getCodeNotificationTargetId,
     getPendingCodesForTarget,
     getCodeDeliveryTargets,
+    inspectShardChannelPermissions,
     isDefiniteUnsentError
 };

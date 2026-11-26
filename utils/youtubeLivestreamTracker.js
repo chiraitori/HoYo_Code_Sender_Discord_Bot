@@ -19,7 +19,47 @@ const SPECIAL_PROGRAM_PATTERN = /\b(special program|version preview|preview prog
 const VERSION_PATTERN = /\bversion\s+["']?([a-z0-9]+(?:\.[a-z0-9]+)?(?:\s+[ivx]+)?)["']?|\bver\.?\s*(\d+\.\d+)|バージョン\s*(\d+\.\d+)/i;
 const channelIdCache = new Map();
 const livestreamCache = new Map();
-const LIVESTREAM_CACHE_DURATION = 5 * 60 * 1000;
+const premiereDetailsCache = new Map();
+const LIVESTREAM_CACHE_DURATION = 10 * 60 * 1000;
+const PREMIERE_ACTIVE_CACHE_TTL_MS = 15 * 60 * 1000;
+const PREMIERE_COMPLETED_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const OLD_VIDEO_COMPLETED_AGE_MS = 48 * 60 * 60 * 1000;
+const RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000;
+const MAX_PREMIERE_CACHE_SIZE = 200;
+
+let youtubeHtmlRateLimitUntil = 0;
+
+function isYoutubeHtmlRateLimited(now = Date.now()) {
+    return now < youtubeHtmlRateLimitUntil;
+}
+
+function recordYoutubeRateLimit(error, contextLabel) {
+    if (error?.response?.status === 429) {
+        const wasLimited = isYoutubeHtmlRateLimited();
+        youtubeHtmlRateLimitUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+        if (!wasLimited) {
+            console.warn(
+                `[YouTube Tracker] Rate limited (429) during ${contextLabel}; `
+                + `pausing HTML scrapes for ${Math.round(RATE_LIMIT_COOLDOWN_MS / 60000)}m`
+            );
+        }
+        return true;
+    }
+    return false;
+}
+
+function setPremiereCache(videoId, data, ttlMs) {
+    if (premiereDetailsCache.size >= MAX_PREMIERE_CACHE_SIZE && !premiereDetailsCache.has(videoId)) {
+        const oldestKey = premiereDetailsCache.keys().next().value;
+        if (oldestKey !== undefined) {
+            premiereDetailsCache.delete(oldestKey);
+        }
+    }
+    premiereDetailsCache.set(videoId, {
+        data,
+        expiresAt: Date.now() + ttlMs
+    });
+}
 
 function decodeXml(value = '') {
     return value
@@ -78,7 +118,19 @@ function getVideoStatus(item) {
     return 'unknown';
 }
 
+function isOldArchiveVideo(video, now = Date.now()) {
+    if (!video?.publishedAt) {
+        return false;
+    }
+    const publishedMs = new Date(video.publishedAt).getTime();
+    return Number.isFinite(publishedMs) && (now - publishedMs) > OLD_VIDEO_COMPLETED_AGE_MS;
+}
+
 async function fetchChannelLivePage(channelId) {
+    if (isYoutubeHtmlRateLimited()) {
+        return null;
+    }
+
     try {
         const response = await axios.get(`https://www.youtube.com/channel/${channelId}/live`, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -102,12 +154,40 @@ async function fetchChannelLivePage(channelId) {
             scheduledStartTime: startTimestamp
         };
     } catch (error) {
-        console.error('[YouTube Tracker] Channel live page lookup failed:', error.message);
+        if (!recordYoutubeRateLimit(error, `channel live lookup (${channelId})`)) {
+            console.error('[YouTube Tracker] Channel live page lookup failed:', error.message);
+        }
         return null;
     }
 }
 
 async function fetchPremiereDetails(video) {
+    // Already enriched by YouTube Data API (status known) — no HTML scrape needed.
+    if (video?.status && video.status !== 'unknown') {
+        return video;
+    }
+
+    // Old archive videos published > 48h ago are already completed; avoid useless HTML scraping
+    // that triggers YouTube 429 rate limits from VPS IPs.
+    if (isOldArchiveVideo(video)) {
+        return {
+            ...video,
+            status: 'completed'
+        };
+    }
+
+    const cached = video?.videoId ? premiereDetailsCache.get(video.videoId) : null;
+    if (cached && cached.expiresAt > Date.now()) {
+        return {
+            ...video,
+            ...cached.data
+        };
+    }
+
+    if (isYoutubeHtmlRateLimited()) {
+        return video;
+    }
+
     try {
         const response = await axios.get(video.url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -147,14 +227,27 @@ async function fetchPremiereDetails(video) {
             status = 'completed';
         }
 
-        return {
-            ...video,
+        const details = {
             status,
             scheduledStartTime,
             thumbnailUrl
         };
+
+        if (video?.videoId) {
+            const ttlMs = status === 'completed'
+                ? PREMIERE_COMPLETED_CACHE_TTL_MS
+                : PREMIERE_ACTIVE_CACHE_TTL_MS;
+            setPremiereCache(video.videoId, details, ttlMs);
+        }
+
+        return {
+            ...video,
+            ...details
+        };
     } catch (error) {
-        console.error(`[YouTube Tracker] Premiere lookup failed for ${video.videoId}:`, error.message);
+        if (!recordYoutubeRateLimit(error, `premiere lookup (${video.videoId})`)) {
+            console.error(`[YouTube Tracker] Premiere lookup failed for ${video.videoId}:`, error.message);
+        }
         return video;
     }
 }
@@ -170,6 +263,10 @@ async function resolveChannelId(channel) {
 
     if (channelIdCache.has(channel.handle)) {
         return channelIdCache.get(channel.handle);
+    }
+
+    if (isYoutubeHtmlRateLimited()) {
+        return null;
     }
 
     try {
@@ -188,7 +285,9 @@ async function resolveChannelId(channel) {
 
         return channelId;
     } catch (error) {
-        console.error(`[YouTube Tracker] Could not resolve @${channel.handle}:`, error.message);
+        if (!recordYoutubeRateLimit(error, `handle lookup (@${channel.handle})`)) {
+            console.error(`[YouTube Tracker] Could not resolve @${channel.handle}:`, error.message);
+        }
         return null;
     }
 }
@@ -261,7 +360,11 @@ async function fetchChannelLivestreamOutcome(channel) {
             return { ok: true, stream: null };
         }
 
-        const channelLive = await fetchChannelLivePage(channelId);
+        // Only query /channel/:id/live if at least one candidate is not already completed.
+        const hasPendingCandidate = candidates.some(video => video.status !== 'completed');
+        const channelLive = hasPendingCandidate
+            ? await fetchChannelLivePage(channelId)
+            : null;
         const candidate = candidates.find(video => {
             if (!channelLive?.url) {
                 return false;
@@ -334,6 +437,8 @@ async function fetchYoutubeLivestreams(game) {
 function clearYoutubeCache() {
     livestreamCache.clear();
     channelIdCache.clear();
+    premiereDetailsCache.clear();
+    youtubeHtmlRateLimitUntil = 0;
 }
 
 async function getOfficialChannelLinks(game) {
@@ -370,7 +475,9 @@ module.exports = {
     fetchYoutubeLivestreams,
     fetchYoutubeLivestream,
     getOfficialChannelLinks,
+    isOldArchiveVideo,
     isSpecialProgramVideo,
+    isYoutubeHtmlRateLimited,
     parseYoutubeFeed,
     resolveChannelId
 };

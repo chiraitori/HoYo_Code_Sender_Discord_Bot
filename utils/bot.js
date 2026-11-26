@@ -1524,7 +1524,10 @@ async function registerCommands() {
 // shard so ShardingManager can respawn it instead of leaving a zombie process.
 async function connectServices() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
+        await mongoose.connect(process.env.MONGODB_URI, {
+            compressors: ['zlib'],
+            maxPoolSize: 10
+        });
         console.log('Connected to MongoDB');
         await client.login(process.env.DISCORD_TOKEN);
     } catch (error) {

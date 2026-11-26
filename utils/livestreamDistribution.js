@@ -342,10 +342,23 @@ async function distributeIfReady(client, game, version = null, codes = null) {
             codes: distributionCodes
         };
 
-        // Get all guilds with auto-send enabled
+        // Get all guilds with auto-send enabled (project only fields needed for distribution)
         const [allConfigs, allSettings] = await Promise.all([
-            Config.find({}).sort({ _id: 1 }).lean(),
-            Settings.find({}).sort({ _id: 1 }).lean(),
+            Config.find({}, {
+                guildId: 1,
+                channel: 1,
+                livestreamChannel: 1,
+                forumThreads: 1,
+                genshinRole: 1,
+                hsrRole: 1,
+                zzzRole: 1
+            }).sort({ _id: 1 }).lean(),
+            Settings.find({}, {
+                guildId: 1,
+                autoSendEnabled: 1,
+                autoSendOptions: 1,
+                favoriteGames: 1
+            }).sort({ _id: 1 }).lean(),
             preloadLanguageCache()
         ]);
         const duplicateConfigs = countDuplicateGuildRecords(allConfigs);
