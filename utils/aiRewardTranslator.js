@@ -51,13 +51,15 @@ function getResponseText(responseData) {
 }
 
 async function requestAiTranslations(names, language, httpClient = axios) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = typeof process.env.GEMINI_API_KEY === 'string'
+        ? process.env.GEMINI_API_KEY.trim()
+        : '';
     if (!apiKey || names.length === 0 || language === 'en') {
         return new Map();
     }
 
     const targetLanguage = LANGUAGE_NAMES[language] || LANGUAGE_NAMES.en;
-    const model = process.env.GEMINI_REWARD_MODEL || 'gemini-3.5-flash-lite';
+    const model = (process.env.GEMINI_REWARD_MODEL || 'gemini-3.5-flash-lite').trim();
     const safeNames = names
         .slice(0, 20)
         .map(name => String(name).replace(/[\r\n]+/g, ' ').trim().slice(0, 120));
@@ -80,29 +82,25 @@ async function requestAiTranslations(names, language, httpClient = axios) {
             }],
             generationConfig: {
                 maxOutputTokens: 500,
-                responseFormat: {
-                    text: {
-                        mimeType: 'application/json',
-                        schema: {
-                            type: 'object',
-                            properties: {
-                                translations: {
-                                    type: 'array',
-                                    items: {
-                                        type: 'object',
-                                        properties: {
-                                            source: { type: 'string' },
-                                            translated: { type: 'string' }
-                                        },
-                                        required: ['source', 'translated'],
-                                        additionalProperties: false
-                                    }
-                                }
-                            },
-                            required: ['translations'],
-                            additionalProperties: false
-                        },
-                    }
+                responseMimeType: 'application/json',
+                responseJsonSchema: {
+                    type: 'object',
+                    properties: {
+                        translations: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    source: { type: 'string' },
+                                    translated: { type: 'string' }
+                                },
+                                required: ['source', 'translated'],
+                                additionalProperties: false
+                            }
+                        }
+                    },
+                    required: ['translations'],
+                    additionalProperties: false
                 }
             }
         },
@@ -179,9 +177,10 @@ async function translateRewardWithAi(reward, language, httpClient = axios) {
             }
             if (!warnedUnavailable) {
                 warnedUnavailable = true;
+                const detail = error.response?.data?.error?.message || error.message;
                 console.warn(
                     '[Reward Translation] AI unavailable; using dictionary fallback:',
-                    error.message
+                    detail
                 );
             }
         }

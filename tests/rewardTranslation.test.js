@@ -58,8 +58,12 @@ test('AI translates only unknown item names and preserves quantities', async () 
           + 'gemini-3.5-flash-lite:generateContent'
       );
       assert.strictEqual(
-        body.generationConfig.responseFormat.text.mimeType,
+        body.generationConfig.responseMimeType,
         'application/json'
+      );
+      assert.strictEqual(
+        body.generationConfig.responseJsonSchema.type,
+        'object'
       );
       return {
         data: {
