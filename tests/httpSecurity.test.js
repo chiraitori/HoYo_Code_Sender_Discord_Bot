@@ -6,6 +6,9 @@ const {
     getAllowedOrigins,
     createCorsOptions,
     securityHeadersMiddleware,
+    createPublicLimiter,
+    createDashboardApiLimiter,
+    createServerActionLimiter,
     jsonBodyErrorHandler
 } = require('../utils/httpSecurity');
 
@@ -74,4 +77,13 @@ test('jsonBodyErrorHandler cleanly handles malformed JSON and oversized payloads
     const res2 = makeRes();
     jsonBodyErrorHandler({ type: 'entity.too.large' }, {}, res2, () => {});
     assert.strictEqual(res2.code, 413);
+});
+
+test('rate limiters initialize cleanly without express-rate-limit validation errors', () => {
+    assert.strictEqual(typeof createPublicLimiter(), 'function');
+    assert.strictEqual(typeof createDashboardApiLimiter(), 'function');
+    assert.strictEqual(
+        typeof createServerActionLimiter({ windowMs: 60_000, max: 5, message: 'Too many' }),
+        'function'
+    );
 });

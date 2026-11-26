@@ -134,7 +134,7 @@ function createDashboardApiLimiter(env = process.env) {
             return `ip:${req.ip}`;
         },
         message: { error: 'Too Many Requests', message: 'Dashboard API rate limit exceeded.' },
-        validate: { xForwardedForHeader: false, keyGeneratorIpFallback: false }
+        validate: { xForwardedForHeader: false }
     });
 }
 
@@ -146,7 +146,7 @@ function createServerActionLimiter({ windowMs, max, message }) {
         legacyHeaders: false,
         keyGenerator: (req) => `action:${req.params?.serverId || req.ip}`,
         message: { error: 'Too Many Requests', message },
-        validate: { xForwardedForHeader: false, keyGeneratorIpFallback: false }
+        validate: { xForwardedForHeader: false }
     });
 }
 

@@ -105,15 +105,20 @@ async function checkGame(client, game) {
     const currentTime = Math.floor(Date.now() / 1000);
     const maxSearchAge = getDistributionWindowSeconds();
     if (isTrackingPastDistributionWindow(tracking, currentTime, maxSearchAge)) {
-        console.log(
-            `[Livestream Checker] ${game} tracking is outside the 24-hour window; `
-            + 'closing it without distribution'
-        );
-        tracking.distributed = true;
-        if (client.user?.id && !tracking.distributedBots?.includes(client.user.id)) {
-            tracking.distributedBots = [...(tracking.distributedBots || []), client.user.id];
+        const botId = client.user?.id;
+        const alreadyClosed = Boolean(tracking.distributed)
+            && (!botId || tracking.distributedBots?.includes(botId));
+        if (!alreadyClosed) {
+            console.log(
+                `[Livestream Checker] ${game} tracking is outside the 24-hour window; `
+                + 'closing it without distribution'
+            );
+            tracking.distributed = true;
+            if (botId && !tracking.distributedBots?.includes(botId)) {
+                tracking.distributedBots = [...(tracking.distributedBots || []), botId];
+            }
+            await tracking.save();
         }
-        await tracking.save();
         return;
     }
 

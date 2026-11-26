@@ -318,8 +318,9 @@ async function checkAndSendNewCodes(client) {
             throw new Error('Cannot check codes before the bot is ready');
         }
 
-        // Batch fetch all existing codes
-        const allExistingCodes = await Code.find({}).lean();
+        // Batch fetch only lightweight code fields needed for discovery & expiration checks
+        // (avoids pulling hundreds of thousands of notifiedTargets strings into RAM every 5 min).
+        const allExistingCodes = await Code.find({}, { game: 1, code: 1, isExpired: 1 }).lean();
         const existingCodesMap = new Map(
             allExistingCodes.map(code => [normalizeCodeKey(code.game, code.code), code])
         );
